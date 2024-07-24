@@ -1,0 +1,86 @@
+package main
+
+import "strconv"
+
+css border() {
+	border: 1px solid #eeeeee;
+	border-radius: 4px;
+	margin: 10px;
+	padding-top: 10px;
+	padding-bottom: 10px;
+}
+
+templ counts(global, session int) {
+	<form id="countsForm" hx-post="/" hx-select="#countsForm" hx-swap="outerHTML">
+		<p>
+			{ strconv.Itoa(global) }
+			Global 
+			<button type="submit" name="global" value="global">+1</button>
+		</p>
+		<p>
+			{ strconv.Itoa(session) }
+			Session
+			<button type="submit" name="session" value="session">+1</button>
+		</p>
+	</form>
+}
+
+templ uploadFileForm(id string) {
+	<form hx-post={ "/id/" + id + "/upload" } enctype="multipart/form-data" hx-swap="outerHTML">
+		<input type="file" name="file"/>
+		<button type="submit">Upload</button>
+	</form>
+}
+
+// The uploadFileFormCompleted template is used to display a message after the file upload is completed.
+// The success parameter is a boolean that indicates whether the upload was successful or not.
+// The message parameter is a string that contains the message to display.
+templ uploadFileFormCompleted(id string, success bool, message string) {
+	if success {
+		<p>File Upload Successful</p>
+		@downloadFile(id)
+	} else {
+		<p>File Upload Failed. Error: {message} </p>
+	}
+}
+
+templ downloadFile(id string) {
+	<a href={ templ.URL("/id/" + id + "/download") }>Download File </a>
+}
+
+templ rootIdPage(id string, validId bool, fileUploaded bool, name string) {
+	@header()
+	<p>ID: { id } </p>
+	if validId {
+		if fileUploaded {
+			<h2>File uploaded </h2>
+			<h3>Name: { name } </h3>
+			<div>
+				@downloadFile(id)
+			</div>
+		} else {
+			<h2>Upload File</h2>
+			<div>
+				@uploadFileForm(id)
+			</div>
+		}
+	} else {
+		<h2>Uploads not allowed</h2>
+		<p>The server does not allow uploads to this ID </p>
+	}
+}
+
+templ header() {
+	<head>
+		<script src="https://unpkg.com/htmx.org@2.0.1"></script>
+	</head>
+}
+
+templ rootPage(global, user int) {
+	@header()
+	@counts(global, user)
+	<div>
+		<h1>Welcome!</h1>
+		<p>This is a simple example of a web application using the templ templating language.</p>
+	</div>
+}

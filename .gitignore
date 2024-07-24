@@ -19,3 +19,15 @@
 
 # Go workspace file
 go.work
+
+# Build artifacts
+tmp/
+
+# Generated files
+*_templ.go
+
+# Credentials
+token.key
+
+# Preformance profiling
+*.pprof
