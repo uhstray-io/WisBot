@@ -7,6 +7,8 @@ import (
 	"runtime"
 )
 
+var TempFiles []*TempFile
+
 type TempFile struct {
 	Name     string
 	Id       string // uuid

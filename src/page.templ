@@ -26,7 +26,7 @@ templ counts(global, session int) {
 }
 
 templ uploadFileForm(id string) {
-	<form hx-post={ "/id/" + id + "/upload" } enctype="multipart/form-data" hx-swap="outerHTML">
+	<form hx-post={ templ.URL("/id/" + id + "/upload") } enctype="multipart/form-data" hx-swap="outerHTML">
 		<input type="file" name="file"/>
 		<button type="submit">Upload</button>
 	</form>
@@ -40,7 +40,7 @@ templ uploadFileFormCompleted(id string, success bool, message string) {
 		<p>File Upload Successful</p>
 		@downloadFile(id)
 	} else {
-		<p>File Upload Failed. Error: {message} </p>
+		<p>File Upload Failed. Error: { message } </p>
 	}
 }
 

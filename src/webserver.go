@@ -11,7 +11,7 @@ import (
 
 var global GlobalState
 var sessionManager *scs.SessionManager
-var TempFiles []*TempFile
+
 var URL = "67.82.34.222"
 
 type GlobalState struct {

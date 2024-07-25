@@ -138,7 +138,7 @@ func parseCommand(sess *discordgo.Session, message *discordgo.MessageCreate, mes
 	}
 
 	if message.Content == "upload" {
-		uuid, _ := uuid.NewV6()
+		uuid := uuid.New()
 		// fmt.Println("UUID", uuid.String())
 
 		TempFiles = append(TempFiles, &TempFile{Id: uuid.String()})
