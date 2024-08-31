@@ -3,6 +3,10 @@
 
 A bot for the automation of things
 
+## Diagrams
+![diagram](./diagrams/userflow.excalidraw.png)
+
+
 ## Commands
 
 `/wis help` - Shows the help message
