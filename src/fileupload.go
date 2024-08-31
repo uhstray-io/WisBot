@@ -1,42 +1,30 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
-	"runtime"
 )
-
-var TempFiles []*TempFile
-
-type TempFile struct {
-	Name     string
-	Id       string // uuid
-	Uploaded bool   // Shows if the file has been uploaded or not
-
-	Data []byte
-	Size int
-}
 
 func getId(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
-	// Grab the file.
-	var file *TempFile
-	for _, tempfile := range TempFiles {
-		if tempfile.Id == id {
-			file = tempfile
-			break
-		}
-	}
+	// Grab the file where the ID matches.
+	file := &File{}
+	err := db.QueryRow("SELECT Name, Uploaded FROM File WHERE Id = ?", id).Scan(&file.Name, &file.Uploaded)
 
-	if file == nil {
+	if err != nil && err == sql.ErrNoRows {
 		component := rootIdPage(id, false, false, "File Not Found")
 		component.Render(r.Context(), w)
-	} else {
-		component := rootIdPage(id, true, file.Uploaded, file.Name)
-		component.Render(r.Context(), w)
 	}
+
+	if err != nil {
+		fmt.Println("Error in getId", err)
+	}
+
+	component := rootIdPage(id, true, file.Uploaded, file.Name)
+	component.Render(r.Context(), w)
 }
 
 func postIdUploadFile(w http.ResponseWriter, r *http.Request) {
@@ -45,23 +33,22 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("uploading file")
 	fmt.Println(r.Header.Get("HX-Request"))
 
-	// Check if the ID exists
-	var file *TempFile
-	for _, tempfile := range TempFiles {
-		if tempfile.Id == id && !tempfile.Uploaded {
-			file = tempfile
-			break
-		}
-	}
+	// Check if the ID exists and the file has not been uploaded.
+	file := &File{}
+	err := db.QueryRow("SELECT Id FROM File WHERE Id = ? AND Uploaded = False", id).Scan(&file.Id)
 
-	if file == nil {
-		// http.Error(w, "file not found", http.StatusNotFound)
+	// If the Id exists, and the file has not been uploaded, then continue.
+	if err == sql.ErrNoRows {
 		uploadFileFormCompleted(id, false, "File not found.").Render(r.Context(), w)
 		return
 	}
 
-	// Handle the file upload.
-	// 100MB max file size.
+	// If there is an error, print it out
+	if err != nil {
+		fmt.Println("Error", err)
+	}
+
+	// Handle the file upload - 100MB max file size.
 	var size int64 = 100 * 1024 * 1024
 	fmt.Println("Size", size)
 	if err := r.ParseMultipartForm(size); err != nil {
@@ -72,7 +59,6 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) {
 
 	f, fh, err := r.FormFile("file")
 	if err != nil {
-		// http.Error(w, "unable to read file", http.StatusBadRequest)
 		uploadFileFormCompleted(id, false, "Unable to read file.").Render(r.Context(), w)
 		return
 	}
@@ -82,7 +68,6 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) {
 	buff, _ := io.ReadAll(io.LimitReader(f, size))
 
 	if len(buff) == int(size) {
-		// http.Error(w, "file too large", http.StatusBadRequest)
 		uploadFileFormCompleted(id, false, "File too large.").Render(r.Context(), w)
 		return
 	}
@@ -97,23 +82,36 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) {
 	file.Uploaded = true
 	fmt.Println("File Uploaded:", file.Name)
 
+	// Update the file in the database.
+	_, err = db.Exec("UPDATE File SET Name = ?, Data = ?, Size = ?, Uploaded = ? WHERE Id = ?", file.Name, file.Data, file.Size, file.Uploaded, id)
+
+	if err != nil {
+		fmt.Println("Error", err)
+		uploadFileFormCompleted(id, false, "Unable to update file.").Render(r.Context(), w)
+		return
+	}
+
 	uploadFileFormCompleted(id, true, "").Render(r.Context(), w)
 
-	runtime.GC()
 }
 
 func getIdDownloadFile(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
-	for _, file := range TempFiles {
-		if file.Id == id {
-			w.Header().Set("Content-Disposition", "attachment; filename="+file.Name)
-			w.Header().Set("Content-Type", "application/octet-stream")
-			w.Header().Set("Content-Length", fmt.Sprintf("%d", file.Size))
-			w.Write(file.Data)
-			return
+	// Grab the file where the ID matches.
+	file := &File{}
+	err := db.QueryRow("SELECT Name, Data, Size FROM File WHERE Id = ?", id).Scan(&file.Name, &file.Data, &file.Size)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "file not found", http.StatusNotFound)
 		}
+		fmt.Println("Error", err)
+		return
 	}
 
-	http.Error(w, "file not found", http.StatusNotFound)
+	w.Header().Set("Content-Disposition", "attachment; filename="+file.Name)
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", file.Size))
+	w.Write(file.Data)
 }

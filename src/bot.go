@@ -139,9 +139,12 @@ func parseCommand(sess *discordgo.Session, message *discordgo.MessageCreate, mes
 
 	if message.Content == "upload" {
 		uuid := uuid.New()
-		// fmt.Println("UUID", uuid.String())
 
-		TempFiles = append(TempFiles, &TempFile{Id: uuid.String()})
+		_, err := db.Exec("INSERT INTO File (ID, Uploaded, DiscordUsername, Name) VALUES (?, ?, ?, ?)", uuid.String(), false, message.Author.Username, "")
+
+		if err != nil {
+			fmt.Println("Error in parseCommand", err)
+		}
 
 		mess := fmt.Sprintf("Here is the link: http://"+URL+":8000/id/%s", uuid.String())
 		sess.ChannelMessageSend(message.ChannelID, mess)

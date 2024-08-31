@@ -5,9 +5,16 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 func main() {
+	db, err := initDatabase("database.db")
+	PanicOnError(err)
+	defer db.Close()
+
 	go StartBot()
 	go WebServer()
 

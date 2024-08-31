@@ -50,7 +50,9 @@ templ downloadFile(id string) {
 
 templ rootIdPage(id string, validId bool, fileUploaded bool, name string) {
 	@header()
+
 	<p>ID: { id } </p>
+	
 	if validId {
 		if fileUploaded {
 			<h2>File uploaded </h2>

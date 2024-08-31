@@ -31,3 +31,5 @@ token.key
 
 # Preformance profiling
 *.pprof
+
+database.db
