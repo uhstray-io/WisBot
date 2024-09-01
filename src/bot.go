@@ -115,6 +115,12 @@ func messageCreate(sess *discordgo.Session, message *discordgo.MessageCreate) {
 	fmt.Println("Author", message.Author)
 	fmt.Println("Content", message.Content)
 
+	fmt.Println("message.Author.Username", message.Author.Username)
+	fmt.Println("message.Author.Discriminator", message.Author.Discriminator)
+	fmt.Println("message.Author.ID", message.Author.ID)
+	fmt.Println("message.Author.GlobalName", message.Author.GlobalName)
+	fmt.Println("message.Author.String()", message.Author.String())
+
 	messageProperties := &messageProperties{}
 
 	// Simple Commands
