@@ -33,3 +33,4 @@ token.key
 *.pprof
 
 database.db
+config.yaml

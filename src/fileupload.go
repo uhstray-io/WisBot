@@ -114,4 +114,6 @@ func getIdDownloadFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", file.Size))
 	w.Write(file.Data)
+
+	db.Exec("UPDATE File SET Downloads = Downloads + 1 WHERE Id = ?", id)
 }

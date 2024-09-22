@@ -20,12 +20,14 @@ type File struct {
 	Name string // Name can not be null in sqlite, it should always be set to "" if not used.
 	Data []byte
 	Size int
+
+	Downloads int
 }
 
-func initDatabase(dbPath string) (*sql.DB, error) {
+func initDatabase() (*sql.DB, error) {
 	var err error
 
-	db, err = sql.Open("sqlite", dbPath)
+	db, err = sql.Open("sqlite", config.DataBaseName)
 	if err != nil {
 		return nil, err
 	}
@@ -41,12 +43,15 @@ func initDatabase(dbPath string) (*sql.DB, error) {
 
 			Name TEXT NOT NULL, 
 			Data BLOB,
-			Size INTEGER
+			Size INTEGER,
+
+			Downloads INTEGER DEFAULT 0
 		)`,
 	)
 
 	if err != nil {
 		return nil, err
 	}
+
 	return db, nil
 }

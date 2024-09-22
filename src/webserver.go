@@ -12,8 +12,6 @@ import (
 var global GlobalState
 var sessionManager *scs.SessionManager
 
-var URL = "67.82.34.222"
-
 type GlobalState struct {
 	Count int
 }
@@ -69,8 +67,8 @@ func WebServer() {
 	muxWithSessionMiddleware := sessionManager.LoadAndSave(mux)
 
 	// Start the server.
-	fmt.Println("listening on http://" + URL + ":8000")
-	if err := http.ListenAndServe(":8000", muxWithSessionMiddleware); err != nil {
+	fmt.Println("listening on http://" + config.IpAddr + ":" + config.Port)
+	if err := http.ListenAndServe(":"+config.Port, muxWithSessionMiddleware); err != nil {
 		log.Printf("error listening: %v", err)
 	}
 }

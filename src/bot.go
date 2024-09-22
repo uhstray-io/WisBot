@@ -1,9 +1,7 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 
@@ -11,26 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
-func readToken() (string, error) {
-	// Read fileData from file
-	fileData, err := os.ReadFile("token.key")
-	if err != nil {
-		return "", errors.New("error encountered while reading token file. please make sure that token.key exists in the same directory as the executable")
-	}
-
-	token := string(fileData)
-	return token, nil
-}
-
 func StartBot() {
-	token, err := readToken()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
 	fmt.Println("Starting bot...")
-	discord, err := discordgo.New("Bot " + token)
+	discord, err := discordgo.New("Bot " + config.DiscordToken)
 	if err != nil {
 		print("Error encountered while creating Discord session. ", err)
 		return
@@ -152,8 +133,9 @@ func parseCommand(sess *discordgo.Session, message *discordgo.MessageCreate, mes
 			fmt.Println("Error in parseCommand", err)
 		}
 
-		mess := fmt.Sprintf("Here is the link: http://"+URL+":8000/id/%s", uuid.String())
+		mess := fmt.Sprintf("Here is the link: http://"+config.IpAddr+":"+config.Port+"/id/%s", uuid.String())
 		sess.ChannelMessageSend(message.ChannelID, mess)
+		return
 	}
 
 	if messageProperties.IsPrivate {
