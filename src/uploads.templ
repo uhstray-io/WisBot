@@ -1,0 +1,60 @@
+package main
+
+css border() {
+	border: 1px solid #eeeeee;
+	border-radius: 4px;
+	border-width: 2px;
+	padding: 10px;
+	width: 40%;
+}
+
+css center() {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+templ rootIdPage(file *File) {
+	@header()
+	<div class={ center() }>
+		<div class={ border() }>
+			if file != nil {
+				<p>ID: { file.Id } </p>
+				if file.Uploaded {
+					<h2>File uploaded </h2>
+					<h3>Name: { file.Name } </h3>
+					@downloadFile(file)
+				} else {
+					<h2>Upload File</h2>
+					@uploadFileForm(file)
+				}
+			} else {
+				<h2>File not found</h2>
+				<p>The file with the specified ID was not found.</p>
+			}
+		</div>
+	</div>
+}
+
+templ uploadFileForm(file *File) {
+	<form hx-post={ "/id/" + file.Id + "/upload" } enctype="multipart/form-data" hx-swap="outerHTML">
+		<input type="file" name="file"/>
+		<button type="submit">Upload</button>
+	</form>
+}
+
+// The uploadFileFormCompleted template is used to display a message after the file upload is completed.
+// The success parameter is a boolean that indicates whether the upload was successful or not.
+// The message parameter is a string that contains the message to display.
+templ uploadFileFormCompleted(file *File, success bool, message string) {
+	if success {
+		<p>File Upload Successful</p>
+		@downloadFile(file)
+	} else {
+		<p>File Upload Failed. Error: { message } </p>
+	}
+}
+
+templ downloadFile(file *File) {
+	<a href={ templ.URL("/id/" + file.Id + "/download") }>Download File </a>
+}

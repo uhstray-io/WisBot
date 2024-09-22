@@ -12,18 +12,19 @@ func getId(w http.ResponseWriter, r *http.Request) {
 
 	// Grab the file where the ID matches.
 	file := &File{}
-	err := db.QueryRow("SELECT Name, Uploaded FROM File WHERE Id = ?", id).Scan(&file.Name, &file.Uploaded)
+	err := db.QueryRow("SELECT Id, Name, Uploaded FROM File WHERE Id = ?", id).Scan(&file.Id, &file.Name, &file.Uploaded)
 
 	if err != nil && err == sql.ErrNoRows {
-		component := rootIdPage(id, false, false, "File Not Found")
+		component := rootIdPage(nil)
 		component.Render(r.Context(), w)
+		return
 	}
 
 	if err != nil {
 		fmt.Println("Error in getId", err)
 	}
 
-	component := rootIdPage(id, true, file.Uploaded, file.Name)
+	component := rootIdPage(file)
 	component.Render(r.Context(), w)
 }
 
@@ -39,7 +40,7 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) {
 
 	// If the Id exists, and the file has not been uploaded, then continue.
 	if err == sql.ErrNoRows {
-		uploadFileFormCompleted(id, false, "File not found.").Render(r.Context(), w)
+		uploadFileFormCompleted(nil, false, "File not found.").Render(r.Context(), w)
 		return
 	}
 
@@ -52,14 +53,13 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) {
 	var size int64 = 100 * 1024 * 1024
 	fmt.Println("Size", size)
 	if err := r.ParseMultipartForm(size); err != nil {
-		// http.Error(w, "unable to parse form", http.StatusBadRequest)
-		uploadFileFormCompleted(id, false, "Unable to parse form.").Render(r.Context(), w)
+		uploadFileFormCompleted(file, false, "Unable to parse form.").Render(r.Context(), w)
 		return
 	}
 
 	f, fh, err := r.FormFile("file")
 	if err != nil {
-		uploadFileFormCompleted(id, false, "Unable to read file.").Render(r.Context(), w)
+		uploadFileFormCompleted(file, false, "Unable to read file.").Render(r.Context(), w)
 		return
 	}
 	defer f.Close()
@@ -68,7 +68,7 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) {
 	buff, _ := io.ReadAll(io.LimitReader(f, size))
 
 	if len(buff) == int(size) {
-		uploadFileFormCompleted(id, false, "File too large.").Render(r.Context(), w)
+		uploadFileFormCompleted(file, false, "File too large.").Render(r.Context(), w)
 		return
 	}
 
@@ -87,11 +87,11 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		fmt.Println("Error", err)
-		uploadFileFormCompleted(id, false, "Unable to update file.").Render(r.Context(), w)
+		uploadFileFormCompleted(file, false, "Unable to update file.").Render(r.Context(), w)
 		return
 	}
 
-	uploadFileFormCompleted(id, true, "").Render(r.Context(), w)
+	uploadFileFormCompleted(file, true, "").Render(r.Context(), w)
 
 }
 
