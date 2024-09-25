@@ -125,16 +125,7 @@ func parseCommand(sess *discordgo.Session, message *discordgo.MessageCreate, mes
 	}
 
 	if message.Content == "upload" {
-		uuid := uuid.New()
-
-		_, err := db.Exec("INSERT INTO File (ID, Uploaded, DiscordUsername, Name) VALUES (?, ?, ?, ?)", uuid.String(), false, message.Author.Username, "")
-
-		if err != nil {
-			fmt.Println("Error in parseCommand", err)
-		}
-
-		mess := fmt.Sprintf("Here is the link: http://"+config.IpAddr+":"+config.Port+"/id/%s", uuid.String())
-		sess.ChannelMessageSend(message.ChannelID, mess)
+		uploadCommand(message, sess)
 		return
 	}
 
@@ -155,4 +146,32 @@ func parseCommand(sess *discordgo.Session, message *discordgo.MessageCreate, mes
 	if message.Content == "pong" {
 		sess.ChannelMessageSend(message.ChannelID, "Ping!")
 	}
+}
+
+func uploadCommand(message *discordgo.MessageCreate, sess *discordgo.Session) {
+	uuid := uuid.New()
+
+	// Count the number of files the user has uploaded.
+	var count int
+	err3 := db.QueryRow("SELECT COUNT(*) FROM File WHERE DiscordUsername = ?", message.Author.Username).Scan(&count)
+	if err3 != nil {
+		fmt.Println("Error counting files.", err3.Error())
+	}
+
+	// Remove the oldest files if the user has uploaded too many.
+	if count >= config.MaxFilesPerUser {
+		_, err1 := db.Exec("DELETE FROM File WHERE ROWID IN ( SELECT ROWID FROM File WHERE DiscordUsername = ? ORDER BY CreatedAt LIMIT ?)", message.Author.Username, count-config.MaxFilesPerUser+1)
+		if err1 != nil {
+			fmt.Println("Error removing old files.", err1.Error())
+		}
+	}
+
+	// Insert the new file.
+	_, err2 := db.Exec("INSERT INTO File (ID, Uploaded, DiscordUsername, Name) VALUES (?, ?, ?, ?)", uuid.String(), false, message.Author.Username, "empty file")
+	if err2 != nil {
+		fmt.Println("Error when adding UUID to DB.", err2.Error())
+	}
+
+	mess := fmt.Sprintf("Here is the link: http://%s:%s/id/%s", config.Server.IpAddr, config.Server.Port, uuid.String())
+	sess.ChannelMessageSend(message.ChannelID, mess)
 }

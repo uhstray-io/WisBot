@@ -15,18 +15,25 @@ import (
 var config *Config
 
 type Config struct {
-	IpAddr string `yaml:"ip"`
-	Port   string `yaml:"port"`
+	Server struct {
+		IpAddr string `yaml:"ip"`
+		Port   string `yaml:"port"`
+	} `yaml:"server"`
 
-	DiscordToken string `yaml:"discord_token"`
-	DataBaseName string `yaml:"database_name"`
+	Database struct {
+		Type string `yaml:"type"`
+		Name string `yaml:"name"`
+	} `yaml:"database"`
+
+	DiscordToken    string `yaml:"discord_token"`
+	MaxFilesPerUser int    `yaml:"max_files_per_user"`
 }
 
 func LoadConfig(filename string) {
 	// This function will fail if the file doesn't exist.
 	file, err := os.Open(filename)
 
-	c := &Config{}
+	localConfig := &Config{}
 
 	// If the file doesn't exist, create it and write the default config to it
 	if err != nil {
@@ -39,13 +46,15 @@ func LoadConfig(filename string) {
 		}
 		defer file_new.Close()
 
-		c.IpAddr = "127.0.0.1"
-		c.Port = "8080"
-		c.DiscordToken = "YOUR_DISCORD_TOKEN"
-		c.DataBaseName = "database.db"
+		localConfig.Server.IpAddr = "127.0.0.1"
+		localConfig.Server.Port = "8080"
+		localConfig.Database.Type = "sqlite"
+		localConfig.Database.Name = "database.db"
+		localConfig.DiscordToken = "YOUR_DISCORD_TOKEN"
+		localConfig.MaxFilesPerUser = 3
 
 		// Write the default config to the file
-		err = yaml.NewEncoder(file_new).Encode(c)
+		err = yaml.NewEncoder(file_new).Encode(localConfig)
 		if err != nil {
 			fmt.Println("Error writing default config to file", err.Error())
 		}
@@ -53,14 +62,14 @@ func LoadConfig(filename string) {
 	}
 	defer file.Close()
 
-	err = yaml.NewDecoder(file).Decode(c)
+	err = yaml.NewDecoder(file).Decode(localConfig)
 
 	if err != nil {
 		fmt.Println("Error decoding config file", err.Error())
 		os.Exit(1)
 	}
 
-	config = c
+	config = localConfig
 }
 
 func main() {

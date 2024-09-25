@@ -67,8 +67,8 @@ func WebServer() {
 	muxWithSessionMiddleware := sessionManager.LoadAndSave(mux)
 
 	// Start the server.
-	fmt.Println("listening on http://" + config.IpAddr + ":" + config.Port)
-	if err := http.ListenAndServe(":"+config.Port, muxWithSessionMiddleware); err != nil {
+	fmt.Println("listening on http://" + config.Server.IpAddr + ":" + config.Server.Port)
+	if err := http.ListenAndServe(":"+config.Server.Port, muxWithSessionMiddleware); err != nil {
 		log.Printf("error listening: %v", err)
 	}
 }

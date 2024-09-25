@@ -27,7 +27,7 @@ type File struct {
 func initDatabase() (*sql.DB, error) {
 	var err error
 
-	db, err = sql.Open("sqlite", config.DataBaseName)
+	db, err = sql.Open(config.Database.Type, config.Database.Name)
 	if err != nil {
 		return nil, err
 	}
