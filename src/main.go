@@ -25,8 +25,9 @@ type Config struct {
 		Name string `yaml:"name"`
 	} `yaml:"database"`
 
-	DiscordToken    string `yaml:"discord_token"`
-	MaxFilesPerUser int    `yaml:"max_files_per_user"`
+	DiscordToken         string `yaml:"discord_token"`
+	MaxFilesPerUser      int    `yaml:"max_files_per_user"`
+	DeleteFilesAfterDays int    `yaml:"delete_files_after_days"`
 }
 
 func LoadConfig(filename string) {
@@ -52,6 +53,7 @@ func LoadConfig(filename string) {
 		localConfig.Database.Name = "database.db"
 		localConfig.DiscordToken = "YOUR_DISCORD_TOKEN"
 		localConfig.MaxFilesPerUser = 3
+		localConfig.DeleteFilesAfterDays = 7
 
 		// Write the default config to the file
 		err = yaml.NewEncoder(file_new).Encode(localConfig)
@@ -77,12 +79,19 @@ func main() {
 	LoadConfig("config.yaml")
 
 	// Initialize the database
-	db, err := initDatabase()
+	db, err := StartDatabase()
 	if err != nil {
 		fmt.Println("Error initializing database:", err.Error())
 		os.Exit(1)
 	}
 	defer db.Close()
+
+	DeleteOldFiles(db)
+
+	LLM()
+
+	// InputChannel <- "What is 2 + 2?"
+	// println(<-OutputChannel)
 
 	go StartBot()
 	go WebServer()

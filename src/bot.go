@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
@@ -57,6 +58,7 @@ func printMessage(sess *discordgo.Session, message *discordgo.MessageCreate) {
 	channel, err := sess.Channel(message.ChannelID)
 	if err != nil {
 		fmt.Println("Error: encountered while getting channel.", err)
+		return
 	}
 
 	// If the channel is a private message, set the name to "Private Message"
@@ -66,6 +68,7 @@ func printMessage(sess *discordgo.Session, message *discordgo.MessageCreate) {
 		guild, err = sess.Guild(message.GuildID)
 		if err != nil {
 			fmt.Println("Error: encountered while getting guild.", err)
+			return
 		}
 	}
 
@@ -129,6 +132,11 @@ func parseCommand(sess *discordgo.Session, message *discordgo.MessageCreate, mes
 		return
 	}
 
+	if strings.HasPrefix(message.Content, "llm") {
+		llmCommand(message, sess)
+		return
+	}
+
 	if messageProperties.IsPrivate {
 		userChannel, _ := sess.UserChannelCreate(message.Author.ID)
 
@@ -145,6 +153,21 @@ func parseCommand(sess *discordgo.Session, message *discordgo.MessageCreate, mes
 
 	if message.Content == "pong" {
 		sess.ChannelMessageSend(message.ChannelID, "Ping!")
+	}
+}
+
+func llmCommand(message *discordgo.MessageCreate, sess *discordgo.Session) {
+	input := strings.TrimSpace(strings.TrimPrefix(message.Content, "llm"))
+
+	InputChannel <- input
+	output := <-OutputChannel
+
+	mess := fmt.Sprintf("LLM: %s", output)
+
+	chunks := chunkDiscordMessage(mess, 1995)
+	for _, chunk := range chunks {
+		sess.ChannelMessageSend(message.ChannelID, chunk)
+		time.Sleep(200 * time.Millisecond)
 	}
 }
 

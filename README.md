@@ -14,6 +14,19 @@ A bot for the automation of things
 `/wis upload` - Uploads a file to the server
 
 
+## Requirements
+- Golang 1.23
+- Discord Token
+- Ollama 
+- Llama3.2 model `ollama pull llama3.2`
+
+
+## Running 
+You can run the bot using the following command:
+```sh
+go run ./src
+```
+
 ## Tooling
 After the installation of Go, the following tools are recommended for development. Please install them using the commands below:
 
@@ -32,4 +45,5 @@ go install github.com/air-verse/air@latest
 
 ## Running the bot
 > [!NOTE]
-You will need to create a token.key file in the root of the project with the token for the bot to work. This is for Discord authentication. You can get the token from the Discord Developer Portal.
+You will need a config.yaml file, if you don't have one, one will be created for you on the first run.
+Please fill out the config. This is for Discord authentication. You can get the token from the Discord Developer Portal.
