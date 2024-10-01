@@ -32,7 +32,6 @@ func StartBot() {
 		fmt.Println("Error: encountered while opening connection.", err)
 		return
 	}
-
 }
 
 func onReady(sess *discordgo.Session, event *discordgo.Ready) {
@@ -72,10 +71,8 @@ func printMessage(sess *discordgo.Session, message *discordgo.MessageCreate) {
 		}
 	}
 
-	res1 := fmt.Sprintf("%s (%s) %s", guild.ID, channel.ID, messageTime)
-	res2 := fmt.Sprintf("%s - %s\n", message.Author.Username, message.Content)
-	println(res1)
-	println(res2)
+	println(fmt.Sprintf("%s (%s) %s", guild.ID, channel.ID, messageTime))
+	println(fmt.Sprintf("%s - %s\n", message.Author.Username, message.Content))
 }
 
 type messageProperties struct {

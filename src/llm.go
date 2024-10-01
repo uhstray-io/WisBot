@@ -9,12 +9,10 @@ import (
 	"github.com/tmc/langchaingo/llms/ollama"
 )
 
-// Channels InputChannel := make(chan string, 1)
 var InputChannel = make(chan string)
 var OutputChannel = make(chan string)
 
-func LLM() {
-
+func StartLLM() {
 	// llm, err := ollama.New(ollama.WithModel("mistral"))
 	llm, err := ollama.New(ollama.WithModel("llama3.2"))
 	if err != nil {
@@ -22,13 +20,10 @@ func LLM() {
 	}
 	ctx := context.Background()
 
-	// fmt.Print(string(chunk))
-	go newFunction(ctx, llm)
-
+	go LLM(ctx, llm)
 }
 
-func newFunction(ctx context.Context, llm *ollama.LLM) {
-
+func LLM(ctx context.Context, llm *ollama.LLM) {
 	for {
 		userInput := <-InputChannel
 
@@ -39,7 +34,6 @@ func newFunction(ctx context.Context, llm *ollama.LLM) {
 
 		completion, err := llm.GenerateContent(ctx, content, llms.WithStreamingFunc(
 			func(ctx context.Context, chunk []byte) error {
-
 				return nil
 			},
 		))
