@@ -34,4 +34,4 @@ token.key
 
 database.db
 config.yaml
-config*
+config*.yaml

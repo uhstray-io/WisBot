@@ -13,8 +13,9 @@ var InputChannel = make(chan string)
 var OutputChannel = make(chan string)
 
 func StartLLM() {
-	// llm, err := ollama.New(ollama.WithModel("mistral"))
-	llm, err := ollama.New(ollama.WithModel("llama3.2"))
+	// ollama.WithModel("mistral")
+	model := ollama.WithModel(config.LLM.Name)
+	llm, err := ollama.New(model)
 	if err != nil {
 		log.Fatal(err)
 	}
