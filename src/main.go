@@ -24,6 +24,7 @@ func main() {
 
 	DeleteOldFiles(db)
 	StartLLM()
+
 	go StartBot()
 	go WebServer()
 

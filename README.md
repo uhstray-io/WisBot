@@ -47,3 +47,10 @@ go install github.com/air-verse/air@latest
 > [!NOTE]
 You will need a config.yaml file, if you don't have one, one will be created for you on the first run.
 Please fill out the config. This is for Discord authentication. You can get the token from the Discord Developer Portal.
+
+
+
+## Building the Docker Image
+```sh
+docker build -t wisbot .
+```

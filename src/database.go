@@ -23,13 +23,13 @@ type File struct {
 }
 
 func StartDatabase() (*sql.DB, error) {
-	db, err1 := sql.Open(config.Database.Type, config.Database.Name)
+	localDB, err1 := sql.Open(config.Database.Type, config.Database.Name)
 	if err1 != nil {
 		fmt.Println("Error opening database.", err1)
 		return nil, err1
 	}
 
-	_, err2 := db.Exec(
+	_, err2 := localDB.Exec(
 		`CREATE TABLE IF NOT EXISTS File (
 			Id TEXT PRIMARY KEY,
 			Uploaded BOOLEAN NOT NULL,
@@ -47,7 +47,9 @@ func StartDatabase() (*sql.DB, error) {
 		return nil, err2
 	}
 
-	return db, nil
+	db = localDB
+
+	return localDB, nil
 }
 
 // Delete old files ticker
