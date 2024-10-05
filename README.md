@@ -4,6 +4,7 @@
 A bot for the automation of things
 
 ## Diagrams
+
 ![diagram](./diagrams/userflow.excalidraw.png)
 
 
@@ -38,10 +39,11 @@ docker build -t wisbot .
 ```
 
 Running the dockerfile via Docker:
+
 [docker run](https://docs.docker.com/reference/cli/docker/container/run/)
 
 ```sh
-docker run -d wisbot --gpus
+docker run -d wisbot --gpus all ubuntu nvidia-smi
 ```
 
 ### Running the bot using docker-compose
