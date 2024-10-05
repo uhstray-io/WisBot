@@ -4,7 +4,7 @@ include:
 services:
   web:
     environment:
-    - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+    - YOUR_DISCORD_TOKEN=${DISCORD_BOT_TOKEN}
     build: .
     ports:
       - "8080:8080"
