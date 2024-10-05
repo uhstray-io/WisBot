@@ -21,10 +21,35 @@ A bot for the automation of things
 - Llama3.2 model `ollama pull llama3.2`
 
 
-## Running 
+## Running and building the bot
+
+### Running the bot using Go
+
 You can run the bot using the following command:
 ```sh
 go run ./src
+```
+
+### Running the bot using docker and a Dockerfile
+
+Update the latest build of the wisbot:
+```sh
+docker build -t wisbot .
+```
+
+Running the dockerfile via Docker:
+[docker run](https://docs.docker.com/reference/cli/docker/container/run/)
+
+```sh
+docker run -d wisbot --gpus
+```
+
+### Running the bot using docker-compose
+
+[docker compose](https://docs.docker.com/compose/)
+
+```sh
+docker compose up -d
 ```
 
 ## Tooling
