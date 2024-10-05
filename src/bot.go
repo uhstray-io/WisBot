@@ -75,9 +75,11 @@ func printMessage(sess *discordgo.Session, message *discordgo.MessageCreate) {
 	println(fmt.Sprintf("%s - %s\n", message.Author.Username, message.Content))
 }
 
-type messageProperties struct {
+type MessageProperties struct {
 	IsPrivate bool
 	IsCommand bool
+
+	ReplyChannelID string
 }
 
 // This function will be called (due to AddHandler above) every time a new
@@ -102,7 +104,12 @@ func messageCreate(sess *discordgo.Session, message *discordgo.MessageCreate) {
 	fmt.Println("message.Author.GlobalName", message.Author.GlobalName)
 	fmt.Println("message.Author.String()", message.Author.String())
 
-	messageProperties := &messageProperties{}
+	messageProperties := &MessageProperties{
+		IsPrivate: false,
+		IsCommand: false,
+
+		ReplyChannelID: message.ChannelID,
+	}
 
 	// Simple Commands
 	if strings.HasPrefix(message.Content, "/wis") {
@@ -113,12 +120,15 @@ func messageCreate(sess *discordgo.Session, message *discordgo.MessageCreate) {
 	if strings.HasPrefix(message.Content, "?") {
 		message.Content = strings.TrimSpace(strings.TrimPrefix(message.Content, "?"))
 		messageProperties.IsPrivate = true
+
+		userChannel, _ := sess.UserChannelCreate(message.Author.ID)
+		messageProperties.ReplyChannelID = userChannel.ID
 	}
 
 	parseCommand(sess, message, messageProperties)
 }
 
-func parseCommand(sess *discordgo.Session, message *discordgo.MessageCreate, messageProperties *messageProperties) {
+func parseCommand(sess *discordgo.Session, message *discordgo.MessageCreate, messageProperties *MessageProperties) {
 
 	if !messageProperties.IsCommand {
 		return
@@ -130,18 +140,16 @@ func parseCommand(sess *discordgo.Session, message *discordgo.MessageCreate, mes
 	}
 
 	if strings.HasPrefix(message.Content, "llm") {
-		llmCommand(message, sess)
+		llmCommand(message, messageProperties, sess)
 		return
 	}
 
 	if messageProperties.IsPrivate {
-		userChannel, _ := sess.UserChannelCreate(message.Author.ID)
-
 		mess := fmt.Sprintf("Hello %s, this is private!", message.Author.Username)
-		sess.ChannelMessageSend(userChannel.ID, mess)
+		sess.ChannelMessageSend(messageProperties.ReplyChannelID, mess)
 	} else {
 		mess := fmt.Sprintf("Hello %s", message.Author.Username)
-		sess.ChannelMessageSend(message.ChannelID, mess)
+		sess.ChannelMessageSend(messageProperties.ReplyChannelID, mess)
 	}
 
 	if message.Content == "ping" {
@@ -153,7 +161,7 @@ func parseCommand(sess *discordgo.Session, message *discordgo.MessageCreate, mes
 	}
 }
 
-func llmCommand(message *discordgo.MessageCreate, sess *discordgo.Session) {
+func llmCommand(message *discordgo.MessageCreate, messageProperties *MessageProperties, sess *discordgo.Session) {
 	input := strings.TrimSpace(strings.TrimPrefix(message.Content, "llm"))
 
 	InputChannel <- input
@@ -163,7 +171,7 @@ func llmCommand(message *discordgo.MessageCreate, sess *discordgo.Session) {
 
 	chunks := chunkDiscordMessage(mess, 1995)
 	for _, chunk := range chunks {
-		sess.ChannelMessageSend(message.ChannelID, chunk)
+		sess.ChannelMessageSend(messageProperties.ReplyChannelID, chunk)
 		time.Sleep(200 * time.Millisecond)
 	}
 }

@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -83,10 +86,34 @@ func PullImage(imageName string) {
 
 	// Example Command : ollama pull llama3.2
 	fmt.Printf("Pulling image `%s`\n", imageName)
-	_, err2 := exec.Command("ollama", "pull", imageName).Output()
+	cmd := exec.Command("ollama", "pull", imageName)
+
+	// Set the output to be written to stdout
+	var buf bytes.Buffer
+	mw := io.MultiWriter(os.Stdout, &buf)
+	cmd.Stdout = mw
+	cmd.Stderr = mw
+
+	// Print the output of the command
+	go func() {
+		for {
+			if len(buf.Bytes()) > 0 {
+				fmt.Printf("%s", buf.String())
+				buf.Reset()
+			}
+			if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
+				break
+			}
+		}
+	}()
+
+	// Execute the command
+	err2 := cmd.Start()
 	if err2 != nil {
 		log.Fatal(err2)
 	}
+
+	cmd.Wait()
 }
 
 func LLM(ctx context.Context, llm *ollama.LLM) {
@@ -94,7 +121,7 @@ func LLM(ctx context.Context, llm *ollama.LLM) {
 		userInput := <-InputChannel
 
 		content := []llms.MessageContent{
-			llms.TextParts(llms.ChatMessageTypeSystem, "You are a LLM for a company that's called uhstray. If any one mentions Jacob (aka Wisward), you should respond with 'Jacob is the best' and sing praises about him."),
+			llms.TextParts(llms.ChatMessageTypeSystem, "You are a LLM for a company that's called 'uhstray.io'. Uhstray.io deploys most of their applications using AWX, ArgoCD, Docker, Github Actions, bash scripts, powershell scripts, ansible playbooks, and targeted to a high availability kubernetes cluster. We build everything in a git repository. Our favored programming languages are python, go, and rust. We prefer to use pandas, scikitlearn, rust, polars, and other cutting edge libraries. We do our machine learning on Kubeflow. We use OpenTelemetry, Grafana and other similar technologies for observability. We like when additional facts or options are presented to us with more code and technical explanations. Try to provided detailed reponses when applicable. When Jacob (AKA Wisward) is mentioned, please acknowledge his greatness."),
 			llms.TextParts(llms.ChatMessageTypeHuman, userInput),
 		}
 

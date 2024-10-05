@@ -5,6 +5,8 @@ WORKDIR /app
 # Install ollama
 RUN curl -fsSL https://ollama.com/install.sh | sh
 
+RUN ollama serve & sleep 5 && ollama pull llama3.2
+
 # Copy the current directory contents into the container at /app
 COPY . .
 
