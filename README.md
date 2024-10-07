@@ -88,6 +88,8 @@ Run the image with GPU acceleration:
 docker run -d wisbot --gpus all ubuntu nvidia-smi
 ```
 
+https://docs.docker.com/desktop/gpu/
+
 ### Running the bot using docker-compose
 
 [docker compose](https://docs.docker.com/compose/)

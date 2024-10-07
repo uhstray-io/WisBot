@@ -1,11 +1,14 @@
 include:
    - infra.yaml
-   - gpu.yaml
+#   - gpu.yaml
 services:
-  web:
-    environment:
-    - YOUR_DISCORD_TOKEN=${DISCORD_BOT_TOKEN}
-    build: .
+  wisbot:
+    env_file:
+    - path: ./wisbot.env
+      required: true # default
+    image: "uhstrayio/wisbot/wisbot:latest"
+    secrets:
+      - discord_api_token
     ports:
       - "8080:8080"
     develop:
@@ -13,3 +16,11 @@ services:
         - action: sync
           path: .
           target: /code
+  wis-llm:
+    env_file:
+    - path: ./wis-llm.env
+      required: false # default
+    image: "uhstrayio/wisbot/wisllm:latest"
+secrets:
+  discord_api_token:
+    file: ./discord_api_token.txt
