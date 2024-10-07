@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: C:\ProgramData\chocolatey\lib\kubernetes-kompose\tools\kompose.exe convert
+    kompose.version: 1.34.0 (cbf2835db)
+  labels:
+    io.kompose.service: wisbot
+  name: wisbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: wisbot
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: C:\ProgramData\chocolatey\lib\kubernetes-kompose\tools\kompose.exe convert
+        kompose.version: 1.34.0 (cbf2835db)
+      labels:
+        io.kompose.service: wisbot
+    spec:
+      containers:
+        - image: uhstrayio/wisbot/wisbot:latest
+          name: wisbot
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /run/secrets
+              name: discord-api-token
+              subPath: discord-api-token
+      restartPolicy: Always
+      volumes:
+        - name: discord-api-token
+          secret:
+            items:
+              - key: discord-api-token
+                path: discord-api-token
+            secretName: discord-api-token
