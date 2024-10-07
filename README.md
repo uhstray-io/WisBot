@@ -125,3 +125,8 @@ Please fill out the config. This is for Discord authentication. You can get the 
 ```sh
 docker build -t wisbot .
 ```
+
+
+
+## Ollama Docker Image Documentation
+https://hub.docker.com/r/ollama/ollama 
