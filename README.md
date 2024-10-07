@@ -1,12 +1,42 @@
 
-# WisBot
+# Introduction & Table of Contents
+
+## WisBot
 
 A bot for the automation of things
 
-## Diagrams
+- [Introduction \& Table of Contents](#introduction--table-of-contents)
+  - [WisBot](#wisbot)
+  - [Getting Started](#getting-started)
+    - [Start using Wisbot with Commands](#start-using-wisbot-with-commands)
+  - [Architecture](#architecture)
+    - [WisBot Design Architecture](#wisbot-design-architecture)
+    - [User Experience Workflows](#user-experience-workflows)
+  - [Commands](#commands)
+  - [Requirements \& Dependencies](#requirements--dependencies)
+    - [Bot Dependencies](#bot-dependencies)
+      - [Templ \& Air](#templ--air)
+  - [Running the bot](#running-the-bot)
+    - [Running the bot using Go](#running-the-bot-using-go)
+  - [Using Docker to build and deploy Wisbot](#using-docker-to-build-and-deploy-wisbot)
+    - [Building the Docker Image](#building-the-docker-image)
+    - [Running the bot using docker-compose](#running-the-bot-using-docker-compose)
+      - [Running the dockerfile with GPU acceleration enabled:](#running-the-dockerfile-with-gpu-acceleration-enabled)
+  - [Ollama Docker Image Documentation](#ollama-docker-image-documentation)
 
-![diagram](./diagrams/userflow.excalidraw.png)
+## Getting Started
 
+### Start using Wisbot with [Commands](#commands)
+
+## Architecture
+
+### WisBot Design Architecture
+
+![WisBot Design Architecture](./diagrams/architecture.excalidraw.svg)
+
+### User Experience Workflows
+
+![User Experience Diagrams](./diagrams/userflow.excalidraw.png)
 
 ## Commands
 
@@ -17,26 +47,35 @@ A bot for the automation of things
 `/wis llm` - Sends a request to the attached WisBot LLM
 
 
-## Requirements
+## Requirements & Dependencies
 - Golang 1.23
 - Templ (optional)
 - Discord Token
-- Ollama 
+- Ollama (optional)
 - Llama3.2 model `ollama pull llama3.2`
 - Nvidia Container Toolkit (optional)
 
-### Install Templ dependency manager
+### Bot Dependencies
+After the installation of Go, the following tools are recommended for development. Please install them using the commands below:
 
+#### Templ & Air
+
+- A language for writing HTML user interfaces in Go - https://github.com/a-h/templ
+- Live reload for Go apps - https://github.com/air-verse/air
+  
 ```sh
-go install github.com/a-h/templ/cmd/templ@latest
+go install github.com/a-h/templ/cmd/templ@latest && go install github.com/air-verse/air@latest
 ```
 
-Generate the necessary Go dependencies
+Then run air in the WisBot repository to update all required dependencies:
 ```sh
-templ generate
+air
 ```
 
-## Running and building the bot
+## Running the bot
+> [!NOTE]
+You will need a config.yaml file, if you don't have one, one will be created for you on the first run.
+Please fill out the config. This is for Discord authentication. You can get the token from the Discord Developer Portal.
 
 ### Running the bot using Go
 
@@ -45,7 +84,9 @@ You can run the bot using the following command:
 go run ./src
 ```
 
-### Running the bot using docker and a Dockerfile
+## Using Docker to build and deploy Wisbot
+
+### Building the Docker Image
 
 Update the latest build of the wisbot:
 
@@ -59,6 +100,14 @@ Running the dockerfile via Docker:
 
 ```sh
 docker run -d wisbot
+```
+
+### Running the bot using docker-compose
+
+[docker compose](https://docs.docker.com/compose/)
+
+```sh
+docker compose up -d
 ```
 
 Running the WisBot via Docker Compose (testing workflow):
@@ -96,44 +145,6 @@ docker run -d wisbot --gpus all ubuntu nvidia-smi
 ```
 
 https://docs.docker.com/desktop/gpu/
-
-### Running the bot using docker-compose
-
-[docker compose](https://docs.docker.com/compose/)
-
-```sh
-docker compose up -d
-```
-
-## Tooling
-After the installation of Go, the following tools are recommended for development. Please install them using the commands below:
-
-### Templ
-A language for writing HTML user interfaces in Go - https://github.com/a-h/templ
-```sh
-go install github.com/a-h/templ/cmd/templ@latest
-```
-
-### Air
-Live reload for Go apps - https://github.com/air-verse/air
-```sh
-go install github.com/air-verse/air@latest
-```
-
-
-## Running the bot
-> [!NOTE]
-You will need a config.yaml file, if you don't have one, one will be created for you on the first run.
-Please fill out the config. This is for Discord authentication. You can get the token from the Discord Developer Portal.
-
-
-
-## Building the Docker Image
-```sh
-docker build -t wisbot .
-```
-
-
 
 ## Ollama Docker Image Documentation
 https://hub.docker.com/r/ollama/ollama 
