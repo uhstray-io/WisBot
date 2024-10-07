@@ -48,6 +48,7 @@ go run ./src
 ### Running the bot using docker and a Dockerfile
 
 Update the latest build of the wisbot:
+
 ```sh
 docker build -t wisbot .
 ```
@@ -58,6 +59,12 @@ Running the dockerfile via Docker:
 
 ```sh
 docker run -d wisbot
+```
+
+Running the WisBot via Docker Compose (testing workflow):
+
+```sh
+docker compose -f test-compose.yaml up
 ```
 
 #### Running the dockerfile with GPU acceleration enabled:
