@@ -32,7 +32,7 @@ A bot for the automation of things
 
 ### WisBot Design Architecture
 
-![WisBot Design Architecture](./diagrams/architecture.excalidraw.svg)
+![WisBot Design Architecture](./diagrams/architecture.excalidraw.png)
 
 ### User Experience Workflows
 
