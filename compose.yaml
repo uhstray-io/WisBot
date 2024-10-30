@@ -1,26 +1,89 @@
 #include:
 #   - infra.yaml
 #   - gpu.yaml
+
 services:
   wisbot:
+    container_name: wisbot
+    image: "wisbot:latest"
+    ports:
+      - 8080:8080
     env_file:
     - path: ./wisbot.env
       required: true # default
-    image: "uhstrayio/wisbot/wisbot:latest"
     secrets:
       - discord_api_token
-    ports:
-      - "8080:8080"
     develop:
       watch:
         - action: sync
           path: .
           target: /code
-  wis-llm:
+    networks:
+      wis_net:
+        ipv4_address: 10.5.0.2
+
+  llm:
+    container_name: wis-llm
+    image: ollama/ollama:latest
+    ports:
+      - 11434:11434
+    restart: always
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
     env_file:
     - path: ./wis-llm.env
       required: false # default
-    image: "uhstrayio/wisbot/wisllm:latest"
+    volumes:
+      - ./volumes/ollama:/root/.ollama
+      - ./entrypoints/ollama.sh:/entrypoint.sh
+    entrypoint: ["/usr/bin/bash", "/entrypoint.sh"]
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      wis_net:
+        ipv4_address: 10.5.0.3
+
+
+  # ollama-webui:
+  #   image: ghcr.io/open-webui/open-webui:main
+  #   container_name: ollama-webui
+  #   volumes:
+  #     - ./ollama/ollama-webui:/app/backend/data
+  #   depends_on:
+  #     - wis-llm
+  #   ports:
+  #     - 8080:8080
+  #   environment: # https://docs.openwebui.com/getting-started/env-configuration#default_models
+  #     - OLLAMA_BASE_URLS=http://host.docker.internal:7869 #comma separated ollama hosts
+  #     - ENV=dev
+  #     - WEBUI_AUTH=False
+  #     - WEBUI_NAME=valiantlynx AI
+  #     - WEBUI_URL=http://localhost:8080
+  #     - WEBUI_SECRET_KEY=t0p-s3cr3t
+  #   extra_hosts:
+  #     - host.docker.internal:host-gateway
+  #   restart: unless-stopped
+  #   networks:
+  #     wis_net:
+  #       ipv4_address: 10.5.0.4
+
+
 secrets:
   discord_api_token:
     file: ./discord_api_token.txt
+
+
+networks:
+  wis_net:
+    name: wis_net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1
