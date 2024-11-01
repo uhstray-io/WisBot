@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,7 +21,7 @@ func main() {
 		fmt.Println("Error initializing database:", err.Error())
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer db.Close(context.Background())
 
 	DeleteOldFiles(db)
 	StartLLM()

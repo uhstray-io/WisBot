@@ -1,15 +1,19 @@
 package main
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	_ "modernc.org/sqlite"
+
+	"github.com/jackc/pgx/v5"
 )
 
-var db *sql.DB
+var db *pgx.Conn
 
 type File struct {
 	Id              string
@@ -22,21 +26,22 @@ type File struct {
 	Downloads       int
 }
 
-func StartDatabase() (*sql.DB, error) {
-	localDB, err1 := sql.Open(config.Database.Type, config.Database.Name)
+func StartDatabase() (*pgx.Conn, error) {
+	conn, err1 := pgx.Connect(context.Background(), os.Getenv("DATABASE_URL"))
 	if err1 != nil {
-		fmt.Println("Error opening database.", err1)
-		return nil, err1
+		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err1)
+		os.Exit(1)
 	}
+	defer conn.Close(context.Background())
 
-	_, err2 := localDB.Exec(
+	_, err2 := conn.Exec(context.Background(),
 		`CREATE TABLE IF NOT EXISTS File (
 			Id TEXT PRIMARY KEY,
 			Uploaded BOOLEAN NOT NULL,
 			CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			DiscordUsername TEXT NOT NULL,
 			Name TEXT NOT NULL, 
-			Data BLOB,
+			Data BYTEA,
 			Size INTEGER,
 			Downloads INTEGER DEFAULT 0
 		)`,
@@ -47,24 +52,28 @@ func StartDatabase() (*sql.DB, error) {
 		return nil, err2
 	}
 
-	db = localDB
+	db = conn
 
-	return localDB, nil
+	return conn, nil
 }
 
 // Delete old files ticker
-func DeleteOldFiles(db *sql.DB) {
+func DeleteOldFiles(db *pgx.Conn) {
 
 	// Delete files after specified time.
-	DeleteOldFilesHandler := func(db *sql.DB) {
-		seconds := 60 * 60 * 24 * config.DeleteFilesAfterDays
+	DeleteOldFilesHandler := func(db *pgx.Conn) {
+		days, _ := strconv.Atoi(os.Getenv("DELETE_FILES_AFTER_DAYS"))
+		seconds := 60 * 60 * 24 * days
 		secondsString := fmt.Sprintf("-%d seconds", seconds)
 
-		_, err := db.Exec("DELETE FROM File WHERE CreatedAt < datetime('now', ?)", secondsString)
+		_, err := db.Exec(context.Background(), "DELETE FROM File WHERE CreatedAt < datetime('now', ?)", secondsString)
+
 		if err != nil {
 			fmt.Println("Error deleting old files.", err)
 		}
 	}
+
+	time.Sleep(5 * time.Second)
 
 	go func() {
 		// Trigger cleanup process every hour.

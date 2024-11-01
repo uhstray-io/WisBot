@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
@@ -67,8 +68,8 @@ func WebServer() {
 	muxWithSessionMiddleware := sessionManager.LoadAndSave(mux)
 
 	// Start the server.
-	fmt.Println("listening on http://" + config.Server.IpAddr + ":" + config.Server.Port)
-	if err := http.ListenAndServe(":"+config.Server.Port, muxWithSessionMiddleware); err != nil {
+	fmt.Println("listening on http://" + os.Getenv("SERVER_IP") + ":" + os.Getenv("SERVER_PORT"))
+	if err := http.ListenAndServe(":"+os.Getenv("SERVER_PORT"), muxWithSessionMiddleware); err != nil {
 		log.Printf("error listening: %v", err)
 	}
 }

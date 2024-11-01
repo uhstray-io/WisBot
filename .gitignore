@@ -35,4 +35,5 @@ token.key
 database.db
 config.yaml
 config*.yaml
+
 volumes

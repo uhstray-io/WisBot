@@ -9,10 +9,16 @@ services:
     ports:
       - 8080:8080
     env_file:
-    - path: ./wisbot.env
-      required: true # default
+    - path: ./.env
+      required: true
     secrets:
       - discord_api_token
+    volumes:
+      - ./volumes/wisbot/:/config.yaml
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
     develop:
       watch:
         - action: sync
@@ -28,11 +34,9 @@ services:
     ports:
       - 11434:11434
     restart: always
-    environment:
-      - OLLAMA_KEEP_ALIVE=24h
     env_file:
-    - path: ./wis-llm.env
-      required: false # default
+    - path: ./.env
+      required: true
     volumes:
       - ./volumes/ollama:/root/.ollama
       - ./entrypoints/ollama.sh:/entrypoint.sh
@@ -43,12 +47,46 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: all
               capabilities: [gpu]
     networks:
       wis_net:
         ipv4_address: 10.5.0.3
 
+  db:
+    container_name: postgres
+    image: postgres:14-alpine
+    ports:
+      - 5432:5432
+    env_file:
+    - path: ./.env
+      required: true
+    volumes:
+      - ~/volumes/postgres:/var/lib/postgresql/data
+    # https://docs.docker.com/compose/how-tos/startup-order/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+    networks:
+      wis_net:
+        ipv4_address: 10.5.0.4
+
+  db_dashboard:
+    container_name: adminer
+    image: adminer
+    restart: always
+    ports:
+      - 1234:8080
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    networks:
+      wis_net:
+        ipv4_address: 10.5.0.5
 
   # ollama-webui:
   #   image: ghcr.io/open-webui/open-webui:main

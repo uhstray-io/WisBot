@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -181,25 +184,26 @@ func uploadCommand(message *discordgo.MessageCreate, sess *discordgo.Session) {
 
 	// Count the number of files the user has uploaded.
 	var count int
-	err3 := db.QueryRow("SELECT COUNT(*) FROM File WHERE DiscordUsername = ?", message.Author.Username).Scan(&count)
+	err3 := db.QueryRow(context.Background(), "SELECT COUNT(*) FROM File WHERE DiscordUsername = ?", message.Author.Username).Scan(&count)
 	if err3 != nil {
 		fmt.Println("Error counting files.", err3.Error())
 	}
 
+	maxFilesPerUser, _ := strconv.Atoi(os.Getenv("MAX_FILES_PER_USER"))
 	// Remove the oldest files if the user has uploaded too many.
-	if count >= config.MaxFilesPerUser {
-		_, err1 := db.Exec("DELETE FROM File WHERE ROWID IN ( SELECT ROWID FROM File WHERE DiscordUsername = ? ORDER BY CreatedAt LIMIT ?)", message.Author.Username, count-config.MaxFilesPerUser+1)
+	if count >= maxFilesPerUser {
+		_, err1 := db.Exec(context.Background(), "DELETE FROM File WHERE ROWID IN ( SELECT ROWID FROM File WHERE DiscordUsername = ? ORDER BY CreatedAt LIMIT ?)", message.Author.Username, count-maxFilesPerUser+1)
 		if err1 != nil {
 			fmt.Println("Error removing old files.", err1.Error())
 		}
 	}
 
 	// Insert the new file.
-	_, err2 := db.Exec("INSERT INTO File (ID, Uploaded, DiscordUsername, Name) VALUES (?, ?, ?, ?)", uuid.String(), false, message.Author.Username, "empty file")
+	_, err2 := db.Exec(context.Background(), "INSERT INTO File (ID, Uploaded, DiscordUsername, Name) VALUES (?, ?, ?, ?)", uuid.String(), false, message.Author.Username, "empty file")
 	if err2 != nil {
 		fmt.Println("Error when adding UUID to DB.", err2.Error())
 	}
 
-	mess := fmt.Sprintf("Here is the link: http://%s:%s/id/%s", config.Server.IpAddr, config.Server.Port, uuid.String())
+	mess := fmt.Sprintf("Here is the link: http://%s:%s/id/%s", os.Getenv("SERVER_IP"), os.Getenv("SERVER_PORT"), uuid.String())
 	sess.ChannelMessageSend(message.ChannelID, mess)
 }
