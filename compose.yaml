@@ -13,8 +13,6 @@ services:
       required: true
     secrets:
       - discord_api_token
-    volumes:
-      - ./volumes/wisbot/:/config.yaml
     depends_on:
       db:
         condition: service_healthy
@@ -62,7 +60,7 @@ services:
     - path: ./.env
       required: true
     volumes:
-      - ~/volumes/postgres:/var/lib/postgresql/data
+      - ./volumes/postgres:/var/lib/postgresql
     # https://docs.docker.com/compose/how-tos/startup-order/
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]

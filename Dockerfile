@@ -8,16 +8,24 @@ WORKDIR /app
 
 # Configure container
 ENV PORT=8080
-
 EXPOSE 8080
 
 # Copy the current directory contents into the container at /app
-COPY . .
 
-# RUN go build -o main ./src
+# COPY . .
+COPY go.sum go.mod ./
+COPY config.yaml ./
+COPY /src ./src
+
+# Build the Go app
+# RUN go build -o main ./src # With out Cashe
 RUN --mount=type=cache,target=/root/.cache/go-build \
 --mount=type=cache,target=/go/pkg/mod \
 go build -o main ./src
+
+# # sleep for 1 seconds
+# RUN sleep 1
+
 
 # Start app 
 CMD ["./main"]

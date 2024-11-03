@@ -110,6 +110,10 @@ docker run -d wisbot
 docker compose up -d
 ```
 
+```sh
+docker compose down
+```
+
 Running the WisBot via Docker Compose (testing workflow):
 
 ```sh
