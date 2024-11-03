@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
-	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	_ "modernc.org/sqlite"
@@ -32,7 +30,7 @@ func StartDatabase() (*pgx.Conn, error) {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err1)
 		os.Exit(1)
 	}
-	defer conn.Close(context.Background())
+	// defer conn.Close(context.Background())
 
 	_, err2 := conn.Exec(context.Background(),
 		`CREATE TABLE IF NOT EXISTS File (
@@ -61,28 +59,28 @@ func StartDatabase() (*pgx.Conn, error) {
 func DeleteOldFiles(db *pgx.Conn) {
 
 	// Delete files after specified time.
-	DeleteOldFilesHandler := func(db *pgx.Conn) {
-		days, _ := strconv.Atoi(os.Getenv("DELETE_FILES_AFTER_DAYS"))
-		seconds := 60 * 60 * 24 * days
-		secondsString := fmt.Sprintf("-%d seconds", seconds)
+	// DeleteOldFilesHandler := func(db *pgx.Conn) {
+	// 	days, _ := strconv.Atoi(os.Getenv("DELETE_FILES_AFTER_DAYS"))
+	// 	seconds := 60 * 60 * 24 * days
+	// 	secondsString := fmt.Sprintf("-%d seconds", seconds)
 
-		_, err := db.Exec(context.Background(), "DELETE FROM File WHERE CreatedAt < datetime('now', ?)", secondsString)
+	// 	_, err := db.Exec(context.Background(), "DELETE FROM File WHERE CreatedAt < datetime('now', ?)", secondsString)
 
-		if err != nil {
-			fmt.Println("Error deleting old files.", err)
-		}
-	}
+	// 	if err != nil {
+	// 		fmt.Println("Error deleting old files.", err)
+	// 	}
+	// }
 
-	time.Sleep(5 * time.Second)
+	// time.Sleep(5 * time.Second)
 
-	go func() {
-		// Trigger cleanup process every hour.
-		ticker := time.NewTicker(1 * time.Hour)
-		defer ticker.Stop()
+	// go func() {
+	// 	// Trigger cleanup process every hour.
+	// 	ticker := time.NewTicker(1 * time.Hour)
+	// 	defer ticker.Stop()
 
-		for {
-			DeleteOldFilesHandler(db)
-			<-ticker.C
-		}
-	}()
+	// 	for {
+	// 		DeleteOldFilesHandler(db)
+	// 		<-ticker.C
+	// 	}
+	// }()
 }

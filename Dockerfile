@@ -3,10 +3,16 @@ FROM golang:1.23.2 AS builder
 
 WORKDIR /app
 
+# Install Templ for generating html
+RUN go install github.com/a-h/templ/cmd/templ@latest
+
 # Copy only required files
 COPY go.sum go.mod ./
 COPY config.yaml ./
 COPY /src ./src
+
+# Run Templ
+RUN templ generate
 
 # Build the Go app with cache
 RUN --mount=type=cache,target=/root/.cache/go-build \
