@@ -7,21 +7,21 @@ services:
     container_name: wisbot
     image: "wisbot:latest"
     ports:
-      - 8080:8080
+    - 8080:8080
     env_file:
     - path: ./.env
       required: true
     secrets:
-      - discord_api_token
+    - discord_api_token
     depends_on:
       db:
         condition: service_healthy
         restart: true
     develop:
       watch:
-        - action: sync
-          path: .
-          target: /code
+      - action: sync
+        path: .
+        target: /code
     networks:
       wis_net:
         ipv4_address: 10.5.0.2
@@ -30,23 +30,23 @@ services:
     container_name: wis-llm
     image: ollama/ollama:latest
     ports:
-      - 11434:11434
+    - 11434:11434
     restart: always
     env_file:
     - path: ./.env
       required: true
     volumes:
-      - ./volumes/ollama:/root/.ollama
-      - ./entrypoints/ollama.sh:/entrypoint.sh
+    - ./volumes/ollama:/root/.ollama
+    - ./entrypoints/ollama.sh:/entrypoint.sh
     entrypoint: ["/usr/bin/bash", "/entrypoint.sh"]
     tty: true
     deploy:
       resources:
         reservations:
           devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
     networks:
       wis_net:
         ipv4_address: 10.5.0.3
@@ -55,12 +55,12 @@ services:
     container_name: postgres
     image: postgres:14-alpine
     ports:
-      - 5432:5432
+    - 5432:5432
     env_file:
     - path: ./.env
       required: true
     volumes:
-      - ./volumes/postgres:/var/lib/postgresql
+    - ./volumes/postgres:/var/lib/postgresql
     # https://docs.docker.com/compose/how-tos/startup-order/
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -77,7 +77,7 @@ services:
     image: adminer
     restart: always
     ports:
-      - 1234:8080
+    - 1234:8080
     depends_on:
       db:
         condition: service_healthy
@@ -121,5 +121,5 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 10.5.0.0/16
-          gateway: 10.5.0.1
+      - subnet: 10.5.0.0/16
+        gateway: 10.5.0.1
