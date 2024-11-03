@@ -23,6 +23,8 @@ A bot for the automation of things
     - [Running the bot using docker-compose](#running-the-bot-using-docker-compose)
       - [Running the dockerfile with GPU acceleration enabled:](#running-the-dockerfile-with-gpu-acceleration-enabled)
   - [Ollama Docker Image Documentation](#ollama-docker-image-documentation)
+    - [Issues](#issues)
+  - [CRLF vs LF](#crlf-vs-lf)
 
 ## Getting Started
 
@@ -152,3 +154,12 @@ https://docs.docker.com/desktop/gpu/
 
 ## Ollama Docker Image Documentation
 https://hub.docker.com/r/ollama/ollama 
+
+
+### Issues
+## CRLF vs LF
+
+```sh
+git config core.eol lf
+git config core.autocrlf input
+```
