@@ -1,26 +1,125 @@
 #include:
 #   - infra.yaml
 #   - gpu.yaml
+
 services:
   wisbot:
-    env_file:
-    - path: ./wisbot.env
-      required: true # default
-    image: "uhstrayio/wisbot/wisbot:latest"
-    secrets:
-      - discord_api_token
+    container_name: wisbot
+    image: "wisbot:latest"
     ports:
-      - "8080:8080"
+    - 8080:8080
+    env_file:
+    - path: ./.env
+      required: true
+    secrets:
+    - discord_api_token
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
     develop:
       watch:
-        - action: sync
-          path: .
-          target: /code
-  wis-llm:
+      - action: sync
+        path: .
+        target: /code
+    networks:
+      wis_net:
+        ipv4_address: 10.5.0.2
+
+  llm:
+    container_name: wis-llm
+    image: ollama/ollama:latest
+    ports:
+    - 11434:11434
+    restart: always
     env_file:
-    - path: ./wis-llm.env
-      required: false # default
-    image: "uhstrayio/wisbot/wisllm:latest"
+    - path: ./.env
+      required: true
+    volumes:
+    - ./volumes/ollama:/root/.ollama
+    - ./entrypoints/ollama.sh:/entrypoint.sh
+    entrypoint: ["/usr/bin/bash", "/entrypoint.sh"]
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+    networks:
+      wis_net:
+        ipv4_address: 10.5.0.3
+
+  db:
+    container_name: postgres
+    image: postgres:14-alpine
+    ports:
+    - 5432:5432
+    env_file:
+    - path: ./.env
+      required: true
+    volumes:
+    - ./volumes/postgres:/var/lib/postgresql
+    # https://docs.docker.com/compose/how-tos/startup-order/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+    networks:
+      wis_net:
+        ipv4_address: 10.5.0.4
+
+  db_dashboard:
+    container_name: adminer
+    image: adminer
+    restart: always
+    ports:
+    - 1234:8080
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    networks:
+      wis_net:
+        ipv4_address: 10.5.0.5
+
+  # ollama-webui:
+  #   image: ghcr.io/open-webui/open-webui:main
+  #   container_name: ollama-webui
+  #   volumes:
+  #     - ./ollama/ollama-webui:/app/backend/data
+  #   depends_on:
+  #     - wis-llm
+  #   ports:
+  #     - 8080:8080
+  #   environment: # https://docs.openwebui.com/getting-started/env-configuration#default_models
+  #     - OLLAMA_BASE_URLS=http://host.docker.internal:7869 #comma separated ollama hosts
+  #     - ENV=dev
+  #     - WEBUI_AUTH=False
+  #     - WEBUI_NAME=valiantlynx AI
+  #     - WEBUI_URL=http://localhost:8080
+  #     - WEBUI_SECRET_KEY=t0p-s3cr3t
+  #   extra_hosts:
+  #     - host.docker.internal:host-gateway
+  #   restart: unless-stopped
+  #   networks:
+  #     wis_net:
+  #       ipv4_address: 10.5.0.4
+
+
 secrets:
   discord_api_token:
     file: ./discord_api_token.txt
+
+
+networks:
+  wis_net:
+    name: wis_net
+    driver: bridge
+    ipam:
+      config:
+      - subnet: 10.5.0.0/16
+        gateway: 10.5.0.1

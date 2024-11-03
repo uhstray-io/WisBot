@@ -10,23 +10,7 @@ import (
 var config *Config
 
 type Config struct {
-	Server struct {
-		IpAddr string `yaml:"ip"`
-		Port   string `yaml:"port"`
-	} `yaml:"server"`
-
-	Database struct {
-		Type string `yaml:"type"`
-		Name string `yaml:"name"`
-	} `yaml:"database"`
-
-	DiscordToken         string `yaml:"discord_token"`
-	MaxFilesPerUser      int    `yaml:"max_files_per_user"`
-	DeleteFilesAfterDays int    `yaml:"delete_files_after_days"`
-
-	LLM struct {
-		Name string `yaml:"name"`
-	} `yaml:"llm"`
+	DiscordToken string `yaml:"discord_token"`
 }
 
 func LoadConfig(filename string) {
@@ -46,13 +30,7 @@ func LoadConfig(filename string) {
 		}
 		defer file_new.Close()
 
-		localConfig.Server.IpAddr = "127.0.0.1"
-		localConfig.Server.Port = "8080"
-		localConfig.Database.Type = "sqlite"
-		localConfig.Database.Name = "database.db"
 		localConfig.DiscordToken = "YOUR_DISCORD_TOKEN"
-		localConfig.MaxFilesPerUser = 3
-		localConfig.DeleteFilesAfterDays = 7
 
 		// Write the default config to the file
 		err = yaml.NewEncoder(file_new).Encode(localConfig)

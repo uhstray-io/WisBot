@@ -32,7 +32,7 @@ A bot for the automation of things
 
 ### WisBot Design Architecture
 
-![WisBot Design Architecture](./diagrams/architecture.excalidraw.svg)
+![WisBot Design Architecture](./diagrams/architecture.excalidraw.png)
 
 ### User Experience Workflows
 
@@ -108,6 +108,10 @@ docker run -d wisbot
 
 ```sh
 docker compose up -d
+```
+
+```sh
+docker compose down
 ```
 
 Running the WisBot via Docker Compose (testing workflow):

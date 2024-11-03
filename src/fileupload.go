@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -12,7 +13,7 @@ func getId(w http.ResponseWriter, r *http.Request) {
 
 	// Grab the file where the ID matches.
 	file := &File{}
-	err := db.QueryRow("SELECT Id, Name, Uploaded FROM File WHERE Id = ?", id).Scan(&file.Id, &file.Name, &file.Uploaded)
+	err := db.QueryRow(context.Background(), "SELECT Id, Name, Uploaded FROM File WHERE Id = ?", id).Scan(&file.Id, &file.Name, &file.Uploaded)
 
 	if err != nil && err == sql.ErrNoRows {
 		component := rootIdPage(nil)
@@ -36,7 +37,7 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) {
 
 	// Check if the ID exists and the file has not been uploaded.
 	file := &File{}
-	err := db.QueryRow("SELECT Id FROM File WHERE Id = ? AND Uploaded = False", id).Scan(&file.Id)
+	err := db.QueryRow(context.Background(), "SELECT Id FROM File WHERE Id = ? AND Uploaded = False", id).Scan(&file.Id)
 
 	// If the Id exists, and the file has not been uploaded, then continue.
 	if err == sql.ErrNoRows {
@@ -83,7 +84,7 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("File Uploaded:", file.Name)
 
 	// Update the file in the database.
-	_, err = db.Exec("UPDATE File SET Name = ?, Data = ?, Size = ?, Uploaded = ? WHERE Id = ?", file.Name, file.Data, file.Size, file.Uploaded, id)
+	_, err = db.Exec(context.Background(), "UPDATE File SET Name = ?, Data = ?, Size = ?, Uploaded = ? WHERE Id = ?", file.Name, file.Data, file.Size, file.Uploaded, id)
 
 	if err != nil {
 		fmt.Println("Error", err)
@@ -100,7 +101,7 @@ func getIdDownloadFile(w http.ResponseWriter, r *http.Request) {
 
 	// Grab the file where the ID matches.
 	file := &File{}
-	err := db.QueryRow("SELECT Name, Data, Size FROM File WHERE Id = ?", id).Scan(&file.Name, &file.Data, &file.Size)
+	err := db.QueryRow(context.Background(), "SELECT Name, Data, Size FROM File WHERE Id = ?", id).Scan(&file.Name, &file.Data, &file.Size)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -115,5 +116,5 @@ func getIdDownloadFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", file.Size))
 	w.Write(file.Data)
 
-	db.Exec("UPDATE File SET Downloads = Downloads + 1 WHERE Id = ?", id)
+	db.Exec(context.Background(), "UPDATE File SET Downloads = Downloads + 1 WHERE Id = ?", id)
 }

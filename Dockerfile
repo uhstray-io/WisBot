@@ -1,21 +1,37 @@
-FROM golang:1.23.2
+# Stage 1
+FROM golang:1.23.2 AS builder
 
 WORKDIR /app
 
-# Install ollama
-RUN curl -fsSL https://ollama.com/install.sh | sh
+# Copy only required files
+COPY go.sum go.mod ./
+COPY config.yaml ./
+COPY /src ./src
 
-RUN ollama serve & sleep 5 && ollama pull llama3.2
+# Build the Go app with cache
+RUN --mount=type=cache,target=/root/.cache/go-build \
+--mount=type=cache,target=/go/pkg/mod \
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
+go build -o main ./src
 
-# Copy the current directory contents into the container at /app
-COPY . .
+# NOTE: the mount=type=cache flags are used to cache the go modules and go build files between builds and drastically reduce the build time
 
-RUN go build -o main ./src
+# NOTE: the GOOS=linux GOARCH=amd64 CGO_ENABLED=0 flags are required to build a statically linked binary for alpine
+
+# Stage 2
+FROM alpine:latest AS final
+
+# We are using a final image of alpine as it is a very lightweight image.
+
+WORKDIR /app
 
 # Configure container
 ENV PORT=8080
-
 EXPOSE 8080
+
+# Copy executable to final container
+COPY --from=builder /app/main ./
+COPY --from=builder /app/config.yaml ./
 
 # Start app 
 CMD ["./main"]
