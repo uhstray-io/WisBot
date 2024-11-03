@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Handle line endings automatically for text files
+* text eol=lf
+
+# Never modify line endings of bash scripts
+*.sh -eol
