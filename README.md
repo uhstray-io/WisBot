@@ -92,7 +92,7 @@ go run ./src
 Install docker.io on Ubuntu 22.04:
 
 ```sh
-sudo apt-get install docker.io
+sudo apt-get install docker.io && apt-get install docker-compose
 ```
 
 Add the user to the docker group:
