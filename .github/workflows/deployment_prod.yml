@@ -6,7 +6,7 @@ on:
       - main 
 
 jobs:
-  run-dbu:
+  deployment:
     runs-on: self-hosted  # This specifies that the job should run on your self-hosted runner
 
     steps:
