@@ -1,0 +1,21 @@
+name: Deployment Script
+
+on:
+  push:
+    branches:
+      - main 
+
+jobs:
+  deployment:
+    runs-on: self-hosted  # This specifies that the job should run on your self-hosted runner
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Run start script 
+        env:
+          MY_SECRET_KEY: ${{ secrets.DISCORD_TOKEN_WISBOT }} 
+        run: |
+          chmod +x ./start.sh  # Ensure the script is executable
+          ./start.sh  # Run the script
