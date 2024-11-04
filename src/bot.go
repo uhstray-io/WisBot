@@ -15,7 +15,7 @@ import (
 
 func StartBot() {
 	fmt.Println("Starting bot...")
-	discord, err := discordgo.New("Bot " + config.DiscordToken)
+	discord, err := discordgo.New("Bot " + os.Getenv("DISCORD_TOKEN_WISBOT"))
 	if err != nil {
 		print("Error encountered while creating Discord session. ", err)
 		return
