@@ -36,7 +36,7 @@ services:
     - path: ./.env
       required: true
     volumes:
-    - ./volumes/ollama:/root/.ollama
+    - ~/WisBot/volumes/ollama:/root/.ollama
     - ./entrypoints/ollama.sh:/entrypoint.sh
     entrypoint: ["/usr/bin/bash", "/entrypoint.sh"]
     tty: true
