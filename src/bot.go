@@ -29,7 +29,7 @@ func StartBot() {
 	// In this example, we only care about receiving message events.
 	discord.Identify.Intents = discordgo.IntentsAll
 
-	token := os.Getenv("DISCORD_API_TOKEN")
+	token := os.Getenv("DISCORD_TOKEN_WISBOT")
 	if token == "" {
 		fmt.Println("Error: Discord API token not found.")
 		return
