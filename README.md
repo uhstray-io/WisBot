@@ -18,6 +18,7 @@ A bot for the automation of things
       - [Templ \& Air](#templ--air)
   - [Running the bot](#running-the-bot)
     - [Running the bot using Go](#running-the-bot-using-go)
+  - [Prepare Linux (Ubuntu 22.04) for running Wisbot](#prepare-linux-ubuntu-2204-for-running-wisbot)
   - [Using Docker to build and deploy Wisbot](#using-docker-to-build-and-deploy-wisbot)
     - [Building the Docker Image](#building-the-docker-image)
     - [Running the bot using docker-compose](#running-the-bot-using-docker-compose)
@@ -84,6 +85,58 @@ Please fill out the config. This is for Discord authentication. You can get the 
 You can run the bot using the following command:
 ```sh
 go run ./src
+```
+
+## Prepare Linux (Ubuntu 22.04) for running Wisbot
+
+Install docker.io on Ubuntu 22.04:
+
+```sh
+sudo apt-get install docker.io
+```
+
+Add the user to the docker group:
+
+```sh
+sudo usermod -aG docker $USER
+```
+
+Install Github Runner on Ubuntu 22.04
+
+https://github.com/uhstray-io/WisBot/settings/actions/runners/new?arch=x64&os=linux
+
+```sh
+mkdir actions-runner && cd actions-runner
+```
+
+Download the latest runner package:
+
+```sh
+curl -o actions-runner-linux-x64-2.320.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.320.0/actions-runner-linux-x64-2.320.0.tar.gz
+```
+
+Validate the Runner:
+
+```sh
+echo "93ac1b7ce743ee85b5d386f5c1787385ef07b3d7c728ff66ce0d3813d5f46900  actions-runner-linux-x64-2.320.0.tar.gz" | shasum -a 256 -c
+```
+
+Extract the runner:
+
+```sh
+tar xzf ./actions-runner-linux-x64-2.320.0.tar.gz
+```
+
+Configure the runner:
+
+```sh
+./config.sh --url <MY_URL> --token <MY_TOKEN>
+```
+
+Run the runner, using '&' to run in the background:
+
+```sh
+./run.sh &
 ```
 
 ## Using Docker to build and deploy Wisbot
