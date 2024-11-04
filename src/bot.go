@@ -29,10 +29,17 @@ func StartBot() {
 	// In this example, we only care about receiving message events.
 	discord.Identify.Intents = discordgo.IntentsAll
 
+	token := os.Getenv("DISCORD_API_TOKEN")
+	if token == "" {
+		fmt.Println("Error: Discord API token not found.")
+		return
+	}
+	fmt.Println("Using Discord API Token:", token)
+
 	// Open a websocket connection to Discord and begin listening.
 	err = discord.Open()
 	if err != nil {
-		fmt.Println("Error: encountered while opening connection.", err)
+		fmt.Println("Error: encountered while opening connection to discord.", err)
 		return
 	}
 }
