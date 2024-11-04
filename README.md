@@ -19,6 +19,7 @@ A bot for the automation of things
   - [Running the bot](#running-the-bot)
     - [Running the bot using Go](#running-the-bot-using-go)
   - [Prepare Linux (Ubuntu 22.04) for running Wisbot](#prepare-linux-ubuntu-2204-for-running-wisbot)
+  - [Setup Nvidia Drivers and Container Toolkit on Ubuntu 22.04](#setup-nvidia-drivers-and-container-toolkit-on-ubuntu-2204)
   - [Using Docker to build and deploy Wisbot](#using-docker-to-build-and-deploy-wisbot)
     - [Building the Docker Image](#building-the-docker-image)
     - [Running the bot using docker-compose](#running-the-bot-using-docker-compose)
@@ -174,6 +175,60 @@ Start the github runner service:
 
 ```sh
 sudo ./svc.sh start
+```
+
+Restart docker and enable the BuildKit to ensure compatibility with the deployment:
+
+```sh
+DOCKER_BUILDKIT=1
+sudo systemctl restart docker
+```
+
+You can use the `stop` and `uninstall` commands to stop and uninstall the service.
+
+## Setup Nvidia Drivers and Container Toolkit on Ubuntu 22.04
+
+https://developer.nvidia.com/datacenter-driver-downloads?target_os=Linux&target_arch=x86_64&Distribution=Ubuntu&target_version=22.04&target_type=deb_network
+
+Setup the Nvidia drivers GPG key:
+```sh
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+sudo apt-get update
+```
+
+Install the OpenKernel Drivers:
+```sh
+sudo apt-get install -y nvidia-open-565
+```
+
+Add the container toolkit repository:
+```sh
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+```
+
+Configure Experimental Packages:
+```sh
+sudo sed -i -e '/experimental/ s/^#//g' /etc/apt/sources.list.d/nvidia-container-toolkit.list
+```
+
+Update the repository and install the Nvidia Container Toolkit:
+
+```sh
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+```
+
+Configure the toolkit to use Docker:
+```sh
+sudo nvidia-ctk runtime configure --runtime=docker
+```
+
+Restart Docker:
+```sh
+sudo systemctl restart docker
 ```
 
 ## Using Docker to build and deploy Wisbot
