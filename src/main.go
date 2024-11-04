@@ -12,8 +12,6 @@ import (
 )
 
 func main() {
-	// Load configuration
-	// LoadConfig("config.yaml")
 
 	// Initialize the database
 	db, err := StartDatabase()
