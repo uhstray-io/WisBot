@@ -10,6 +10,9 @@ jobs:
     runs-on: self-hosted  # This specifies that the job should run on your self-hosted runner
 
     steps:
+      - name: Remove existing Wisbot _work directory
+        run: rm -rf ~/$USER/actions-runner/_work/WisBot
+
       - name: Checkout code
         uses: actions/checkout@v2
 
