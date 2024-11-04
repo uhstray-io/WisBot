@@ -156,10 +156,18 @@ Configure the runner:
 ./config.sh --url <MY_URL> --token <MY_TOKEN>
 ```
 
-Run the runner, using '&' to run in the background:
+Setup the github runner as a service:
+
+https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/configuring-the-self-hosted-runner-application-as-a-service
 
 ```sh
-./run.sh &
+sudo ./svc.sh install
+```
+
+Start the github runner service:
+
+```sh
+sudo ./svc.sh start
 ```
 
 ## Using Docker to build and deploy Wisbot
