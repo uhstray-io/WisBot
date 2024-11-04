@@ -156,6 +156,12 @@ Configure the runner:
 ./config.sh --url <MY_URL> --token <MY_TOKEN>
 ```
 
+Test the runner:
+
+```sh
+./run.sh
+```
+
 Setup the github runner as a service:
 
 https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/configuring-the-self-hosted-runner-application-as-a-service
