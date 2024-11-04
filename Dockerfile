@@ -8,7 +8,7 @@ RUN go install github.com/a-h/templ/cmd/templ@latest
 
 # Copy only required files
 COPY go.sum go.mod ./
-COPY config.yaml ./
+# COPY config.yaml ./
 COPY /src ./src
 
 # Run Templ
@@ -37,7 +37,7 @@ EXPOSE 8080
 
 # Copy executable to final container
 COPY --from=builder /app/main ./
-COPY --from=builder /app/config.yaml ./
+# COPY --from=builder /app/config.yaml ./
 
 # Start app 
 CMD ["./main"]
