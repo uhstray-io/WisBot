@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Append Secret to .env file
-        run: echo "DISCORD_TOKEN_WISBOT=${{ secrets.DISCORD_TOKEN_WISBOT }}" >> .env
+        run: printf "\nDISCORD_TOKEN_WISBOT=${{ secrets.DISCORD_TOKEN_WISBOT }}" >> .env
 
       - name: Print the contents of the .env file
         run: cat .env
