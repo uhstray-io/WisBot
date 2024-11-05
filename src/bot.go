@@ -36,6 +36,8 @@ func StartBot() {
 	}
 	fmt.Println("Using Discord API Token:", token)
 
+	time.Sleep(2 * time.Second)
+
 	// Open a websocket connection to Discord and begin listening.
 	err = discord.Open()
 	if err != nil {
