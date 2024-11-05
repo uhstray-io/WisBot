@@ -1,4 +1,4 @@
-echo "DISCORD_TOKEN_WISBOT=$DISCORD_TOKEN_WISBOT"
+#!/bin/bash
 
 docker compose down
 docker build -t wisbot .

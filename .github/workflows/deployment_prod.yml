@@ -16,6 +16,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Append Secret to .env file
+        run: echo "DISCORD_TOKEN_WISBOT=${{ secrets.DISCORD_TOKEN_WISBOT }}" >> .env
+
+
       - name: Run start script 
         env:
           DISCORD_TOKEN_WISBOT: ${{ secrets.DISCORD_TOKEN_WISBOT }} 
