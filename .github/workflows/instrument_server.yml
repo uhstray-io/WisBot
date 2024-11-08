@@ -25,13 +25,13 @@ jobs:
         run: tar xvfz ~/node_exporter/node_exporter-1.8.2.linux-amd64.tar.gz
 
       - name: Copy the Node Exporter Service
-        run: sudo cp ./obs/node_exporter.service /etc/systemd/system/node_exporter.service
+        run: cp ./obs/node_exporter.service /etc/systemd/system/node_exporter.service
 
       - name: Run the Node Exporter
-        run: systemctl daemon-reload && sudo service node_exporter start
+        run: systemctl daemon-reload && service node_exporter start
 
       - name: Get the Node Exporte Status
-        run: sudo service node_exporter status
+        run: service node_exporter status
   
   prometheus:
     runs-on: self-hosted  # This specifies that the job should run on your self-hosted runner
@@ -49,13 +49,10 @@ jobs:
         run: cp ./obs/prometheus.yml ~/prometheus/prometheus.yml
 
       - name: Copy the Prometheus Service
-        run: sudo cp ./obs/prometheus.service /etc/systemd/system/prometheus.service
+        run: cp ./obs/prometheus.service /etc/systemd/system/prometheus.service
 
       - name: Run Prometheus
-        run: systemctl daemon-reload && sudo service prometheus start
+        run: systemctl daemon-reload && service prometheus start
 
       - name: Get the Prometheus Status
-        run: sudo service prometheus status
-
-      - name: Open the Prometheus Ports
-        run: sudo ufw allow 9090
+        run: service prometheus status
