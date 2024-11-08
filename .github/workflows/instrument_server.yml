@@ -1,0 +1,56 @@
+name: Instrument Linux Server with Prometheus & Node Exporter
+
+on:
+  push:
+    branches:
+      - observability-test
+
+jobs:
+  node-exporter:
+    runs-on: self-hosted  # This specifies that the job should run on your self-hosted runner
+
+    steps:
+      # - name: Remove existing Wisbot _work directory
+        # run: rm -rf ~/$USER/actions-runner/_work/WisBot
+
+      - name: Pull Node Exporter
+        run: wget https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz
+
+      - name: Make Node Exporter Directory
+        run: mkdir -p ~/node_exporter
+
+      - name: Extract Node Exporter
+        run: tar xvfz ~/node_exporter/node_exporter-*.*-amd64.tar.gz
+
+      - name: Copy the Node Exporter Service
+        run: sudo cp ./obs/node_exporter.service /etc/systemd/system/node_exporter.service
+
+      - name: Run the Node Exporter
+        run: systemctl daemon-reload && sudo service node_exporter start
+
+      - name: Get the Node Exporte Status
+        run: sudo service node_exporter status
+  
+  prometheus:
+    runs-on: self-hosted  # This specifies that the job should run on your self-hosted runner
+    steps:
+      - name: Pull Prometheus
+        run: wget https://github.com/prometheus/prometheus/releases/download/v2.53.3/prometheus-2.53.3.linux-amd64.tar.gz
+
+      - name: Extract Promtheus
+        run: tar xvf ~/prometheus/prometheus-*.*-amd64.tar.gz
+      
+      - name: Copy the Prometheus config file
+        run: sudo cp ./obs/prometheus.yml ~/prometheus/prometheus.yml
+
+      - name: Copy the Prometheus Service
+        run: sudo cp ./obs/prometheus.service /etc/systemd/system/prometheus.service
+
+      - name: Run Prometheus
+        run: systemctl daemon-reload && sudo service prometheus start
+
+      - name: Get the Promtheus Status
+        run: sudo service prometheus status
+
+      - name: Open the Prometheus Ports
+        run: sudo ufw allow 9090
