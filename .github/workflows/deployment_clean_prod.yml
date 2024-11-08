@@ -22,9 +22,8 @@ jobs:
       - name: Print the contents of the .env file
         run: cat .env
 
-
       - name: Docker Down
-        run: docker-compose down
+        run: docker compose down
 
       - name: Clean up docker volumes
         run: docker volume prune --all
@@ -33,7 +32,6 @@ jobs:
         env:
           DISCORD_TOKEN_WISBOT: ${{ secrets.DISCORD_TOKEN_WISBOT }} 
         run: docker build -t wisbot .
-
 
       - name: Docker Up
         run: docker-compose up -d
