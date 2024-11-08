@@ -1,0 +1,10 @@
+[Unit]
+Description=Prometheus Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=~/node_exporter/node_exporter-1.8.2.linux-amd64/node_exporter
+
+[Install]
+WantedBy=multi-user.target
