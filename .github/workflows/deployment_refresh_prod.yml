@@ -1,9 +1,10 @@
-name: Deployment Script
+name: Refresh Deployment Script
 
+# Manual trigger
 on:
-  push:
-    branches:
-      - main 
+  workflow_dispatch:
+    
+  
 
 jobs:
   deployment:
