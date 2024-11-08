@@ -34,5 +34,5 @@ jobs:
         run: docker build -t wisbot .
 
       - name: Docker Up
-        run: docker-compose up -d
+        run: docker compose up -d
           
