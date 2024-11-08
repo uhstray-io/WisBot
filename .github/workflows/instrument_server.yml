@@ -20,7 +20,7 @@ jobs:
         run: mkdir -p ~/node_exporter
 
       - name: Extract Node Exporter
-        run: tar xvfz ~/node_exporter/node_exporter-1.8.2.linux-amd64.tar.gz
+        run: tar xvfz node_exporter-1.8.2.linux-amd64.tar.gz ~/node_exporter/node_exporter-1.8.2.linux-amd64.tar.gz
 
       - name: Copy the Node Exporter Service
         run: sudo cp ./obs/node_exporter.service /etc/systemd/system/node_exporter.service
@@ -38,7 +38,7 @@ jobs:
         run: wget https://github.com/prometheus/prometheus/releases/download/v2.53.3/prometheus-2.53.3.linux-amd64.tar.gz
 
       - name: Extract Prometheus
-        run: tar xvf ~/prometheus/prometheus-2.53.3.linux-amd64.tar.gz
+        run: tar xvf prometheus-2.53.3.linux-amd64.tar.gz ~/prometheus/prometheus-2.53.3.linux-amd64.tar.gz
       
       - name: Copy the Prometheus config file
         run: sudo cp ./obs/prometheus.yml ~/prometheus/prometheus.yml
