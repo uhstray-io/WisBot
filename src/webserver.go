@@ -10,7 +10,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 )
 
-var global GlobalState
+var globalState GlobalState
 var sessionManager *scs.SessionManager
 
 type GlobalState struct {
@@ -31,7 +31,7 @@ func getRoot(w http.ResponseWriter, r *http.Request) {
 	userCount := sessionManager.GetInt(r.Context(), "session")
 	// fmt.Println(userCount)
 
-	component := rootPage(global.Count, userCount)
+	component := rootPage(globalState.Count, userCount)
 	component.Render(r.Context(), w)
 }
 
@@ -41,7 +41,7 @@ func postRoot(w http.ResponseWriter, r *http.Request) {
 
 	// Check to see if the global button was pressed.
 	if r.Form.Has("global") {
-		global.Count++
+		globalState.Count++
 	}
 	if r.Form.Has("session") {
 		currentSessionCount := sessionManager.GetInt(r.Context(), "session")
