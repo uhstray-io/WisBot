@@ -31,7 +31,7 @@ jobs:
         run: wget -nc https://github.com/prometheus/node_exporter/releases/download/v1.8.2/${{ env.NODE_EXPORTER_FILE }} -P $NODE_EXPORTER_HOME
 
       - name: Extract Node Exporter
-        run: tar xvfz $NODE_EXPORTER_HOME/$NODE_EXPORTER_FILE -C $NODE_EXPORTER_DIR
+        run: tar xvfz $NODE_EXPORTER_FILE -C $NODE_EXPORTER_DIR
 
       - name: Copy the Node Exporter Service
         run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S cp o11y/node_exporter.service /etc/systemd/system/node_exporter.service
@@ -66,7 +66,7 @@ jobs:
         run: wget -nc https://github.com/prometheus/prometheus/releases/download/v2.53.3/${{ env.PROMETHEUS_FILE }} -P $PROMETHEUS_HOME
 
       - name: Extract Prometheus
-        run: tar xvf $PROMETHEUS_HOME/$PROMETHEUS_FILE -C $PROMETHEUS_DIR
+        run: tar xvf $PROMETHEUS_FILE -C $PROMETHEUS_DIR
       
       - name: Copy the Prometheus config file
         run: cp o11y/prometheus.yml $PROMETHEUS_HOME/prometheus.yml
