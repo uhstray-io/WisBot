@@ -89,3 +89,23 @@ func chunkCodeBlock(input string) ([]string, []bool) {
 
 	return chunks, codeChunks
 }
+
+func nextToken(s string) (string, string) {
+	if len(s) == 0 {
+		return "", ""
+	}
+
+	s = strings.TrimSpace(s)
+	tokens := strings.SplitN(s, " ", 2)
+
+	if len(tokens) == 1 {
+		return tokens[0], ""
+	}
+
+	return tokens[0], tokens[1]
+}
+
+func peekNextToken(s string) string {
+	head, _ := nextToken(s)
+	return head
+}

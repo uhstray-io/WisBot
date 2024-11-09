@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"slices"
 	"strconv"
@@ -13,78 +14,164 @@ import (
 	"github.com/google/uuid"
 )
 
-func StartBot() {
-	fmt.Println("Starting bot...")
-	discord, err := discordgo.New("Bot " + os.Getenv("DISCORD_TOKEN_WISBOT"))
+var (
+	token   = os.Getenv("DISCORD_TOKEN_WISBOT")
+	appID   = os.Getenv("DISCORD_APPLICATION_ID_WISBOT")
+	guildID = "" // "889910011113906186"
+)
+
+func removeAllCommands(s *discordgo.Session) {
+	registeredCommands, err := s.ApplicationCommands(appID, guildID)
 	if err != nil {
-		print("Error encountered while creating Discord session. ", err)
-		return
+		log.Fatalf("Could not fetch registered commands: %v", err)
 	}
-	defer discord.Close()
 
-	// Register the messageCreate func as a callback for MessageCreate events.
-	discord.AddHandler(messageCreate)
-	// discord.AddHandler(onReady)
+	for _, v := range registeredCommands {
+		fmt.Println("Removing command: ", v.Name, v.Description)
 
-	// In this example, we only care about receiving message events.
-	discord.Identify.Intents = discordgo.IntentsAll
-
-	token := os.Getenv("DISCORD_TOKEN_WISBOT")
-	if token == "" {
-		fmt.Println("Error: Discord API token not found.")
-		return
+		err2 := s.ApplicationCommandDelete(appID, guildID, v.ID)
+		if err2 != nil {
+			fmt.Printf("Cannot delete '%v' command: %v\n", v.Name, err2)
+		}
 	}
-	fmt.Println("Using Discord API Token:", token)
+}
 
-	time.Sleep(2 * time.Second)
+func createCommands(discordSess *discordgo.Session) {
+	_, err := discordSess.ApplicationCommandBulkOverwrite(appID, "",
+		[]*discordgo.ApplicationCommand{
+			{
+				Name:        "hello-world",
+				Description: "Showcase of a basic slash command!",
+			},
+			{
+				Name:        "llm",
+				Description: "Large Language Model",
+			},
+		})
+	if err != nil {
+		log.Fatalf("Could not register commands: %v", err)
+	}
+}
+
+func createCommandsHandler(discordSess *discordgo.Session) {
+	discordSess.AddHandler(func(
+		s *discordgo.Session,
+		i *discordgo.InteractionCreate,
+	) {
+		data := i.ApplicationCommandData()
+
+		fmt.Println("data.Name", data.Name)
+		for i, v := range data.Options {
+			fmt.Println("data.Options", i, v)
+		}
+
+		switch data.Name {
+
+		case "hello-world":
+			err := s.InteractionRespond(
+				i.Interaction,
+				&discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "Hello world!",
+					},
+				},
+			)
+			if err != nil {
+				fmt.Println("Error responding to hello-world command: ", err)
+			}
+
+		case "llm":
+			err := s.InteractionRespond(
+				i.Interaction,
+				&discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "Hello world!",
+					},
+				},
+			)
+			if err != nil {
+				fmt.Println("Error responding to llm command: ", err)
+			}
+
+		}
+	})
+}
+
+func CommandsStartBot() {
+	discordSess, err := discordgo.New("Bot " + token)
+	if err != nil {
+		log.Fatalf("Could not create Discord session: %v", err)
+	}
+
+	removeAllCommands(discordSess)
+	// createCommands(discordSess)
+	// createCommandsHandler(discordSess)
+
+	discordSess.Identify.Intents = discordgo.IntentsAll
+
+	err2 := discordSess.Open()
+	if err2 != nil {
+		log.Fatalf("Error encountered while Opening Discord session. %v", err)
+	}
+	defer discordSess.Close()
+}
+
+//
+//
+//
+//
+
+func StartBot() {
+	discordSess, err := discordgo.New("Bot " + os.Getenv("DISCORD_TOKEN_WISBOT"))
+	if err != nil {
+		log.Fatalf("Error while creating Discord session: %v", err)
+	}
+	defer discordSess.Close()
+
+	discordSess.AddHandler(messageCreate)
+
+	discordSess.Identify.Intents = discordgo.IntentsAll
 
 	// Open a websocket connection to Discord and begin listening.
-	err = discord.Open()
+	err = discordSess.Open()
 	if err != nil {
-		fmt.Println("Error: encountered while opening connection to discord.", err)
+		log.Fatalf("Error encountered while opening Discord session. %v", err)
 		return
 	}
 }
 
-func onReady(sess *discordgo.Session, event *discordgo.Ready) {
-	fmt.Printf("Logged in as: %v#%v \n", sess.State.User.Username, sess.State.User.Discriminator)
+func onReady(discordSess *discordgo.Session, event *discordgo.Ready) {
+	fmt.Printf("Logged in as: %v#%v \n", discordSess.State.User.Username, discordSess.State.User.Discriminator)
 
 	// ServerID := "889910011113906186"
 	ChannelID := "998632857306136617"
 
-	message, _ := sess.ChannelMessages(ChannelID, 100, "", "", "")
+	messages, _ := discordSess.ChannelMessages(ChannelID, 100, "", "", "")
 
-	slices.Reverse(message)
-	for _, msg := range message {
+	slices.Reverse(messages)
+	for _, msg := range messages {
 		fmt.Printf("%s : %s\n", msg.Author.Username, msg.Content)
 	}
 }
 
-func printMessage(sess *discordgo.Session, message *discordgo.MessageCreate) {
-	messageTime := message.Timestamp.Local().Format("01-02-2006 15:04:05")
+func printMessage(discordSess *discordgo.Session, message *discordgo.MessageCreate) {
+	// timestamp := message.Timestamp.Local().Format("2006-09-25 03:04:05 PM")
 
-	// Dummy guild for private messages
-	guild := &discordgo.Guild{Name: "Private Message"}
-
-	channel, err := sess.Channel(message.ChannelID)
+	channel, err := discordSess.Channel(message.ChannelID)
 	if err != nil {
-		fmt.Println("Error: encountered while getting channel.", err)
-		return
+		fmt.Printf("Error: Could not retreive channel. %v \n", err)
 	}
 
-	// If the channel is a private message, set the name to "Private Message"
-	if channel.Type == discordgo.ChannelTypeDM {
-		channel.Name = "Private Message"
-	} else {
-		guild, err = sess.Guild(message.GuildID)
-		if err != nil {
-			fmt.Println("Error: encountered while getting guild.", err)
-			return
-		}
+	guild, err2 := discordSess.Guild(message.GuildID)
+	if err2 != nil {
+		// fmt.Printf("Error: Could not retreive guild. %v \n", err2)
+		guild = &discordgo.Guild{Name: "Private Message"}
 	}
 
-	println(fmt.Sprintf("%s (%s) %s", guild.ID, channel.ID, messageTime))
-	println(fmt.Sprintf("%s - %s\n", message.Author.Username, message.Content))
+	fmt.Printf("Server: %s (Channel: %s)\n", guild.Name, channel.Name)
+	fmt.Printf("Username: %s - %s\n", message.Author.GlobalName, message.Content)
 }
 
 type MessageProperties struct {
@@ -96,85 +183,62 @@ type MessageProperties struct {
 
 // This function will be called (due to AddHandler above) every time a new
 // message is created on any channel that the authenticated bot has access to.
-func messageCreate(sess *discordgo.Session, message *discordgo.MessageCreate) {
-	if message.Author.ID == sess.State.User.ID {
+func messageCreate(discordSess *discordgo.Session, message *discordgo.MessageCreate) {
+	if message.Author.ID == discordSess.State.User.ID {
 		return
 	}
 
-	printMessage(sess, message)
+	printMessage(discordSess, message)
 
-	fmt.Println("GuildID", message.GuildID)
-	fmt.Println("Type", message.Type)
-	fmt.Println("ChannelID", message.ChannelID)
-	fmt.Println("ID", message.ID)
-	fmt.Println("Author", message.Author)
-	fmt.Println("Content", message.Content)
-
-	fmt.Println("message.Author.Username", message.Author.Username)
-	fmt.Println("message.Author.Discriminator", message.Author.Discriminator)
-	fmt.Println("message.Author.ID", message.Author.ID)
-	fmt.Println("message.Author.GlobalName", message.Author.GlobalName)
-	fmt.Println("message.Author.String()", message.Author.String())
-
-	messageProperties := &MessageProperties{
-		IsPrivate: false,
-		IsCommand: false,
-
+	messageProp := &MessageProperties{
+		IsPrivate:      false,
+		IsCommand:      false,
 		ReplyChannelID: message.ChannelID,
 	}
 
-	// Simple Commands
-	if strings.HasPrefix(message.Content, "/wis") {
-		message.Content = strings.TrimSpace(strings.TrimPrefix(message.Content, "/wis"))
-		messageProperties.IsCommand = true
-	}
+	// Check if the message is a command
+	head, tail := nextToken(message.Content)
+	message.Content = tail
+	switch head {
+	case "/wis", "/wis?", "/wisbot", "/wisbot?":
+		if strings.HasSuffix(head, "?") {
+			messageProp.IsPrivate = true
+			userChannel, _ := discordSess.UserChannelCreate(message.Author.ID)
+			messageProp.ReplyChannelID = userChannel.ID
+		}
+		messageProp.IsCommand = true
 
-	if strings.HasPrefix(message.Content, "?") {
-		message.Content = strings.TrimSpace(strings.TrimPrefix(message.Content, "?"))
-		messageProperties.IsPrivate = true
+		// Handle the command
+		head, tail = nextToken(tail)
+		message.Content = tail
 
-		userChannel, _ := sess.UserChannelCreate(message.Author.ID)
-		messageProperties.ReplyChannelID = userChannel.ID
-	}
+		switch head {
+		case "llm":
+			llmCommand(discordSess, messageProp, message)
+			return
 
-	parseCommand(sess, message, messageProperties)
-}
+		case "upload":
+			uploadCommand(discordSess, messageProp, message)
+			return
 
-func parseCommand(sess *discordgo.Session, message *discordgo.MessageCreate, messageProperties *MessageProperties) {
-
-	if !messageProperties.IsCommand {
-		return
-	}
-
-	if message.Content == "upload" {
-		uploadCommand(message, sess)
-		return
-	}
-
-	if strings.HasPrefix(message.Content, "llm") {
-		llmCommand(message, messageProperties, sess)
-		return
-	}
-
-	if messageProperties.IsPrivate {
-		mess := fmt.Sprintf("Hello %s, this is private!", message.Author.Username)
-		sess.ChannelMessageSend(messageProperties.ReplyChannelID, mess)
-	} else {
-		mess := fmt.Sprintf("Hello %s", message.Author.Username)
-		sess.ChannelMessageSend(messageProperties.ReplyChannelID, mess)
-	}
-
-	if message.Content == "ping" {
-		sess.ChannelMessageSend(message.ChannelID, "Pong!")
-	}
-
-	if message.Content == "pong" {
-		sess.ChannelMessageSend(message.ChannelID, "Ping!")
+		case "help":
+			helpCommand(discordSess, messageProp, message)
+			return
+		}
 	}
 }
 
-func llmCommand(message *discordgo.MessageCreate, messageProperties *MessageProperties, sess *discordgo.Session) {
-	input := strings.TrimSpace(strings.TrimPrefix(message.Content, "llm"))
+func helpCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) {
+	mess := `Commands:
+		/wis llm <text> - Large Language Model
+		/wis upload - Upload a file
+		/wis help - Show this message
+	`
+	discordSess.ChannelMessageSend(messageProperties.ReplyChannelID, mess)
+}
+
+func llmCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) {
+	input := message.Content
 
 	InputChannel <- input
 	output := <-OutputChannel
@@ -182,13 +246,13 @@ func llmCommand(message *discordgo.MessageCreate, messageProperties *MessageProp
 	mess := fmt.Sprintf("LLM: %s", output)
 
 	chunks := chunkDiscordMessage(mess, 1995)
-	for _, chunk := range chunks {
-		sess.ChannelMessageSend(messageProperties.ReplyChannelID, chunk)
+	for _, message := range chunks {
+		discordSess.ChannelMessageSend(messageProperties.ReplyChannelID, message)
 		time.Sleep(200 * time.Millisecond)
 	}
 }
 
-func uploadCommand(message *discordgo.MessageCreate, sess *discordgo.Session) {
+func uploadCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) {
 	uuid := uuid.New()
 
 	// Count the number of files the user has uploaded.
@@ -214,5 +278,5 @@ func uploadCommand(message *discordgo.MessageCreate, sess *discordgo.Session) {
 	}
 
 	mess := fmt.Sprintf("Here is the link: http://%s:%s/id/%s", os.Getenv("SERVER_IP"), os.Getenv("SERVER_PORT"), uuid.String())
-	sess.ChannelMessageSend(message.ChannelID, mess)
+	discordSess.ChannelMessageSend(message.ChannelID, mess)
 }
