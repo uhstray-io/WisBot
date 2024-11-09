@@ -36,7 +36,7 @@ jobs:
         run: wget https://github.com/prometheus/node_exporter/releases/download/v1.8.2/${{ env.NODE_EXPORTER_FILE }}
 
       - name: Extract Node Exporter
-        run: tar -xvfz $NODE_EXPORTER_FILE
+        run: tar xvfz $NODE_EXPORTER_FILE
 
       - name: Upload Node Exporter TAR Archive Artifact to home directory
         uses: actions/upload-artifact@v4
@@ -85,7 +85,7 @@ jobs:
         run: wget https://github.com/prometheus/prometheus/releases/download/v2.53.3/${{ env.PROMETHEUS_FILE }}
 
       - name: Extract Prometheus
-        run: tar -xvf $PROMETHEUS_FILE
+        run: tar xvf $PROMETHEUS_FILE
 
       - name: Upload Prometheus TAR Archive Artifact to home directory
         uses: actions/upload-artifact@v4
