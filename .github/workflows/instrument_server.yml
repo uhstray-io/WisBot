@@ -28,7 +28,7 @@ jobs:
         run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S cp o11y/node-exporter.service /etc/systemd/system/node-exporter.service
 
       - name: Run the Node Exporter
-        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S service node_exporter start
+        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S service node-exporter start
 
       - name: Get the Node Exporter Status
         run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S service node-exporter status
