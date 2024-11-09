@@ -5,24 +5,39 @@ on:
     branches:
       - observability-test
 
+env:
+  NODE_EXPORTER_VERSION: 1.8.2
+  NODE_EXPORTER_HOME: /home/uhstray/node_exporter
+  NODE_EXPORTER_DIR: ${{ env.NODE_EXPORTER_HOME }}/node_exporter-${{ env.NODE_EXPORTER_VERSION }}.linux-amd64
+  NODE_EXPORTER_FILE: node_exporter-${{ env.NODE_EXPORTER_VERSION }}.linux-amd64.tar.gz
+  
+  PROMETHEUS_VERSION: 2.53.3
+  PROMETHEUS_PORT: 9090
+  PROMETHEUS_HOME: /home/uhstray/prometheus
+  PROMETHEUS_DIR: ${{ env.PROMETHEUS_HOME }}/prometheus-${{ env.PROMETHEUS_VERSION }}.linux-amd64
+  PROMETHEUS_FILE: prometheus-${{ env.PROMETHEUS_VERSION }}.linux-amd64.tar.gz
+
 jobs:
   node_exporter:
     runs-on: self-hosted  # This specifies that the job should run on your self-hosted runner
 
     steps:
       # - name: Remove existing Wisbot _work directory
-        # run: rm -rf ~/$USER/actions-runner/_work/WisBot
+      # run: rm -rf ~/$USER/actions-runner/_work/WisBot
+      # - name: Check the operating system of the runner
+      #   run: echo "The operating system on the runner is $env:RUNNER_OS."
+
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Make Node Exporter Directory
-        run: mkdir -p /home/uhstray/node_exporter
+        run: mkdir -p $NODE_EXPORTER_HOME
 
       - name: Pull Node Exporter
-        run: wget -nc https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz -P /home/uhstray/node_exporter
+        run: wget -nc https://github.com/prometheus/node_exporter/releases/download/v${{ env.NODE_EXPORTER_VERSION }}/${{ env.NODE_EXPORTER_FILE }} -P $NODE_EXPORTER_HOME
 
       - name: Extract Node Exporter
-        run: tar xvfz /home/uhstray/node_exporter/node_exporter-1.8.2.linux-amd64.tar.gz
+        run: tar xvfz $NODE_EXPORTER_HOME/$NODE_EXPORTER_FILE - C $NODE_EXPORTER_DIR
 
       - name: Copy the Node Exporter Service
         run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S cp o11y/node_exporter.service /etc/systemd/system/node_exporter.service
@@ -43,16 +58,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Make Prometheus Directory
-        run: mkdir -p /home/uhstray/prometheus
+        run: mkdir -p $PROMETHEUS_HOME
 
       - name: Pull Prometheus
-        run: wget -nc https://github.com/prometheus/prometheus/releases/download/v2.53.3/prometheus-2.53.3.linux-amd64.tar.gz -P /home/uhstray/prometheus
+        run: wget -nc https://github.com/prometheus/prometheus/releases/download/v${{ env.PROMETHEUS_VERSION }}/${{ env.PROMETHEUS_FILE }} -P $PROMETHEUS_HOME
 
       - name: Extract Prometheus
-        run: tar xvf /home/uhstray/prometheus/prometheus-2.53.3.linux-amd64.tar.gz
+        run: tar xvf $PROMETHEUS_HOME/$PROMETHEUS_FILE -C $PROMETHEUS_DIR
       
       - name: Copy the Prometheus config file
-        run: cp o11y/prometheus.yml /home/uhstray/prometheus/prometheus.yml
+        run: cp o11y/prometheus.yml $PROMETHEUS_HOME/prometheus.yml
 
       - name: Copy the Prometheus Service
         run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S cp o11y/prometheus.service /etc/systemd/system/prometheus.service
