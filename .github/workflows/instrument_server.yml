@@ -27,6 +27,9 @@ jobs:
       - name: Make Node Exporter Directory
         run: mkdir -p $NODE_EXPORTER_DIR
 
+      - name: Clean directory before install
+        run: rm -rf $NODE_EXPORTER_DIR
+
       - name: Pull Node Exporter
         run: wget -nc https://github.com/prometheus/node_exporter/releases/download/v1.8.2/${{ env.NODE_EXPORTER_FILE }} -P $NODE_EXPORTER_HOME
 
@@ -61,6 +64,9 @@ jobs:
 
       - name: Make Prometheus Directory
         run: mkdir -p $PROMETHEUS_DIR
+
+      - name: Clean directory before install
+        run: rm -rf $PROMETHEUS_DIR
 
       - name: Pull Prometheus
         run: wget -nc https://github.com/prometheus/prometheus/releases/download/v2.53.3/${{ env.PROMETHEUS_FILE }} -P $PROMETHEUS_HOME
