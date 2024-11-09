@@ -24,6 +24,9 @@ jobs:
       - name: Extract Node Exporter
         run: tar xvfz ~/node_exporter/node_exporter-1.8.2.linux-amd64.tar.gz
 
+      - name: Display directory
+        run: ls -la
+
       - name: Copy the Node Exporter Service
         run: cp .o11y/node_exporter.service /etc/systemd/system/node_exporter.service
 
