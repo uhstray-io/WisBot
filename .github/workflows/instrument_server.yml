@@ -24,17 +24,14 @@ jobs:
       - name: Extract Node Exporter
         run: tar xvfz ~/node_exporter/node_exporter-1.8.2.linux-amd64.tar.gz
 
-      - name: Display directory
-        run: ls -la
-
       - name: Copy the Node Exporter Service
-        run: cp o11y/node_exporter.service /etc/systemd/system/node_exporter.service
+        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S cp o11y/node-exporter.service /etc/systemd/system/node-exporter.service
 
       - name: Run the Node Exporter
-        run: systemctl daemon-reload && service node_exporter start
+        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S service node_exporter start
 
-      - name: Get the Node Exporte Status
-        run: service node_exporter status
+      - name: Get the Node Exporter Status
+        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S service node-exporter status
   
   prometheus:
     runs-on: self-hosted  # This specifies that the job should run on your self-hosted runner
@@ -52,10 +49,13 @@ jobs:
         run: cp o11y/prometheus.yml ~/prometheus/prometheus.yml
 
       - name: Copy the Prometheus Service
-        run: cp o11y/prometheus.service /etc/systemd/system/prometheus.service
+        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S cp o11y/prometheus.service /etc/systemd/system/prometheus.service
 
       - name: Run Prometheus
-        run: systemctl daemon-reload && service prometheus start
+        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S service prometheus start
 
       - name: Get the Prometheus Status
-        run: service prometheus status
+        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S service prometheus status
+
+      - name: Open Prometheus Port with UFW
+        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S ufw allow 9090
