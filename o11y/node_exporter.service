@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/uhstray/node_exporter/node_exporter-1.8.2.linux-amd64/node_exporter
+ExecStart=bash /home/uhstray/node_exporter/node_exporter-1.8.2.linux-amd64/node_exporter
 
 [Install]
 WantedBy=multi-user.target
