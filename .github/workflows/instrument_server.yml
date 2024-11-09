@@ -22,7 +22,7 @@ jobs:
       #   run: echo "The operating system on the runner is $env:RUNNER_OS."
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Make Node Exporter Directory
         run: mkdir -p $NODE_EXPORTER_DIR
@@ -57,7 +57,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Make Prometheus Directory
         run: mkdir -p $PROMETHEUS_DIR
