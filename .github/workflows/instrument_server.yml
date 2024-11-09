@@ -43,7 +43,7 @@ jobs:
         run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S service node_exporter start
 
       - name: Get the Node Exporter Status
-        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S service node_exporter status
+        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S systemctl status node_exporter
   
   prometheus:
     runs-on: self-hosted  # This specifies that the job should run on your self-hosted runner
