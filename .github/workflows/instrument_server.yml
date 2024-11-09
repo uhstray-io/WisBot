@@ -8,14 +8,14 @@ on:
 env:
   NODE_EXPORTER_VERSION: 1.8.2
   NODE_EXPORTER_HOME: /home/uhstray/node_exporter
-  NODE_EXPORTER_DIR: ${{ env.NODE_EXPORTER_HOME }}/node_exporter-${{ env.NODE_EXPORTER_VERSION }}.linux-amd64
-  NODE_EXPORTER_FILE: node_exporter-${{ env.NODE_EXPORTER_VERSION }}.linux-amd64.tar.gz
+  NODE_EXPORTER_DIR: $NODE_EXPORTER_HOME/node_exporter-$NODE_EXPORTER_VERSION.linux-amd64
+  NODE_EXPORTER_FILE: node_exporter-$NODE_EXPORTER_VERSION.linux-amd64.tar.gz
   
   PROMETHEUS_VERSION: 2.53.3
   PROMETHEUS_PORT: 9090
   PROMETHEUS_HOME: /home/uhstray/prometheus
-  PROMETHEUS_DIR: ${{ env.PROMETHEUS_HOME }}/prometheus-${{ env.PROMETHEUS_VERSION }}.linux-amd64
-  PROMETHEUS_FILE: prometheus-${{ env.PROMETHEUS_VERSION }}.linux-amd64.tar.gz
+  PROMETHEUS_DIR: $PROMETHEUS_HOME/prometheus-$PROMETHEUS_VERSION.linux-amd64
+  PROMETHEUS_FILE: prometheus-$PROMETHEUS_VERSION.linux-amd64.tar.gz
 
 jobs:
   node_exporter:
