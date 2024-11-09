@@ -25,7 +25,7 @@ jobs:
         run: tar xvfz ~/node_exporter/node_exporter-1.8.2.linux-amd64.tar.gz
 
       - name: Copy the Node Exporter Service
-        run: cp ./o11y/node_exporter.service /etc/systemd/system/node_exporter.service
+        run: cp .o11y/node_exporter.service /etc/systemd/system/node_exporter.service
 
       - name: Run the Node Exporter
         run: systemctl daemon-reload && service node_exporter start
@@ -46,10 +46,10 @@ jobs:
         run: tar xvf ~/prometheus/prometheus-2.53.3.linux-amd64.tar.gz
       
       - name: Copy the Prometheus config file
-        run: cp ./o11y/prometheus.yml ~/prometheus/prometheus.yml
+        run: cp .o11y/prometheus.yml ~/prometheus/prometheus.yml
 
       - name: Copy the Prometheus Service
-        run: cp ./o11y/prometheus.service /etc/systemd/system/prometheus.service
+        run: cp .o11y/prometheus.service /etc/systemd/system/prometheus.service
 
       - name: Run Prometheus
         run: systemctl daemon-reload && service prometheus start
