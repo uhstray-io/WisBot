@@ -5,22 +5,16 @@ on:
     branches:
       - observability-test
 
-env:
-  NODE_EXPORTER_VERSION: 1.8.2
-  NODE_EXPORTER_HOME: /home/uhstray/node_exporter
-  NODE_EXPORTER_DIR: $NODE_EXPORTER_HOME/node_exporter-$NODE_EXPORTER_VERSION.linux-amd64
-  NODE_EXPORTER_FILE: node_exporter-$NODE_EXPORTER_VERSION.linux-amd64.tar.gz
-  
-  PROMETHEUS_VERSION: 2.53.3
-  PROMETHEUS_PORT: 9090
-  PROMETHEUS_HOME: /home/uhstray/prometheus
-  PROMETHEUS_DIR: $PROMETHEUS_HOME/prometheus-$PROMETHEUS_VERSION.linux-amd64
-  PROMETHEUS_FILE: prometheus-$PROMETHEUS_VERSION.linux-amd64.tar.gz
-
 jobs:
   node_exporter:
     runs-on: self-hosted  # This specifies that the job should run on your self-hosted runner
 
+    env:
+      NODE_EXPORTER_VERSION: 1.8.2
+      NODE_EXPORTER_HOME: /home/uhstray/node_exporter
+      NODE_EXPORTER_DIR: $NODE_EXPORTER_HOME/node_exporter-$NODE_EXPORTER_VERSION.linux-amd64
+      NODE_EXPORTER_FILE: node_exporter-$NODE_EXPORTER_VERSION.linux-amd64.tar.gz
+      
     steps:
       # - name: Remove existing Wisbot _work directory
       # run: rm -rf ~/$USER/actions-runner/_work/WisBot
@@ -53,6 +47,14 @@ jobs:
   
   prometheus:
     runs-on: self-hosted  # This specifies that the job should run on your self-hosted runner
+    
+    env:
+      PROMETHEUS_VERSION: 2.53.3
+      PROMETHEUS_PORT: 9090
+      PROMETHEUS_HOME: /home/uhstray/prometheus
+      PROMETHEUS_DIR: $PROMETHEUS_HOME/prometheus-$PROMETHEUS_VERSION.linux-amd64
+      PROMETHEUS_FILE: prometheus-$PROMETHEUS_VERSION.linux-amd64.tar.gz
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
