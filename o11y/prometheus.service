@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=./home/uhstray/prometheus/prometheus-2.53.3.linux-amd64/prometheus --config.file=/home/uhstray/prometheus/prometheus.yml
+ExecStart=/home/uhstray/prometheus/prometheus-2.53.3.linux-amd64/prometheus --config.file=/home/uhstray/prometheus/prometheus.yml
 
 [Install]
 WantedBy=multi-user.target
