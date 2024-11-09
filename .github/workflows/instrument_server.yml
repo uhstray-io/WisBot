@@ -12,7 +12,7 @@ jobs:
     env:
       NODE_EXPORTER_VERSION: 1.8.2
       NODE_EXPORTER_HOME: /home/uhstray/node_exporter
-      NODE_EXPORTER_DIR: $NODE_EXPORTER_HOME/node_exporter-1.8.2.linux-amd64
+      NODE_EXPORTER_DIR: /home/uhstray/node_exporter/node_exporter-1.8.2.linux-amd64
       NODE_EXPORTER_FILE: node_exporter-1.8.2.linux-amd64.tar.gz
 
     steps:
@@ -31,7 +31,7 @@ jobs:
         run: wget -nc https://github.com/prometheus/node_exporter/releases/download/v1.8.2/${{ env.NODE_EXPORTER_FILE }} -P $NODE_EXPORTER_HOME
 
       - name: Extract Node Exporter
-        run: tar xvfz $NODE_EXPORTER_HOME/$NODE_EXPORTER_FILE - C $NODE_EXPORTER_DIR
+        run: tar xvfz $NODE_EXPORTER_HOME/$NODE_EXPORTER_FILE -C $NODE_EXPORTER_DIR
 
       - name: Copy the Node Exporter Service
         run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S cp o11y/node_exporter.service /etc/systemd/system/node_exporter.service
@@ -52,7 +52,7 @@ jobs:
       PROMETHEUS_VERSION: 2.53.3
       PROMETHEUS_PORT: 9090
       PROMETHEUS_HOME: /home/uhstray/prometheus
-      PROMETHEUS_DIR: $PROMETHEUS_HOME/prometheus-2.53.3.linux-amd64
+      PROMETHEUS_DIR: /home/uhstray/prometheus/prometheus-2.53.3.linux-amd64
       PROMETHEUS_FILE: prometheus-2.53.3.linux-amd64.tar.gz
     
     steps:
