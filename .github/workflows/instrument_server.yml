@@ -6,7 +6,7 @@ on:
       - observability-test
 
 jobs:
-  node-exporter:
+  node_exporter:
     runs-on: self-hosted  # This specifies that the job should run on your self-hosted runner
 
     steps:
@@ -16,25 +16,25 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Make Node Exporter Directory
-        run: mkdir -p ~/node_exporter
+        run: mkdir -p /home/uhstray/node_exporter
 
       - name: Pull Node Exporter
-        run: wget https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz -P ~/node_exporter
+        run: wget -nc https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz -P /home/uhstray/node_exporter
 
       - name: Extract Node Exporter
-        run: tar xvfz ~/node_exporter/node_exporter-1.8.2.linux-amd64.tar.gz
+        run: tar xvfz /home/uhstray/node_exporter/node_exporter-1.8.2.linux-amd64.tar.gz
 
       - name: Copy the Node Exporter Service
-        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S cp o11y/node-exporter.service /etc/systemd/system/node-exporter.service
+        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S cp o11y/node_exporter.service /etc/systemd/system/node_exporter.service
 
       - name: Reload the systemctl daemon
         run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S systemctl daemon-reload
 
       - name: Run the Node Exporter
-        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S service node-exporter start
+        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S service node_exporter start
 
       - name: Get the Node Exporter Status
-        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S service node-exporter status
+        run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S service node_exporter status
   
   prometheus:
     runs-on: self-hosted  # This specifies that the job should run on your self-hosted runner
@@ -43,16 +43,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Make Prometheus Directory
-        run: mkdir -p ~/prometheus
+        run: mkdir -p /home/uhstray/prometheus
 
       - name: Pull Prometheus
-        run: wget https://github.com/prometheus/prometheus/releases/download/v2.53.3/prometheus-2.53.3.linux-amd64.tar.gz -P ~/prometheus
+        run: wget -nc https://github.com/prometheus/prometheus/releases/download/v2.53.3/prometheus-2.53.3.linux-amd64.tar.gz -P /home/uhstray/prometheus
 
       - name: Extract Prometheus
-        run: tar xvf ~/prometheus/prometheus-2.53.3.linux-amd64.tar.gz
+        run: tar xvf /home/uhstray/prometheus/prometheus-2.53.3.linux-amd64.tar.gz
       
       - name: Copy the Prometheus config file
-        run: cp o11y/prometheus.yml ~/prometheus/prometheus.yml
+        run: cp o11y/prometheus.yml /home/uhstray/prometheus/prometheus.yml
 
       - name: Copy the Prometheus Service
         run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S cp o11y/prometheus.service /etc/systemd/system/prometheus.service
