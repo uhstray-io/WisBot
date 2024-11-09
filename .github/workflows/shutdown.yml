@@ -1,0 +1,17 @@
+name: Shutdown Script
+
+# Manual trigger
+on:
+  workflow_dispatch:
+
+jobs:
+  deployment:
+    runs-on: self-hosted # This specifies that the job should run on your self-hosted runner
+
+    steps:
+
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Docker Down
+      run: docker compose down
