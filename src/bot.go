@@ -238,12 +238,19 @@ func helpCommand(discordSess *discordgo.Session, messageProperties *MessagePrope
 }
 
 func llmCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) {
-	input := message.Content
 
-	InputChannel <- input
-	output := <-OutputChannel
+	chatMessages, _ := discordSess.ChannelMessages(message.ChannelID, 20, "", "", "")
+	slices.Reverse(chatMessages)
 
-	mess := fmt.Sprintf("LLM: %s", output)
+	UserMessages := []UserMessage{}
+	for _, msg := range chatMessages {
+		UserMessages = append(UserMessages, UserMessage{UserName: msg.Author.Username, Content: msg.Content})
+	}
+
+	InputChatChannel <- UserMessages
+	output := <-OutputChatChannel
+
+	mess := output //fmt.Sprintf("LLM: %s", output)
 
 	chunks := chunkDiscordMessage(mess, 1995)
 	for _, message := range chunks {
