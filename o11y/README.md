@@ -1,5 +1,9 @@
 # Deploying Observability Assets using Github Actions
 
+## Architecture
+
+![Observability Architecture](observability.drawio.png)
+
 ## Prometheus
 
 ### Prometheus Database
@@ -76,6 +80,7 @@ otel-collector:
 
 https://github.com/traceloop/openllmetry
 
+https://www.traceloop.com/docs/openllmetry/getting-started-python
 
 OTEL Collector Configuration
 

@@ -33,17 +33,27 @@ jobs:
         run: mkdir -p $NODE_EXPORTER_DIR
 
       - name: Pull Node Exporter
-        run: wget https://github.com/prometheus/node_exporter/releases/download/v1.8.2/${{ env.NODE_EXPORTER_FILE }}
-
-      - name: Extract Node Exporter
-        run: tar xvfz $NODE_EXPORTER_FILE
+        run: wget https://github.com/prometheus/node_exporter/releases/download/v1.8.2/${{ env.NODE_EXPORTER_FILE }}   
 
       - name: Upload Node Exporter TAR Archive Artifact to home directory
+        
         uses: actions/upload-artifact@v4
         id: nodexporter-upload-step
+        # run: tar xvfz $NODE_EXPORTER_FILE
         with:
           name: $NODE_EXTRACTION_DIR
           path: $NODE_EXPORTER_DIR
+
+      # env:
+      #   name: my-artifact
+      # steps:
+      # - run: |
+      #     mkdir -p ${{ github.workspace }}/artifact
+      #     echo hello > ${{ github.workspace }}/artifact/world.txt
+      # - uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ${{ env.name }}-name
+      #     path: ${{ github.workspace }}/artifact/**/*
 
       - name: Output artifact ID
         run:  echo 'Artifact ID is ${{ steps.nodexporter-upload-step.outputs.artifact-id }}'
