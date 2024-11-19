@@ -239,7 +239,7 @@ func helpCommand(discordSess *discordgo.Session, messageProperties *MessagePrope
 
 func llmCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) {
 
-	chatMessages, _ := discordSess.ChannelMessages(message.ChannelID, 20, "", "", "")
+	chatMessages, _ := discordSess.ChannelMessages(message.ChannelID, 100, "", "", "")
 	slices.Reverse(chatMessages)
 
 	UserMessages := []UserMessage{}
