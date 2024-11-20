@@ -57,6 +57,8 @@ https://github.com/prometheus-community/postgres_exporter
 
 https://github.com/open-telemetry/opentelemetry-collector
 
+https://opentelemetry.io/docs/specs/otlp/
+
 https://opentelemetry.io/docs/collector/deployment/agent/
 
 https://opentelemetry.io/docs/collector/installation/
@@ -76,7 +78,15 @@ otel-collector:
     - 55679:55679 # zpages extension
 ```
 
-### OpenLLMetry Agent
+### OTEL GO Instrumentation
+
+https://opentelemetry.io/docs/languages/go/getting-started/
+
+https://opentelemetry.io/docs/languages/go/instrumentation/
+
+https://opentelemetry.io/docs/languages/go/exporters/
+
+### OpenLLMetry Instrumentation
 
 https://github.com/traceloop/openllmetry
 
