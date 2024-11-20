@@ -4,6 +4,8 @@
 
 ![Observability Architecture](observability.drawio.png)
 
+---
+
 ## Prometheus
 
 ### Prometheus Database
@@ -50,6 +52,8 @@ docker compose -f node-exporter-compose.yml up
 ### Prometheus PostgreSQL Exporter
 
 https://github.com/prometheus-community/postgres_exporter
+
+---
 
 ## OpenTelemetry
 
