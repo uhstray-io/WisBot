@@ -7,9 +7,6 @@ import (
 	"time"
 	"wisbot/src/sqlgo"
 
-	// _ "github.com/mattn/go-sqlite3"
-	// _ "modernc.org/sqlite"
-
 	"github.com/jackc/pgx/v5"
 )
 
@@ -18,7 +15,7 @@ var wisQueries *sqlgo.Queries
 
 func StartDatabase() *pgx.Conn {
 	ctx := context.Background()
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
+	conn, err := pgx.Connect(ctx, databaseUrl)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		os.Exit(1)

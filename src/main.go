@@ -7,16 +7,20 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
-	// _ "github.com/mattn/go-sqlite3"
-	// _ "modernc.org/sqlite"
 )
 
 var (
-	maxFilesPerUser, _ = strconv.ParseInt(os.Getenv("MAX_FILES_PER_USER"), 10, 64)
-	serverPort         = os.Getenv("SERVER_PORT")
-	serverIp           = os.Getenv("SERVER_IP")
-
+	serverIp                = os.Getenv("SERVER_IP")
+	serverPort              = os.Getenv("SERVER_PORT")
+	maxFilesPerUser, _      = strconv.ParseInt(os.Getenv("MAX_FILES_PER_USER"), 10, 64)
 	deleteFilesAfterDays, _ = strconv.Atoi(os.Getenv("DELETE_FILES_AFTER_DAYS"))
+
+	databaseUrl = os.Getenv("DATABASE_URL")
+
+	discordToken = os.Getenv("DISCORD_TOKEN_WISBOT")
+
+	ollamaUrl   = os.Getenv("OLLAMA_URL")
+	ollamaModel = os.Getenv("OLLAMA_MODEL")
 )
 
 func main() {

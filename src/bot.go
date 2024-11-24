@@ -124,7 +124,7 @@ func CommandsStartBot() {
 //
 
 func StartBot() {
-	discordSess, err := discordgo.New("Bot " + os.Getenv("DISCORD_TOKEN_WISBOT"))
+	discordSess, err := discordgo.New("Bot " + discordToken)
 	if err != nil {
 		log.Fatalf("Error while creating Discord session: %v", err)
 	}

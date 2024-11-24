@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
@@ -28,8 +27,8 @@ func (um *UserMessage) Format() string {
 func StartLLM() {
 	fmt.Println("Starting LLM")
 
-	conn := ollama.WithServerURL(os.Getenv("OLLAMA_URL"))
-	model := ollama.WithModel(os.Getenv("OLLAMA_MODEL"))
+	conn := ollama.WithServerURL(ollamaUrl)
+	model := ollama.WithModel(ollamaModel)
 	llm, err := ollama.New(conn, model)
 	if err != nil {
 		log.Fatal(err)
