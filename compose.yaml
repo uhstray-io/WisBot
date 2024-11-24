@@ -1,4 +1,5 @@
 services:
+
   wisbot:
     container_name: wisbot
     image: "wisbot:latest"
@@ -19,6 +20,7 @@ services:
     networks:
       wis_net:
         ipv4_address: 10.5.0.2
+
 
   llm:
     container_name: wis-llm
@@ -45,6 +47,7 @@ services:
       wis_net:
         ipv4_address: 10.5.0.3
 
+
   db:
     container_name: postgres
     image: postgres:14-alpine
@@ -55,6 +58,7 @@ services:
       required: true
     volumes:
     - postgres:/var/lib/postgresql
+    - postgres_data:/var/lib/postgresql/data
     # https://docs.docker.com/compose/how-tos/startup-order/
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -65,6 +69,7 @@ services:
     networks:
       wis_net:
         ipv4_address: 10.5.0.4
+
 
   db_dashboard:
     container_name: adminer
@@ -79,6 +84,24 @@ services:
     networks:
       wis_net:
         ipv4_address: 10.5.0.5
+
+
+  # db_dashboard:
+  #   container_name: pgadmin
+  #   image: dpage/pgadmin4:latest
+  #   ports:
+  #   - 1234:80
+  #   restart: always
+  #   env_file:
+  #   - path: ./.env
+  #     required: true
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #       restart: true
+  #   networks:
+  #     wis_net:
+  #       ipv4_address: 10.5.0.5
 
   # ollama-webui:
   #   image: ghcr.io/open-webui/open-webui:main
@@ -111,6 +134,7 @@ secrets:
 volumes:
   ollama:
   postgres:
+  postgres_data:
 
 
 networks:

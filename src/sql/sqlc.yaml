@@ -1,0 +1,12 @@
+version: "2"
+sql:
+- engine: "postgresql"
+  schema: "schema.sql"
+  queries:
+  - "query.sql"
+  - "schema.sql" # We also list the schema in the queries so that the table can be created
+  gen:
+    go:
+      package: "sqlgo"
+      out: "../sqlgo/" # will generate a directory under ./src/sqlgo/
+      sql_package: "pgx/v5"

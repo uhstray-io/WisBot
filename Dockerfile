@@ -5,14 +5,15 @@ WORKDIR /app
 
 # Install Templ for generating html
 RUN go install github.com/a-h/templ/cmd/templ@latest
+RUN go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 
 # Copy only required files
 COPY go.sum go.mod ./
-# COPY config.yaml ./
 COPY /src ./src
 
 # Run Templ
 RUN templ generate
+RUN sqlc generate -f ./src/sql/sqlc.yaml
 
 # Build the Go app with cache
 RUN --mount=type=cache,target=/root/.cache/go-build \

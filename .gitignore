@@ -25,6 +25,7 @@ tmp/
 
 # Generated files
 *_templ.go
+src/sqlgo/
 
 # Credentials
 token.key

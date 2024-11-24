@@ -6,9 +6,9 @@ import (
 	"log"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
+	"wisbot/src/sqlgo"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
@@ -263,27 +263,36 @@ func uploadCommand(discordSess *discordgo.Session, messageProperties *MessagePro
 	uuid := uuid.New()
 
 	// Count the number of files the user has uploaded.
-	var count int
-	err3 := db.QueryRow(context.Background(), "SELECT COUNT(*) FROM File WHERE DiscordUsername = ?", message.Author.Username).Scan(&count)
-	if err3 != nil {
-		fmt.Println("Error counting files.", err3.Error())
+	count, err := wisQueries.CountFilesFromUser(context.Background(), message.Author.Username)
+	if err != nil {
+		fmt.Println("Error while executing CountFilesFromUser", err.Error())
+		return
 	}
 
-	maxFilesPerUser, _ := strconv.Atoi(os.Getenv("MAX_FILES_PER_USER"))
 	// Remove the oldest files if the user has uploaded too many.
 	if count >= maxFilesPerUser {
-		_, err1 := db.Exec(context.Background(), "DELETE FROM File WHERE ROWID IN ( SELECT ROWID FROM File WHERE DiscordUsername = ? ORDER BY CreatedAt LIMIT ?)", message.Author.Username, count-maxFilesPerUser+1)
+		err1 := wisQueries.DeleteFileWhereUsersCountIsProvided(context.Background(),
+			sqlgo.DeleteFileWhereUsersCountIsProvidedParams{
+				DiscordUsername: message.Author.Username,
+				Limit:           int32(count - maxFilesPerUser + 1),
+			})
 		if err1 != nil {
-			fmt.Println("Error removing old files.", err1.Error())
+			fmt.Println("Error while executing DeleteFileWhereUsersCountIsProvided query", err1.Error())
 		}
 	}
 
 	// Insert the new file.
-	_, err2 := db.Exec(context.Background(), "INSERT INTO File (ID, Uploaded, DiscordUsername, Name) VALUES (?, ?, ?, ?)", uuid.String(), false, message.Author.Username, "empty file")
+	err2 := wisQueries.InsertFile(context.Background(),
+		sqlgo.InsertFileParams{
+			ID:              uuid.String(),
+			Uploaded:        false,
+			DiscordUsername: message.Author.Username,
+			Name:            "empty file",
+		})
 	if err2 != nil {
-		fmt.Println("Error when adding UUID to DB.", err2.Error())
+		fmt.Println("Error while executing InsertFile query", err2.Error())
 	}
 
-	mess := fmt.Sprintf("Here is the link: http://%s:%s/id/%s", os.Getenv("SERVER_IP"), os.Getenv("SERVER_PORT"), uuid.String())
+	mess := fmt.Sprintf("Here is the link: http://%s:%s/id/%s", serverIp, serverPort, uuid.String())
 	discordSess.ChannelMessageSend(message.ChannelID, mess)
 }

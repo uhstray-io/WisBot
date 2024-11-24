@@ -1,5 +1,7 @@
 package main
 
+import "wisbot/src/sqlgo"
+
 css border() {
 	border: 1px solid #eeeeee;
 	border-radius: 4px;
@@ -14,12 +16,12 @@ css center() {
 	align-items: center;
 }
 
-templ rootIdPage(file *File) {
+templ rootIdPage(file *sqlgo.File) {
 	@header()
 	<div class={ center() }>
 		<div class={ border() }>
 			if file != nil {
-				<p>ID: { file.Id } </p>
+				<p>ID: { file.ID } </p>
 				if file.Uploaded {
 					<h2>File uploaded </h2>
 					<h3>Name: { file.Name } </h3>
@@ -36,8 +38,8 @@ templ rootIdPage(file *File) {
 	</div>
 }
 
-templ uploadFileForm(file *File) {
-	<form hx-post={ "/id/" + file.Id + "/upload" } enctype="multipart/form-data" hx-swap="outerHTML">
+templ uploadFileForm(file *sqlgo.File) {
+	<form hx-post={ "/id/" + file.ID + "/upload" } enctype="multipart/form-data" hx-swap="outerHTML">
 		<input type="file" name="file"/>
 		<button type="submit">Upload</button>
 	</form>
@@ -46,7 +48,7 @@ templ uploadFileForm(file *File) {
 // The uploadFileFormCompleted template is used to display a message after the file upload is completed.
 // The success parameter is a boolean that indicates whether the upload was successful or not.
 // The message parameter is a string that contains the message to display.
-templ uploadFileFormCompleted(file *File, success bool, message string) {
+templ uploadFileFormCompleted(file *sqlgo.File, success bool, message string) {
 	if success {
 		<p>File Upload Successful</p>
 		@downloadFile(file)
@@ -55,6 +57,6 @@ templ uploadFileFormCompleted(file *File, success bool, message string) {
 	}
 }
 
-templ downloadFile(file *File) {
-	<a href={ templ.URL("/id/" + file.Id + "/download") }>Download File </a>
+templ downloadFile(file *sqlgo.File) {
+	<a href={ templ.URL("/id/" + file.ID + "/download") }>Download File </a>
 }

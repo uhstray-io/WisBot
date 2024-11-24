@@ -15,7 +15,7 @@ A bot for the automation of things
   - [Commands](#commands)
   - [Requirements \& Dependencies](#requirements--dependencies)
     - [Bot Dependencies](#bot-dependencies)
-      - [Templ \& Air](#templ--air)
+      - [Templ, SQLc \& Air](#templ-sqlc--air)
   - [Running the bot](#running-the-bot)
     - [Running the bot using Go](#running-the-bot-using-go)
   - [Prepare Linux (Ubuntu 22.04) for running Wisbot](#prepare-linux-ubuntu-2204-for-running-wisbot)
@@ -62,13 +62,18 @@ A bot for the automation of things
 ### Bot Dependencies
 After the installation of Go, the following tools are recommended for development. Please install them using the commands below:
 
-#### Templ & Air
+#### Templ, SQLc & Air
 
 - A language for writing HTML user interfaces in Go - https://github.com/a-h/templ
 - Live reload for Go apps - https://github.com/air-verse/air
   
 ```sh
-go install github.com/a-h/templ/cmd/templ@latest && go install github.com/air-verse/air@latest
+go install github.com/a-h/templ/cmd/templ@latest && go install github.com/air-verse/air@latest && go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+```
+
+Run the following command to generate the SQLC files for the bot:
+```sh
+sqlc generate -f ./src/sql/sqlc.yaml
 ```
 
 Then run air in the WisBot repository to update all required dependencies:
