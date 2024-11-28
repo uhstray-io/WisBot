@@ -1,32 +1,31 @@
-
+<!-- omit in toc -->
 # Introduction & Table of Contents
 
+<!-- omit in toc -->
 ## WisBot
 
 A bot for the automation of things
 
-- [Introduction \& Table of Contents](#introduction--table-of-contents)
-  - [WisBot](#wisbot)
-  - [Getting Started](#getting-started)
-    - [Start using Wisbot with Commands](#start-using-wisbot-with-commands)
-  - [Architecture](#architecture)
-    - [WisBot Design Architecture](#wisbot-design-architecture)
-    - [User Experience Workflows](#user-experience-workflows)
-  - [Commands](#commands)
-  - [Requirements \& Dependencies](#requirements--dependencies)
-    - [Bot Dependencies](#bot-dependencies)
-      - [Templ, SQLc \& Air](#templ-sqlc--air)
-  - [Running the bot](#running-the-bot)
-    - [Running the bot using Go](#running-the-bot-using-go)
-  - [Prepare Linux (Ubuntu 22.04) for running Wisbot](#prepare-linux-ubuntu-2204-for-running-wisbot)
-  - [Setup Nvidia Drivers and Container Toolkit on Ubuntu 22.04](#setup-nvidia-drivers-and-container-toolkit-on-ubuntu-2204)
-  - [Using Docker to build and deploy Wisbot](#using-docker-to-build-and-deploy-wisbot)
-    - [Building the Docker Image](#building-the-docker-image)
-    - [Running the bot using docker-compose](#running-the-bot-using-docker-compose)
-      - [Running the dockerfile with GPU acceleration enabled:](#running-the-dockerfile-with-gpu-acceleration-enabled)
-  - [Ollama Docker Image Documentation](#ollama-docker-image-documentation)
-    - [Issues](#issues)
-  - [CRLF vs LF](#crlf-vs-lf)
+- [Getting Started](#getting-started)
+  - [Start using Wisbot with Commands](#start-using-wisbot-with-commands)
+- [Architecture](#architecture)
+  - [WisBot Design Architecture](#wisbot-design-architecture)
+  - [User Experience Workflows](#user-experience-workflows)
+- [Commands](#commands)
+- [Requirements \& Dependencies](#requirements--dependencies)
+  - [Bot Dependencies](#bot-dependencies)
+    - [Templ, SQLc \& Air](#templ-sqlc--air)
+- [Running the bot](#running-the-bot)
+  - [Running the bot using Go](#running-the-bot-using-go)
+- [Prepare Linux (Ubuntu 22.04) for running Wisbot](#prepare-linux-ubuntu-2204-for-running-wisbot)
+- [Setup Nvidia Drivers and Container Toolkit on Ubuntu 22.04](#setup-nvidia-drivers-and-container-toolkit-on-ubuntu-2204)
+- [Using Docker to build and deploy Wisbot](#using-docker-to-build-and-deploy-wisbot)
+  - [Building the Docker Image](#building-the-docker-image)
+  - [Running the bot using docker-compose](#running-the-bot-using-docker-compose)
+    - [Running the dockerfile with GPU acceleration enabled:](#running-the-dockerfile-with-gpu-acceleration-enabled)
+- [Ollama Docker Image Documentation](#ollama-docker-image-documentation)
+  - [Issues](#issues)
+- [CRLF vs LF](#crlf-vs-lf)
 
 ## Getting Started
 
