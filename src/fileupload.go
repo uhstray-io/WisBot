@@ -52,9 +52,9 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle the file upload - 100MB max file maxFileSize.
-	var maxFileSize int64 = 100 * 1024 * 1024
-	fmt.Println("Max File Size:", maxFileSize)
-	if err := r.ParseMultipartForm(maxFileSize); err != nil {
+	var maxSize int64 = maxFileSize * 1024 * 1024
+	fmt.Println("Max File Size:", maxSize)
+	if err := r.ParseMultipartForm(maxSize); err != nil {
 		uploadFileFormCompleted(file, false, "Unable to parse form.").Render(r.Context(), w)
 		return
 	}

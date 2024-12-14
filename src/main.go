@@ -14,6 +14,7 @@ var (
 	serverPort              = os.Getenv("SERVER_PORT")
 	maxFilesPerUser, _      = strconv.ParseInt(os.Getenv("MAX_FILES_PER_USER"), 10, 64)
 	deleteFilesAfterDays, _ = strconv.Atoi(os.Getenv("DELETE_FILES_AFTER_DAYS"))
+	maxFileSize, _          = strconv.ParseInt(os.Getenv("MAX_FILE_SIZE"), 10, 64)
 
 	databaseUrl = os.Getenv("DATABASE_URL")
 
