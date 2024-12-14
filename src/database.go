@@ -25,6 +25,19 @@ func StartDatabase() *pgx.Conn {
 
 	// Create the tables if it does not exist.
 	wisQueries.CreateFilesTable(ctx)
+	if err != nil {
+		fmt.Println("Error while creating files table", err)
+	}
+
+	wisQueries.CreateExtensionVector(ctx)
+	if err != nil {
+		fmt.Println("Error while creating extension vector", err)
+	}
+
+	wisQueries.CreateEmbeddingsTable(ctx)
+	if err != nil {
+		fmt.Println("Error while creating embeddings table", err)
+	}
 
 	return conn
 }

@@ -34,8 +34,8 @@ func main() {
 	// Start the LLM
 	go StartLLM()
 
-	go StartBot()
 	go WebServer()
+	go StartBot()
 
 	// Wait here until CTRL-C or other term signal is received.
 	fmt.Println("If in iteractive mode, Press CTRL-C to exit.")

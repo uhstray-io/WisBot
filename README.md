@@ -70,6 +70,11 @@ After the installation of Go, the following tools are recommended for developmen
 go install github.com/a-h/templ/cmd/templ@latest && go install github.com/air-verse/air@latest && go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 ```
 
+Run the following command to generate the Templ files for the bot:
+```sh
+templ generate
+```
+
 Run the following command to generate the SQLC files for the bot:
 ```sh
 sqlc generate -f ./src/sql/sqlc.yaml

@@ -11,3 +11,14 @@ CREATE TABLE IF NOT EXISTS files (
     Uploaded         BOOLEAN NOT NULL,
     Created_At       TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
   );
+
+-- name: CreateExtensionVector :exec
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- name: CreateEmbeddingsTable :exec
+CREATE TABLE IF NOT EXISTS embeddings (
+  id SERIAL PRIMARY KEY,
+  embedding vector,
+  text text,
+  created_at timestamptz DEFAULT now()
+);
