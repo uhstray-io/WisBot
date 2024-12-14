@@ -293,6 +293,6 @@ func uploadCommand(discordSess *discordgo.Session, messageProperties *MessagePro
 		fmt.Println("Error while executing InsertFile query", err2.Error())
 	}
 
-	mess := fmt.Sprintf("Here is the link: http://%s:%s/id/%s", serverIp, serverPort, uuid.String())
+	mess := fmt.Sprintf("Here is the link: https://%s/id/%s", serverIp, uuid.String())
 	discordSess.ChannelMessageSend(message.ChannelID, mess)
 }
