@@ -67,8 +67,8 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) {
 	defer fileObject.Close()
 
 	// Read the Data into a buffer.
-	buff, _ := io.ReadAll(io.LimitReader(fileObject, maxFileSize))
-	if len(buff) >= int(maxFileSize) {
+	buff, _ := io.ReadAll(io.LimitReader(fileObject, maxSize))
+	if len(buff) >= int(maxSize) {
 		uploadFileFormCompleted(file, false, "File too large.").Render(r.Context(), w)
 		return
 	}
