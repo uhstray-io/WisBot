@@ -12,6 +12,9 @@ services:
       db:
         condition: service_healthy
         restart: true
+      vectordb:
+        condition: service_started
+        restart: true
     develop:
       watch:
       - action: sync
@@ -87,6 +90,36 @@ services:
         ipv4_address: 10.5.0.5
 
 
+  vectordb:
+    container_name: chromadb
+    image: chromadb/chroma:latest
+    ports:
+    - 8000:8000
+    volumes:
+    - chromadb:/index_data
+    env_file:
+    - path: ./.env
+      required: true
+    networks:
+      wis_net:
+        ipv4_address: 10.5.0.6
+
+
+  # otel-collector:
+  #   container_name: otel-collector
+  #   image: otel/opentelemetry-collector-contrib:0.111.0
+  #   command: ["--config=/etc/otel-collector-config.yaml"]
+  #   volumes:
+  #     - ${PWD}/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+  #   ports:
+  #     - "4317:4317"  # OTLP
+  #     - "4318:4318"
+  #     - "55681:55681" # Legacy
+  #   networks:
+  #     wis_net:
+  #       ipv4_address: 10.5.0.7
+
+
   # db_dashboard:
   #   container_name: pgadmin
   #   image: dpage/pgadmin4:latest
@@ -136,6 +169,7 @@ volumes:
   ollama:
   postgres:
   postgres_data:
+  chromadb:
 
 
 networks:

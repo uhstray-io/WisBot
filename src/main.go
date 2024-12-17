@@ -33,7 +33,8 @@ func main() {
 	go DatabaseCleanup(db)
 
 	// Start the LLM
-	go StartLLM()
+	// go StartLLM()
+	go StartEmbeddings()
 
 	go WebServer()
 	go StartBot()
