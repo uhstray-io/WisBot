@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
+	"github.com/rotisserie/eris"
 )
 
 var globalState GlobalState
@@ -23,6 +23,17 @@ func requestLogger(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Request: `%s %s` %s", r.Method, r.URL.Path, "\n")
 		next(w, r)
+	}
+}
+
+func requestStackTrace(next func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := next(w, r)
+		if err != nil {
+			eris.Wrapf(err, "Error while executing request: %v", r.URL.Path)
+		}
+
+		PrintTrace(err)
 	}
 }
 
@@ -60,15 +71,18 @@ func WebServer() {
 	mux.HandleFunc("GET /", requestLogger(getRoot))
 	mux.HandleFunc("POST /", requestLogger(postRoot))
 	mux.HandleFunc("GET /id/{id}", requestLogger(getId))
-	mux.HandleFunc("POST /id/{id}/upload", requestLogger(postIdUploadFile))
-	mux.HandleFunc("GET /id/{id}/download", requestLogger(getIdDownloadFile))
+	mux.HandleFunc("POST /id/{id}/upload", requestLogger(requestStackTrace(postIdUploadFile)))
+	mux.HandleFunc("GET /id/{id}/download", requestLogger(requestStackTrace(getIdDownloadFile)))
 
 	// Add the middleware.
 	muxWithSessionMiddleware := sessionManager.LoadAndSave(mux)
 
 	// Start the server.
 	fmt.Println("listening on https://" + serverIp + ":" + serverPort)
-	if err := http.ListenAndServe(":"+serverPort, muxWithSessionMiddleware); err != nil {
-		log.Printf("error listening: %v", err)
+	err := http.ListenAndServe(":"+serverPort, muxWithSessionMiddleware)
+	if err != nil {
+		err = eris.Wrap(err, "Error while issuing ListenAndServe")
 	}
+
+	PrintTrace(err)
 }

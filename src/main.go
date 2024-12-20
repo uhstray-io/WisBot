@@ -26,7 +26,10 @@ var (
 
 func main() {
 	// Initialize the database
-	db := StartDatabase()
+	db, err := StartDatabase()
+	if err != nil {
+		PrintTrace(err)
+	}
 	defer db.Close(context.Background())
 
 	// Start the database cleanup process

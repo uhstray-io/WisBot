@@ -12,6 +12,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
+	"github.com/rotisserie/eris"
 )
 
 var (
@@ -105,7 +106,7 @@ func CommandsStartBot() {
 		log.Fatalf("Could not create Discord session: %v", err)
 	}
 
-	removeAllCommands(discordSess)
+	// removeAllCommands(discordSess)
 	// createCommands(discordSess)
 	// createCommandsHandler(discordSess)
 
@@ -126,7 +127,8 @@ func CommandsStartBot() {
 func StartBot() {
 	discordSess, err := discordgo.New("Bot " + discordToken)
 	if err != nil {
-		log.Fatalf("Error while creating Discord session: %v", err)
+		err = eris.Wrap(err, "Error while creating Discord session")
+		ErrorTrace(err)
 	}
 	defer discordSess.Close()
 
@@ -135,10 +137,10 @@ func StartBot() {
 	discordSess.Identify.Intents = discordgo.IntentsAll
 
 	// Open a websocket connection to Discord and begin listening.
-	err = discordSess.Open()
-	if err != nil {
-		log.Fatalf("Error encountered while opening Discord session. %v", err)
-		return
+	err2 := discordSess.Open()
+	if err2 != nil {
+		err2 = eris.Wrap(err2, "Error while opening Discord session")
+		ErrorTrace(err2)
 	}
 }
 
@@ -188,6 +190,8 @@ func messageCreate(discordSess *discordgo.Session, message *discordgo.MessageCre
 		return
 	}
 
+	var err error
+
 	printMessage(discordSess, message)
 
 	messageProp := &MessageProperties{
@@ -214,16 +218,21 @@ func messageCreate(discordSess *discordgo.Session, message *discordgo.MessageCre
 
 		switch head {
 		case "llm":
-			llmCommand(discordSess, messageProp, message)
-			return
+			err := llmCommand(discordSess, messageProp, message)
+			if err != nil {
+				err = eris.Wrap(err, "Error while executing llm command")
+				PrintTrace(err)
+			}
 
 		case "upload":
-			uploadCommand(discordSess, messageProp, message)
-			return
+			err = uploadCommand(discordSess, messageProp, message)
+			if err != nil {
+				err = eris.Wrap(err, "Error while executing upload command")
+				PrintTrace(err)
+			}
 
 		case "help":
 			helpCommand(discordSess, messageProp, message)
-			return
 		}
 	}
 }
@@ -237,7 +246,7 @@ func helpCommand(discordSess *discordgo.Session, messageProperties *MessagePrope
 	discordSess.ChannelMessageSend(messageProperties.ReplyChannelID, mess)
 }
 
-func llmCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) {
+func llmCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) error {
 
 	chatMessages, _ := discordSess.ChannelMessages(message.ChannelID, 100, "", "", "")
 	slices.Reverse(chatMessages)
@@ -248,25 +257,28 @@ func llmCommand(discordSess *discordgo.Session, messageProperties *MessageProper
 	}
 
 	InputChatChannel <- UserMessages
-	output := <-OutputChatChannel
+	mess := <-OutputChatChannel
 
-	mess := output //fmt.Sprintf("LLM: %s", output)
+	chunks, err := chunkDiscordMessage(mess, 1995)
+	if err != nil {
+		return eris.Wrap(err, "Error while chunking Discord message")
+	}
 
-	chunks := chunkDiscordMessage(mess, 1995)
 	for _, message := range chunks {
 		discordSess.ChannelMessageSend(messageProperties.ReplyChannelID, message)
 		time.Sleep(200 * time.Millisecond)
 	}
+
+	return nil
 }
 
-func uploadCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) {
+func uploadCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) error {
 	uuid := uuid.New()
 
 	// Count the number of files the user has uploaded.
 	count, err := wisQueries.CountFilesFromUser(context.Background(), message.Author.Username)
 	if err != nil {
-		fmt.Println("Error while executing CountFilesFromUser", err.Error())
-		return
+		return eris.Wrap(err, "Error while executing CountFilesFromUser")
 	}
 
 	// Remove the oldest files if the user has uploaded too many.
@@ -277,7 +289,7 @@ func uploadCommand(discordSess *discordgo.Session, messageProperties *MessagePro
 				Limit:           int32(count - maxFilesPerUser + 1),
 			})
 		if err1 != nil {
-			fmt.Println("Error while executing DeleteFileWhereUsersCountIsProvided query", err1.Error())
+			return eris.Wrap(err1, "Error while executing DeleteFileWhereUsersCountIsProvided")
 		}
 	}
 
@@ -290,9 +302,11 @@ func uploadCommand(discordSess *discordgo.Session, messageProperties *MessagePro
 			Name:            "empty file",
 		})
 	if err2 != nil {
-		fmt.Println("Error while executing InsertFile query", err2.Error())
+		return eris.Wrap(err2, "Error while executing InsertFile")
 	}
 
 	mess := fmt.Sprintf("Here is the link: https://%s/id/%s", serverIp, uuid.String())
 	discordSess.ChannelMessageSend(message.ChannelID, mess)
+
+	return nil
 }

@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
+	"github.com/rotisserie/eris"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
@@ -29,16 +31,21 @@ func StartLLM() {
 
 	conn := ollama.WithServerURL(ollamaUrl)
 	model := ollama.WithModel(ollamaModel)
+
 	llm, err := ollama.New(conn, model)
 	if err != nil {
-		log.Fatal(err)
+		err = eris.Wrap(err, "Error while creating LLM")
 	}
 	ctx := context.Background()
 
 	// go LLM(ctx, llm)
-	go LLMChat(ctx, llm)
+	err2 := LLMChat(ctx, llm)
+	if err2 != nil {
+		eris.Wrap(err2, "Error while running LLM")
+	}
 
-	fmt.Println("Started LLM")
+	err = errors.Join(err, err2)
+	ErrorTrace(err)
 }
 
 func LLM(ctx context.Context, llm *ollama.LLM) {
@@ -72,7 +79,7 @@ func LLM(ctx context.Context, llm *ollama.LLM) {
 	}
 }
 
-func LLMChat(ctx context.Context, llm *ollama.LLM) {
+func LLMChat(ctx context.Context, llm *ollama.LLM) error {
 	for {
 		usermessages := <-InputChatChannel
 
@@ -94,7 +101,7 @@ func LLMChat(ctx context.Context, llm *ollama.LLM) {
 		))
 
 		if err != nil {
-			log.Fatal(err)
+			return eris.Wrap(err, "Error while generating content")
 		}
 		_ = completion
 

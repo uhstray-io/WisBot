@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"strings"
+
+	"github.com/rotisserie/eris"
 )
 
-func chunkDiscordMessage(input string, maxLength int) []string {
+func chunkDiscordMessage(input string, maxLength int) ([]string, error) {
 	var newChunks []string
 	chunks, bools := chunkCodeBlock(input)
 
@@ -18,7 +21,14 @@ func chunkDiscordMessage(input string, maxLength int) []string {
 		}
 	}
 
-	return newChunks
+	// Validate that the chunks are not too long
+	for _, chunk := range newChunks {
+		if len(chunk) > maxLength {
+			return nil, eris.New(fmt.Sprintf("Chunk is too long. %v > %v ", len(chunk), maxLength))
+		}
+	}
+
+	return newChunks, nil
 }
 
 // chunkString splits a string into a list of smaller strings of a given length.

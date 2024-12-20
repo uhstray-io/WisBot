@@ -3,22 +3,21 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 	"wisbot/src/sqlgo"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/rotisserie/eris"
 )
 
 // var databaseConnection *pgx.Conn
 var wisQueries *sqlgo.Queries
 
-func StartDatabase() *pgx.Conn {
+func StartDatabase() (*pgx.Conn, error) {
 	ctx := context.Background()
 	conn, err := pgx.Connect(ctx, databaseUrl)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
-		os.Exit(1)
+		return nil, eris.Wrapf(err, "Error while connecting to database: %v", err)
 	}
 
 	wisQueries = sqlgo.New(conn)
@@ -26,44 +25,50 @@ func StartDatabase() *pgx.Conn {
 	// Create the tables if it does not exist.
 	wisQueries.CreateFilesTable(ctx)
 	if err != nil {
-		fmt.Println("Error while creating files table", err)
+		return nil, eris.Wrap(err, "Error while creating files table")
 	}
 
 	wisQueries.CreateExtensionVector(ctx)
 	if err != nil {
-		fmt.Println("Error while creating extension vector", err)
+		return nil, eris.Wrap(err, "Error while creating extension vector")
 	}
 
 	wisQueries.CreateEmbeddingsTable(ctx)
 	if err != nil {
-		fmt.Println("Error while creating embeddings table", err)
+		return nil, eris.Wrap(err, "Error while creating embeddings table")
 	}
 
-	return conn
+	return conn, nil
 }
 
 // Delete old files ticker
 func DatabaseCleanup(db *pgx.Conn) {
-
-	DeleteOldFilesHandler := func(db *pgx.Conn) {
+	DeleteOldFilesHandler := func(db *pgx.Conn) error {
 		err := wisQueries.DeleteFileWhereOlderThan(context.Background(), int32(deleteFilesAfterDays))
 
 		if err != nil {
-			fmt.Println("Error while executing DeleteFileWhereOlderThan query", err)
+			return eris.Wrap(err, "Error while executing DeleteFileWhereOlderThan query")
 		}
+		return nil
 	}
 
 	time.Sleep(5 * time.Second)
 
-	go func() {
+	err := func() error {
 		// Trigger cleanup process every hour.
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 
 		for {
 			fmt.Println("Running cleanup process")
-			DeleteOldFilesHandler(db)
+			err := DeleteOldFilesHandler(db)
+			if err != nil {
+				return eris.Wrap(err, "Error while running cleanup process")
+			}
+
 			<-ticker.C
 		}
 	}()
+
+	ErrorTrace(err)
 }
