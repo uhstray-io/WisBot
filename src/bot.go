@@ -259,6 +259,8 @@ func llmCommand(discordSess *discordgo.Session, messageProperties *MessageProper
 	InputChatChannel <- UserMessages
 	mess := <-OutputChatChannel
 
+	log.Println("output mess:", mess)
+
 	chunks, err := chunkDiscordMessage(mess, 1995)
 	if err != nil {
 		return eris.Wrap(err, "Error while chunking Discord message")
