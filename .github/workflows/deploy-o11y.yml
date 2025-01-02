@@ -1,4 +1,4 @@
-name: Deployment Script
+name: Deployment Wisbot Observability Agents
 
 on:
   push:
