@@ -1,0 +1,34 @@
+name: Deployment Script
+
+on:
+  push:
+    branches:
+    - main
+
+jobs:
+  deployment:
+    runs-on: self-hosted # This specifies that the job should run on your self-hosted runner
+
+    steps:
+
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        repository: uhstray-io/o11y
+        
+#    - name: Append Secret to .env file
+#      run: printf "\nDISCORD_TOKEN_WISBOT=${{ secrets.DISCORD_TOKEN_WISBOT }}" >> .env
+
+#    - name: Print the contents of the .env file
+#      run: cat .env
+    - name: Docker Down Prometheus
+      run: cd ./prometheus && docker compose -f compose-remote.yml down 
+
+    - name: Docker Up Prometheus
+      run: docker compose -f compose-remote.yml up -d
+
+    - name: Docker Down Promtail
+      run: cd .././promtail && docker compose -f compose-remote.yml down 
+
+    - name: Docker Up Promtail
+      run: docker compose -f compose-remote.yml up -d
