@@ -22,10 +22,7 @@ jobs:
       run: cat .env
 
     - name: Docker Down
-      run: docker compose down
-
-    - name: Clean up docker volumes
-      run: docker volume prune --all -f
+      run: docker compose down --rmi="all" -v
 
     - name: Docker Build
       env:
