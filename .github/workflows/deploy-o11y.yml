@@ -25,10 +25,10 @@ jobs:
       run: cd ./prometheus && docker compose -f compose-remote.yml down 
 
     - name: Docker Up Prometheus
-      run: docker compose -f compose-remote.yml up -d
+      run: cd ./prometheus && docker compose -f compose-remote.yml up -d
 
     - name: Docker Down Promtail
       run: cd .././promtail && docker compose -f compose-remote.yml down 
 
     - name: Docker Up Promtail
-      run: docker compose -f compose-remote.yml up -d
+      run: cd .././promtail && docker compose -f compose-remote.yml up -d
