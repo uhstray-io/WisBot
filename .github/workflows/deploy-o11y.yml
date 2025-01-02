@@ -28,7 +28,7 @@ jobs:
       run: cd ./prometheus && docker compose -f compose-remote.yml up -d
 
     - name: Docker Down Promtail
-      run: cd .././promtail && docker compose -f compose-remote.yml down 
+      run: cd ./promtail && docker compose -f compose-remote.yml down 
 
     - name: Docker Up Promtail
-      run: cd .././promtail && docker compose -f compose-remote.yml up -d
+      run: cd ./promtail && docker compose -f compose-remote.yml up -d
