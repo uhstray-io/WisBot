@@ -23,20 +23,20 @@ func StartDatabase() (*pgx.Conn, error) {
 	wisQueries = sqlgo.New(conn)
 
 	// Create the tables if it does not exist.
-	wisQueries.CreateFilesTable(ctx)
+	err = wisQueries.CreateFilesTable(ctx)
 	if err != nil {
 		return nil, eris.Wrap(err, "Error while creating files table")
 	}
 
-	wisQueries.CreateExtensionVector(ctx)
-	if err != nil {
-		return nil, eris.Wrap(err, "Error while creating extension vector")
-	}
+	// err = wisQueries.CreateExtensionVector(ctx)
+	// if err != nil {
+	// 	return nil, eris.Wrap(err, "Error while creating extension vector")
+	// }
 
-	wisQueries.CreateEmbeddingsTable(ctx)
-	if err != nil {
-		return nil, eris.Wrap(err, "Error while creating embeddings table")
-	}
+	// err = wisQueries.CreateEmbeddingsTable(ctx)
+	// if err != nil {
+	// 	return nil, eris.Wrap(err, "Error while creating embeddings table")
+	// }
 
 	return conn, nil
 }

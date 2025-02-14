@@ -3,5 +3,4 @@
 templ generate
 sqlc generate -f ./src/sql/sqlc.yaml
 
-docker build -t wisbot .
-docker compose up -d
+go build -o ./tmp/main.exe ./src/

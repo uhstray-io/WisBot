@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+	"wisbot/src/httpwis"
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/rotisserie/eris"
@@ -41,7 +42,7 @@ func getRoot(w http.ResponseWriter, r *http.Request) {
 	userCount := sessionManager.GetInt(r.Context(), "session")
 	// fmt.Println(userCount)
 
-	component := rootPage(globalState.Count, userCount)
+	component := httpwis.RootPage(globalState.Count, userCount)
 	component.Render(r.Context(), w)
 }
 
@@ -66,23 +67,31 @@ func WebServer() {
 	sessionManager = scs.New()
 	sessionManager.Lifetime = 24 * time.Hour
 
-	mux := http.NewServeMux()
+	server := http.NewServeMux()
 
-	mux.HandleFunc("GET /", requestLogger(getRoot))
-	mux.HandleFunc("POST /", requestLogger(postRoot))
-	mux.HandleFunc("GET /id/{id}", requestLogger(getId))
-	mux.HandleFunc("POST /id/{id}/upload", requestLogger(requestStackTrace(postIdUploadFile)))
-	mux.HandleFunc("GET /id/{id}/download", requestLogger(requestStackTrace(getIdDownloadFile)))
+	server.HandleFunc("GET /", requestLogger(getRoot))
+	server.HandleFunc("POST /", requestLogger(postRoot))
+
+	server.HandleFunc("GET /id/{id}", requestLogger(getId))
+	server.HandleFunc("POST /id/{id}/upload", requestLogger(requestStackTrace(postIdUploadFile)))
+	server.HandleFunc("GET /id/{id}/download", requestLogger(requestStackTrace(getIdDownloadFile)))
+
+	server.HandleFunc("GET /llm/", requestLogger(getLLM))
 
 	// Add the middleware.
-	muxWithSessionMiddleware := sessionManager.LoadAndSave(mux)
+	muxWithSessionMiddleware := sessionManager.LoadAndSave(server)
 
 	// Start the server.
-	fmt.Println("listening on https://" + serverIp + ":" + serverPort)
+	fmt.Println("listening on", string(serverPort))
 	err := http.ListenAndServe(":"+serverPort, muxWithSessionMiddleware)
 	if err != nil {
 		err = eris.Wrap(err, "Error while issuing ListenAndServe")
 	}
 
 	PrintTrace(err)
+}
+
+func getLLM(w http.ResponseWriter, r *http.Request) {
+	component := httpwis.LlmPage()
+	component.Render(r.Context(), w)
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"wisbot/src/httpwis"
 	"wisbot/src/sqlgo"
 
 	"github.com/rotisserie/eris"
@@ -20,7 +21,7 @@ func getId(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			component := rootIdPage(nil)
+			component := httpwis.RootIdPage(nil)
 			component.Render(r.Context(), w)
 			return
 		}
@@ -29,7 +30,7 @@ func getId(w http.ResponseWriter, r *http.Request) {
 
 	file := &sqlgo.File{ID: queryfile.ID, Name: queryfile.Name, Uploaded: queryfile.Uploaded}
 
-	component := rootIdPage(file)
+	component := httpwis.RootIdPage(file)
 	component.Render(r.Context(), w)
 }
 
@@ -47,7 +48,7 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 	// If the Id exists, and the file has not been uploaded, then continue.
 	if err != nil {
 		if err == sql.ErrNoRows {
-			uploadFileFormCompleted(nil, false, "File not found.").Render(r.Context(), w)
+			httpwis.UploadFileFormCompleted(nil, false, "File not found.").Render(r.Context(), w)
 			return nil
 		}
 		return eris.Wrap(err, "Error while executing GetFileIdWhereIdAndUploadedIsFalse query")
@@ -57,13 +58,13 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 	var maxSize int64 = maxFileSize * 1024 * 1024
 	fmt.Println("Max File Size:", maxSize)
 	if err := r.ParseMultipartForm(maxSize); err != nil {
-		uploadFileFormCompleted(file, false, "Unable to parse form.").Render(r.Context(), w)
+		httpwis.UploadFileFormCompleted(file, false, "Unable to parse form.").Render(r.Context(), w)
 		return nil
 	}
 
 	fileObject, fileHeader, err := r.FormFile("file")
 	if err != nil {
-		uploadFileFormCompleted(file, false, "Unable to read file.").Render(r.Context(), w)
+		httpwis.UploadFileFormCompleted(file, false, "Unable to read file.").Render(r.Context(), w)
 		return nil
 	}
 	defer fileObject.Close()
@@ -71,7 +72,7 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 	// Read the Data into a buffer.
 	buff, _ := io.ReadAll(io.LimitReader(fileObject, maxSize))
 	if len(buff) >= int(maxSize) {
-		uploadFileFormCompleted(file, false, "File too large.").Render(r.Context(), w)
+		httpwis.UploadFileFormCompleted(file, false, "File too large.").Render(r.Context(), w)
 		return nil
 	}
 
@@ -96,11 +97,11 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 		})
 
 	if err2 != nil {
-		uploadFileFormCompleted(file, false, "Unable to update file.").Render(r.Context(), w)
+		httpwis.UploadFileFormCompleted(file, false, "Unable to update file.").Render(r.Context(), w)
 		return eris.Wrap(err2, "Error while executing UpdateFileWhereId query")
 	}
 
-	uploadFileFormCompleted(file, true, "").Render(r.Context(), w)
+	httpwis.UploadFileFormCompleted(file, true, "").Render(r.Context(), w)
 
 	return nil
 }

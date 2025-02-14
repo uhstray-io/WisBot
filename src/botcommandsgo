@@ -1,0 +1,102 @@
+var (
+	token   = os.Getenv("DISCORD_TOKEN_WISBOT")
+	appID   = os.Getenv("DISCORD_APPLICATION_ID_WISBOT")
+	guildID = "" // "889910011113906186"
+)
+
+func removeAllCommands(s *discordgo.Session) {
+	registeredCommands, err := s.ApplicationCommands(appID, guildID)
+	if err != nil {
+		log.Fatalf("Could not fetch registered commands: %v", err)
+	}
+
+	for _, v := range registeredCommands {
+		fmt.Println("Removing command: ", v.Name, v.Description)
+
+		err2 := s.ApplicationCommandDelete(appID, guildID, v.ID)
+		if err2 != nil {
+			fmt.Printf("Cannot delete '%v' command: %v\n", v.Name, err2)
+		}
+	}
+}
+
+func createCommands(discordSess *discordgo.Session) {
+	_, err := discordSess.ApplicationCommandBulkOverwrite(appID, "",
+		[]*discordgo.ApplicationCommand{
+			{
+				Name:        "hello-world",
+				Description: "Showcase of a basic slash command!",
+			},
+			{
+				Name:        "llm",
+				Description: "Large Language Model",
+			},
+		})
+	if err != nil {
+		log.Fatalf("Could not register commands: %v", err)
+	}
+}
+
+func createCommandsHandler(discordSess *discordgo.Session) {
+	discordSess.AddHandler(func(
+		s *discordgo.Session,
+		i *discordgo.InteractionCreate,
+	) {
+		data := i.ApplicationCommandData()
+
+		fmt.Println("data.Name", data.Name)
+		for i, v := range data.Options {
+			fmt.Println("data.Options", i, v)
+		}
+
+		switch data.Name {
+
+		case "hello-world":
+			err := s.InteractionRespond(
+				i.Interaction,
+				&discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "Hello world!",
+					},
+				},
+			)
+			if err != nil {
+				fmt.Println("Error responding to hello-world command: ", err)
+			}
+
+		case "llm":
+			err := s.InteractionRespond(
+				i.Interaction,
+				&discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "Hello world!",
+					},
+				},
+			)
+			if err != nil {
+				fmt.Println("Error responding to llm command: ", err)
+			}
+		}
+	})
+}
+
+func CommandsStartBot() {
+	discordSess, err := discordgo.New("Bot " + token)
+	if err != nil {
+		log.Fatalf("Could not create Discord session: %v", err)
+	}
+
+	// removeAllCommands(discordSess)
+	// createCommands(discordSess)
+	// createCommandsHandler(discordSess)
+
+	discordSess.Identify.Intents = discordgo.IntentsAll
+
+	err2 := discordSess.Open()
+	if err2 != nil {
+		log.Fatalf("Error encountered while Opening Discord session. %v", err)
+	}
+	defer discordSess.Close()
+}

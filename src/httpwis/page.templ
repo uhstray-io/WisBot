@@ -1,8 +1,8 @@
-package main
+package httpwis
 
 import "strconv"
 
-templ counts(global, session int) {
+templ Counts(global, session int) {
 	<form id="countsForm" hx-post="/" hx-select="#countsForm" hx-swap="outerHTML">
 		<p>
 			{ strconv.Itoa(global) }
@@ -17,15 +17,15 @@ templ counts(global, session int) {
 	</form>
 }
 
-templ header() {
+templ Header() {
 	<head>
-		<script src="https://unpkg.com/htmx.org@2.0.2" integrity="sha384-Y7hw+L/jvKeWIRRkqWYfPcvVxHzVzn5REgzbawhxAuQGwX1XWe70vji+VSeHOThJ" crossorigin="anonymous"></script>
+		<script src="https://unpkg.com/htmx.org@2.0.4" crossorigin="anonymous"></script>
 	</head>
 }
 
-templ rootPage(global, user int) {
-	@header()
-	@counts(global, user)
+templ RootPage(global, user int) {
+	@Header()
+	@Counts(global, user)
 	<div>
 		<h1>Welcome!</h1>
 		<p>This is a simple example of a web application using the templ templating language.</p>

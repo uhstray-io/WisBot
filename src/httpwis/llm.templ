@@ -1,0 +1,26 @@
+package httpwis
+
+templ LlmPage() {
+	<div>
+		<h1>LLM</h1>
+		<p>LLM is a simple example of a web application using the templ templating language.</p>
+		@QuestionBox()
+	</div>
+}
+
+templ QuestionBox() {
+	<div style="position: relative;" class={ RoundedEdges() }>
+		<h2>Question</h2>
+		<form
+			action="/llm"
+			method="post"
+		>
+			<input style="width: 100%;" type="text" name="answer"/>
+			<input
+				style="position: absolute; bottom: 10px; right: 10px;"
+				type="submit"
+				value="Submit"
+			/>
+		</form>
+	</div>
+}

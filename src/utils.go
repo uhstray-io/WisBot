@@ -85,5 +85,9 @@ func removeParentFolder(parentfolder string) string {
 	SplitLabel := "Wisbot" // Change this to the parent directory name
 	SplitPath := strings.Split(parentfolder, SplitLabel)
 
+	if len(SplitPath) == 1 {
+		return parentfolder
+	}
+
 	return SplitPath[1]
 }
