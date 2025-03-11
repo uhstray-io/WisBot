@@ -10,65 +10,62 @@ import (
 	"github.com/rotisserie/eris"
 )
 
-// var databaseConnection *pgx.Conn
+// Global database query handler
 var wisQueries *sqlgo.Queries
 
+// StartDatabase initializes the database connection and creates required tables
 func StartDatabase() (*pgx.Conn, error) {
 	ctx := context.Background()
 	conn, err := pgx.Connect(ctx, databaseUrl)
 	if err != nil {
-		return nil, eris.Wrapf(err, "Error while connecting to database: %v", err)
+		return nil, eris.Wrapf(err, "Error connecting to database: %v", err)
 	}
 
 	wisQueries = sqlgo.New(conn)
 
-	// Create the tables if it does not exist.
+	// Create the tables if they don't exist
 	err = wisQueries.CreateFilesTable(ctx)
 	if err != nil {
-		return nil, eris.Wrap(err, "Error while creating files table")
+		return nil, eris.Wrap(err, "Error creating files table")
 	}
-
-	// err = wisQueries.CreateExtensionVector(ctx)
-	// if err != nil {
-	// 	return nil, eris.Wrap(err, "Error while creating extension vector")
-	// }
-
-	// err = wisQueries.CreateEmbeddingsTable(ctx)
-	// if err != nil {
-	// 	return nil, eris.Wrap(err, "Error while creating embeddings table")
-	// }
 
 	return conn, nil
 }
 
-// Delete old files ticker
-func DatabaseCleanup(db *pgx.Conn) {
-	DeleteOldFilesHandler := func(db *pgx.Conn) error {
-		err := wisQueries.DeleteFileWhereOlderThan(context.Background(), int32(deleteFilesAfterDays))
+// StartDatabaseCleanup begins a periodic task that removes old files
+func StartDatabaseCleanup(db *pgx.Conn) {
+	go func() {
+		// Initial delay before starting cleanup
+		time.Sleep(5 * time.Second)
 
-		if err != nil {
-			return eris.Wrap(err, "Error while executing DeleteFileWhereOlderThan query")
-		}
-		return nil
-	}
-
-	time.Sleep(5 * time.Second)
-
-	err := func() error {
-		// Trigger cleanup process every hour.
+		// Set up ticker for periodic cleanup
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 
-		for {
-			fmt.Println("Running cleanup process")
-			err := DeleteOldFilesHandler(db)
-			if err != nil {
-				return eris.Wrap(err, "Error while running cleanup process")
-			}
+		// Run cleanup immediately, then on each tick
+		if err := runCleanup(); err != nil {
+			fmt.Printf("Error in initial cleanup: %v\n", err)
+		}
 
-			<-ticker.C
+		for range ticker.C {
+			if err := runCleanup(); err != nil {
+				fmt.Printf("Error in scheduled cleanup: %v\n", err)
+			}
 		}
 	}()
+}
 
-	ErrorTrace(err)
+// runCleanup performs a single database cleanup operation
+func runCleanup() error {
+	fmt.Println("Running database cleanup process")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err := wisQueries.DeleteFileWhereOlderThan(ctx, int32(deleteFilesAfterDays))
+	if err != nil {
+		return eris.Wrap(err, "Error executing DeleteFileWhereOlderThan query")
+	}
+
+	return nil
 }

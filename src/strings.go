@@ -7,33 +7,45 @@ import (
 	"github.com/rotisserie/eris"
 )
 
+// chunkDiscordMessage splits a message into chunks that respect Discord's message length limits,
+// while preserving code blocks. Code blocks are kept intact in their own chunks.
 func chunkDiscordMessage(input string, maxLength int) ([]string, error) {
-	var newChunks []string
-	chunks, bools := chunkCodeBlock(input)
+	if input == "" {
+		return []string{}, nil
+	}
+
+	// First separate code blocks from regular text
+	chunks, isCodeBlock := splitCodeBlocks(input)
+	var result []string
 
 	for i, chunk := range chunks {
-		if bools[i] {
-			// Code Chunks should just be moved to the newChunks
-			newChunks = append(newChunks, chunk)
+		if isCodeBlock[i] {
+			// Check if the code block is already too long
+			if len(chunk) > maxLength {
+				return nil, eris.New(fmt.Sprintf("Code block too large: %d > %d", len(chunk), maxLength))
+			}
+			// Keep code blocks intact
+			result = append(result, chunk)
 		} else {
-			// Other chunks should be split into smaller chunks
-			newChunks = append(newChunks, chunkString(chunk, maxLength)...)
+			// Split text chunks by newlines and then by length
+			textChunks := splitStringByLength(chunk, maxLength)
+			result = append(result, textChunks...)
 		}
 	}
 
-	// Validate that the chunks are not too long
-	for _, chunk := range newChunks {
+	// Final validation
+	for _, chunk := range result {
 		if len(chunk) > maxLength {
-			return nil, eris.New(fmt.Sprintf("Chunk is too long. %v > %v ", len(chunk), maxLength))
+			return nil, eris.New(fmt.Sprintf("Chunk exceeds maximum length: %d > %d", len(chunk), maxLength))
 		}
 	}
 
-	return newChunks, nil
+	return result, nil
 }
 
-// chunkString splits a string into a list of smaller strings of a given length.
+// splitStringByLength splits a string into a list of smaller strings of a given length.
 // We prefer to prefer to split the string at a Code Blocks, New Lines, and Spaces, in that order.
-func chunkString(input string, maxLength int) []string {
+func splitStringByLength(input string, maxLength int) []string {
 	var chunks []string
 	var currentChunk string
 	lines := strings.Split(input, "\n")
@@ -57,9 +69,9 @@ func chunkString(input string, maxLength int) []string {
 	return chunks
 }
 
-// chunkCodeBlock splits a string into a list of smaller strings.
+// splitCodeBlocks splits a string into a list of smaller strings.
 // Each string, if it contains a code block should the normal string from the codeblock portion.
-func chunkCodeBlock(input string) ([]string, []bool) {
+func splitCodeBlocks(input string) ([]string, []bool) {
 	var chunks []string
 	var codeChunks []bool
 

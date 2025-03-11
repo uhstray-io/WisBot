@@ -19,7 +19,7 @@ Price-to-Earnings Ratio (P/E Ratio): Compares a stock's price to its earnings.`
 		"Dividend Yield: The ratio of annual dividend payments to the stock's current price.",
 		"Price-to-Earnings Ratio (P/E Ratio): Compares a stock's price to its earnings."}
 
-	actual := chunkString(input, maxLength)
+	actual := splitStringByLength(input, maxLength)
 
 	if !reflect.DeepEqual(expected, actual) {
 		t.Errorf("Expected %v, got %v", expected, actual)
@@ -43,7 +43,7 @@ func TestCodeBlock(t *testing.T) {
 
 	expectedBool := []bool{false, true, false}
 
-	actual, actualBool := chunkCodeBlock(input)
+	actual, actualBool := splitCodeBlocks(input)
 
 	// if !reflect.DeepEqual(actual, expected) {
 	// 	t.Errorf("Expected %v, got %v", expected, actual)

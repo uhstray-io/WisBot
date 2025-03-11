@@ -33,7 +33,7 @@ func main() {
 	defer db.Close(context.Background())
 
 	// Start the database cleanup process
-	go DatabaseCleanup(db)
+	go StartDatabaseCleanup(db)
 
 	// Start the LLM
 	go StartLLM()
