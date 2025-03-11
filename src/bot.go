@@ -11,13 +11,12 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
-	"github.com/rotisserie/eris"
 )
 
 func StartBot() {
 	discordSess, err := discordgo.New("Bot " + discordToken)
 	if err != nil {
-		err = eris.Wrap(err, "Error while creating Discord session")
+		err = fmt.Errorf("error while creating Discord session: %w", err)
 		ErrorTrace(err)
 	}
 	defer discordSess.Close()
@@ -29,7 +28,7 @@ func StartBot() {
 	// Open a websocket connection to Discord and begin listening.
 	err2 := discordSess.Open()
 	if err2 != nil {
-		err2 = eris.Wrap(err2, "Error while opening Discord session")
+		err2 = fmt.Errorf("error while opening Discord session: %w", err2)
 		ErrorTrace(err2)
 	}
 }
@@ -110,21 +109,21 @@ func messageCreate(discordSess *discordgo.Session, message *discordgo.MessageCre
 		case "llm":
 			err := llmCommand(discordSess, messageProp, message)
 			if err != nil {
-				err = eris.Wrap(err, "Error while executing llm command")
+				err = fmt.Errorf("error while executing llm command: %w", err)
 				PrintTrace(err)
 			}
 
 		case "upload":
 			err = uploadCommand(discordSess, messageProp, message)
 			if err != nil {
-				err = eris.Wrap(err, "Error while executing upload command")
+				err = fmt.Errorf("error while executing upload command: %w", err)
 				PrintTrace(err)
 			}
 
 		case "stats":
 			err = statsCommand(discordSess, messageProp, message)
 			if err != nil {
-				err = eris.Wrap(err, "Error while executing stats command")
+				err = fmt.Errorf("error while executing stats command: %w", err)
 				PrintTrace(err)
 			}
 
@@ -161,7 +160,7 @@ func llmCommand(discordSess *discordgo.Session, messageProperties *MessageProper
 
 	chunks, err := chunkDiscordMessage(mess, 1995)
 	if err != nil {
-		return eris.Wrap(err, "Error while chunking Discord message")
+		return fmt.Errorf("error while chunking Discord message: %w", err)
 	}
 
 	for _, message := range chunks {
@@ -178,7 +177,7 @@ func uploadCommand(discordSess *discordgo.Session, messageProperties *MessagePro
 	// Count the number of files the user has uploaded.
 	count, err := wisQueries.CountFilesFromUser(context.Background(), message.Author.Username)
 	if err != nil {
-		return eris.Wrap(err, "Error while executing CountFilesFromUser")
+		return fmt.Errorf("error while executing CountFilesFromUser: %w", err)
 	}
 
 	// Remove the oldest files if the user has uploaded too many.
@@ -189,7 +188,7 @@ func uploadCommand(discordSess *discordgo.Session, messageProperties *MessagePro
 				Limit:           int32(count - maxFilesPerUser + 1),
 			})
 		if err1 != nil {
-			return eris.Wrap(err1, "Error while executing DeleteFileWhereUsersCountIsProvided")
+			return fmt.Errorf("error while executing DeleteFileWhereUsersCountIsProvided: %w", err1)
 		}
 	}
 
@@ -201,7 +200,7 @@ func uploadCommand(discordSess *discordgo.Session, messageProperties *MessagePro
 		Name:            "empty file",
 	})
 	if err2 != nil {
-		return eris.Wrap(err2, "Error while executing InsertFile")
+		return fmt.Errorf("error while executing InsertFile: %w", err2)
 	}
 
 	mess := fmt.Sprintf("Here is the link: https://%s/id/%s", serverIp, uuid.String())
@@ -213,7 +212,7 @@ func uploadCommand(discordSess *discordgo.Session, messageProperties *MessagePro
 func statsCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) error {
 	guild, err := discordSess.Guild(message.GuildID)
 	if err != nil {
-		return eris.Wrap(err, "Error while executing Guild query")
+		return fmt.Errorf("error while executing Guild query: %w", err)
 	}
 
 	memberCount := len(guild.Members) - 1        // Get the number of users in the discord server.

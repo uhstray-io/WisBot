@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/rotisserie/eris"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
@@ -34,14 +33,13 @@ func StartLLM() {
 
 	llm, err := ollama.New(conn, model)
 	if err != nil {
-		err = eris.Wrap(err, "Error while creating LLM")
+		err = fmt.Errorf("Error while creating LLM: %w", err)
 	}
 	ctx := context.Background()
 
-	// go LLM(ctx, llm)
 	err2 := LLMChat(ctx, llm)
 	if err2 != nil {
-		eris.Wrap(err2, "Error while running LLM")
+		err2 = fmt.Errorf("Error while running LLM: %w", err2)
 	}
 
 	err = errors.Join(err, err2)
@@ -101,7 +99,7 @@ func LLMChat(ctx context.Context, llm *ollama.LLM) error {
 		))
 
 		if err != nil {
-			return eris.Wrap(err, "Error while generating content")
+			return fmt.Errorf("Error while generating content: %w", err)
 		}
 		_ = completion
 

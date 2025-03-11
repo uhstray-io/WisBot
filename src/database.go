@@ -7,7 +7,6 @@ import (
 	"wisbot/src/sqlgo"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/rotisserie/eris"
 )
 
 // Global database query handler
@@ -18,7 +17,7 @@ func StartDatabase() (*pgx.Conn, error) {
 	ctx := context.Background()
 	conn, err := pgx.Connect(ctx, databaseUrl)
 	if err != nil {
-		return nil, eris.Wrapf(err, "Error connecting to database: %v", err)
+		return nil, fmt.Errorf("error while connecting to database: %w", err)
 	}
 
 	wisQueries = sqlgo.New(conn)
@@ -26,7 +25,7 @@ func StartDatabase() (*pgx.Conn, error) {
 	// Create the tables if they don't exist
 	err = wisQueries.CreateFilesTable(ctx)
 	if err != nil {
-		return nil, eris.Wrap(err, "Error creating files table")
+		return nil, fmt.Errorf("error creating files table: %w", err)
 	}
 
 	return conn, nil
@@ -49,7 +48,7 @@ func StartDatabaseCleanup(db *pgx.Conn) {
 
 		for range ticker.C {
 			if err := runCleanup(); err != nil {
-				fmt.Printf("Error in scheduled cleanup: %v\n", err)
+				fmt.Printf("error in scheduled cleanup: %v\n", err)
 			}
 		}
 	}()
@@ -64,7 +63,7 @@ func runCleanup() error {
 
 	err := wisQueries.DeleteFileWhereOlderThan(ctx, int32(deleteFilesAfterDays))
 	if err != nil {
-		return eris.Wrap(err, "Error executing DeleteFileWhereOlderThan query")
+		return fmt.Errorf("error while executing DeleteFileWhereOlderThan query: %w", err)
 	}
 
 	return nil

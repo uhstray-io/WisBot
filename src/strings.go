@@ -1,10 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/rotisserie/eris"
 )
 
 // chunkDiscordMessage splits a message into chunks that respect Discord's message length limits,
@@ -22,7 +21,7 @@ func chunkDiscordMessage(input string, maxLength int) ([]string, error) {
 		if isCodeBlock[i] {
 			// Check if the code block is already too long
 			if len(chunk) > maxLength {
-				return nil, eris.New(fmt.Sprintf("Code block too large: %d > %d", len(chunk), maxLength))
+				return nil, errors.New(fmt.Sprintf("Code block too large: %d > %d", len(chunk), maxLength))
 			}
 			// Keep code blocks intact
 			result = append(result, chunk)
@@ -36,7 +35,7 @@ func chunkDiscordMessage(input string, maxLength int) ([]string, error) {
 	// Final validation
 	for _, chunk := range result {
 		if len(chunk) > maxLength {
-			return nil, eris.New(fmt.Sprintf("Chunk exceeds maximum length: %d > %d", len(chunk), maxLength))
+			return nil, errors.New(fmt.Sprintf("Chunk exceeds maximum length. %v > %v ", len(chunk), maxLength))
 		}
 	}
 
@@ -84,7 +83,6 @@ func splitCodeBlocks(input string) ([]string, []bool) {
 		if end == -1 {
 			break
 		}
-		end += start + 3
 
 		if start > 0 {
 			chunks = append(chunks, input[:start])

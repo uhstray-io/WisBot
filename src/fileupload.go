@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"wisbot/src/httpwis"
 	"wisbot/src/sqlgo"
-
-	"github.com/rotisserie/eris"
 )
 
 // rootIdPage is a helper function that renders the root page with the given file.
@@ -25,7 +23,7 @@ func getId(w http.ResponseWriter, r *http.Request) {
 			component.Render(r.Context(), w)
 			return
 		}
-		fmt.Println("Error while executing GetFileNameAndUploadFromId query", err.Error())
+		fmt.Println("error while executing GetFileNameAndUploadFromId query", err.Error())
 	}
 
 	file := &sqlgo.File{ID: queryfile.ID, Name: queryfile.Name, Uploaded: queryfile.Uploaded}
@@ -51,7 +49,7 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 			httpwis.UploadFileFormCompleted(nil, false, "File not found.").Render(r.Context(), w)
 			return nil
 		}
-		return eris.Wrap(err, "Error while executing GetFileIdWhereIdAndUploadedIsFalse query")
+		return fmt.Errorf("error while executing GetFileIdWhereIdAndUploadedIsFalse query: %w", err)
 	}
 
 	// Handle the file upload - 100MB max file maxFileSize.
@@ -98,7 +96,7 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 
 	if err2 != nil {
 		httpwis.UploadFileFormCompleted(file, false, "Unable to update file.").Render(r.Context(), w)
-		return eris.Wrap(err2, "Error while executing UpdateFileWhereId query")
+		return fmt.Errorf("error while executing UpdateFileWhereId query: %w", err2)
 	}
 
 	httpwis.UploadFileFormCompleted(file, true, "").Render(r.Context(), w)
@@ -116,7 +114,7 @@ func getIdDownloadFile(w http.ResponseWriter, r *http.Request) error {
 		if err == sql.ErrNoRows {
 			http.Error(w, "file not found", http.StatusNotFound)
 		}
-		return eris.Wrap(err, "Error while executing GetFileFromId query")
+		return fmt.Errorf("error while executing GetFileFromId query: %w", err)
 	}
 
 	w.Header().Set("Content-Disposition", "attachment; filename="+file.Name)
@@ -127,7 +125,7 @@ func getIdDownloadFile(w http.ResponseWriter, r *http.Request) error {
 	// Increment the download count.
 	err2 := wisQueries.UpdateFileDownloadIncrement(context.Background(), id)
 	if err2 != nil {
-		return eris.Wrap(err2, "Error while executing UpdateFileDownloadIncrement query")
+		return fmt.Errorf("error while executing UpdateFileDownloadIncrement query: %w", err2)
 	}
 	return nil
 }

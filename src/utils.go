@@ -1,92 +1,78 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
-	"strconv"
+	"path/filepath"
+	"runtime"
 	"strings"
-
-	"github.com/rotisserie/eris"
 )
 
+// PrintTrace prints the error trace to the console.
 func PrintTrace(err error) {
-	// format := eris.NewDefaultStringFormat(eris.FormatOptions{
-	// 	InvertOutput: true, // flag that inverts the error output (wrap errors shown first)
-	// 	WithTrace:    true, // flag that enables stack trace output
-	// 	InvertTrace:  true, // flag that inverts the stack trace output (top of call stack shown first)
-	// 	WithExternal: true,
-	// })
-	// fmt.Println(eris.ToCustomString(err, format))
-
-	upErr := eris.Unpack(err)
-
-	var str string
-	if upErr.ErrExternal != nil {
-		str += fmt.Sprintf("%+v", upErr.ErrExternal) + "\n"
-	}
-	str += fmt.Sprintf("%+v", upErr.ErrRoot.Msg) + "\n"
-
-	for _, frame := range upErr.ErrRoot.Stack {
-		str += frame.Name + "\n"
-		str += "\t" + removeParentFolder(frame.File) + ":" + strconv.Itoa(frame.Line) + "\n"
+	if err == nil {
+		return
 	}
 
-	str += "\n"
+	// Print the error message
+	fmt.Printf("Error: %v\n", err)
 
-	for _, eLink := range upErr.ErrChain {
-		str += eLink.Msg + "\n"
-		str += eLink.Frame.Name + "\n"
-		str += "\t" + removeParentFolder(eLink.Frame.File) + ":" + strconv.Itoa(eLink.Frame.Line) + "\n\n"
-	}
+	// Print the stack trace
+	printStackTrace(err)
 
-	if err != nil {
-		fmt.Print(str)
-	}
+	fmt.Println() // Add some spacing
 }
 
+// ErrorTrace prints the error trace and exits the program.
 func ErrorTrace(err error) {
-	// format := eris.NewDefaultStringFormat(eris.FormatOptions{
-	// 	InvertOutput: true, // flag that inverts the error output (wrap errors shown first)
-	// 	WithTrace:    true, // flag that enables stack trace output
-	// 	InvertTrace:  true, // flag that inverts the stack trace output (top of call stack shown first)
-	// 	WithExternal: true,
-	// })
-	// fmt.Println(eris.ToCustomString(err, format))
-
-	upErr := eris.Unpack(err)
-
-	var str string
-	if upErr.ErrExternal != nil {
-		str += fmt.Sprintf("%+v", upErr.ErrExternal) + "\n"
-	}
-	str += fmt.Sprintf("%+v", upErr.ErrRoot.Msg) + "\n"
-
-	for _, frame := range upErr.ErrRoot.Stack {
-		str += frame.Name + "\n"
-		str += "\t" + removeParentFolder(frame.File) + ":" + strconv.Itoa(frame.Line) + "\n"
+	if err == nil {
+		return
 	}
 
-	str += "\n"
+	PrintTrace(err)
+	os.Exit(1)
+}
 
-	for _, eLink := range upErr.ErrChain {
-		str += eLink.Msg + "\n"
-		str += eLink.Frame.Name + "\n"
-		str += "\t" + removeParentFolder(eLink.Frame.File) + ":" + strconv.Itoa(eLink.Frame.Line) + "\n\n"
+// printStackTrace attempts to print stack trace information.
+func printStackTrace(err error) {
+	fmt.Println("Stack trace:")
+
+	// Get up to 10 stack frames
+	pc := make([]uintptr, 10)
+	n := runtime.Callers(2, pc)
+	frames := runtime.CallersFrames(pc[:n])
+
+	for {
+		frame, more := frames.Next()
+		// Skip runtime and standard library frames
+		if !strings.Contains(frame.File, "runtime/") {
+			file := removeParentFolder(frame.File)
+			fmt.Printf("\t%s\n\t\t%s:%d\n", frame.Function, file, frame.Line)
+		}
+
+		if !more {
+			break
+		}
 	}
 
-	if err != nil {
-		fmt.Print(str)
-		os.Exit(1)
+	// If the error was wrapped, unwrap and show the underlying errors
+	fmt.Println("Error chain:")
+	var currentErr error = err
+	for currentErr != nil {
+		fmt.Printf("\t%v\n", currentErr)
+		currentErr = errors.Unwrap(currentErr)
 	}
 }
 
-// Function that removes the parent path from the file path
+// removeParentFolder removes the parent path from the file path
+// This is the same as the original function
 func removeParentFolder(parentfolder string) string {
 	SplitLabel := "Wisbot" // Change this to the parent directory name
 	SplitPath := strings.Split(parentfolder, SplitLabel)
 
 	if len(SplitPath) == 1 {
-		return parentfolder
+		return filepath.Base(parentfolder)
 	}
 
 	return SplitPath[1]

@@ -9,7 +9,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/pgvector/pgvector-go v0.2.3
-	github.com/rotisserie/eris v0.5.4
 	github.com/tmc/langchaingo v0.1.12
 	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.10.0
