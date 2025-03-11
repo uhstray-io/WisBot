@@ -3,7 +3,6 @@
 
 <!-- omit in toc -->
 ## WisBot
-
 WisBot is a multi-functional automation bot with several key components:
 
 Discord Integration: WisBot connects to Discord through the Discord API, enabling command handling and message processing.
@@ -11,7 +10,6 @@ LLM Capabilities: The bot integrates with Ollama to provide large language model
 File Management: WisBot includes a file upload/download system with database storage, user tracking, and automatic cleanup.
 Web Server Interface: The bot offers a web interface built with Go templates for user interaction outside of Discord.
 Observability: The system includes OpenTelemetry integration for monitoring and tracing.
-
 
 - [Getting Started](#getting-started)
   - [Start using Wisbot with Commands](#start-using-wisbot-with-commands)
@@ -21,7 +19,8 @@ Observability: The system includes OpenTelemetry integration for monitoring and 
 - [Commands](#commands)
 - [Core Beliefs](#core-beliefs)
 - [Requirements \& Dependencies](#requirements--dependencies)
-  - [Bot Dependencies](#bot-dependencies)
+  - [Runtime Requirements](#runtime-requirements)
+  - [Development Requirements](#development-requirements)
     - [Templ, SQLc \& Air](#templ-sqlc--air)
 - [Running the bot](#running-the-bot)
   - [Running the bot using Go](#running-the-bot-using-go)
@@ -32,6 +31,8 @@ Observability: The system includes OpenTelemetry integration for monitoring and 
   - [Running the bot using docker-compose](#running-the-bot-using-docker-compose)
     - [Running the dockerfile with GPU acceleration enabled:](#running-the-dockerfile-with-gpu-acceleration-enabled)
 - [Ollama Docker Image Documentation](#ollama-docker-image-documentation)
+  - [Environment Variables](#environment-variables)
+  - [Web Interface](#web-interface)
   - [Issues](#issues)
 - [CRLF vs LF](#crlf-vs-lf)
 
@@ -55,8 +56,9 @@ Observability: The system includes OpenTelemetry integration for monitoring and 
 
 `/wis upload` - Uploads a file to the server
 
-`/wis llm` - Sends a request to the attached WisBot LLM
+`/wis llm <text>` - Sends a request to the attached WisBot LLM
 
+`/wis stats` - Shows statistics about the server
 
 ## Core Beliefs
 
@@ -76,23 +78,26 @@ Wisbot must keep data secure.
 Wisbot must scale when needed.
 Wisbot must fail gracefully when external systems are unavailable.
 
-
-
 ## Requirements & Dependencies
-- Golang 1.23
-- Templ (optional)
-- Discord Token
-- Ollama (optional)
-- Llama3.2 model `ollama pull llama3.2`
-- Nvidia Container Toolkit (optional)
 
-### Bot Dependencies
-After the installation of Go, the following tools are recommended for development. Please install them using the commands below:
+### Runtime Requirements
+- Discord Token
+- PostgreSQL database
+- Ollama (optional, for LLM functionality)
+- Llama3.2 model if using Ollama (`ollama pull llama3.2`)
+- Nvidia GPU with Container Toolkit (optional, for improved LLM performance)
+- Docker and Docker Compose (recommended deployment method)
+
+### Development Requirements
+- Golang 1.24
+- Git
+- The following development tools:
 
 #### Templ, SQLc & Air
 
-- A language for writing HTML user interfaces in Go - https://github.com/a-h/templ
-- Live reload for Go apps - https://github.com/air-verse/air
+- **Templ**: A language for writing HTML user interfaces in Go - https://github.com/a-h/templ
+- **Air**: Live reload for Go apps - https://github.com/air-verse/air
+- **SQLc**: SQL compiler for Go - https://github.com/sqlc-dev/sqlc
   
 ```sh
 go install github.com/a-h/templ/cmd/templ@latest && go install github.com/air-verse/air@latest && go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
@@ -115,8 +120,32 @@ air
 
 ## Running the bot
 > [!NOTE]
-You will need a config.yaml file, if you don't have one, one will be created for you on the first run.
-Please fill out the config. This is for Discord authentication. You can get the token from the Discord Developer Portal.
+You will need a .env file with the following environment variables:
+```
+# WISBOT ENV VARIABLES
+SERVER_IP=wisbot.yourdomain.com
+SERVER_PORT=8080
+
+# WISBOT CONFIG
+MAX_FILES_PER_USER=3
+DELETE_FILES_AFTER_DAYS=7
+MAX_FILE_SIZE=250 # in MB
+DATABASE_URL=postgres://username:password@localhost:5432/database_name
+
+# OLLAMA ENV VARIABLES
+OLLAMA_URL=http://10.5.0.3:11434
+OLLAMA_MODEL=llama3.2
+OLLAMA_KEEP_ALIVE=24h
+
+# POSTGRES ENV VARIABLES
+POSTGRES_USER=username
+POSTGRES_PASSWORD=password
+POSTGRES_DB=database_name
+POSTGRES_PORT=5432
+
+# DISCORD TOKEN
+DISCORD_TOKEN_WISBOT=your_discord_token
+```
 
 ### Running the bot using Go
 
@@ -298,10 +327,17 @@ docker compose up -d
 docker compose down
 ```
 
-Running the WisBot via Docker Compose (testing workflow):
+Quick scripts for starting, stopping, and restarting the application:
 
 ```sh
-docker compose -f test-compose.yaml up
+# Start
+./start.sh
+
+# Stop
+./stop.sh  
+
+# Restart (down, rebuild, up)
+./restart.sh
 ```
 
 #### Running the dockerfile with GPU acceleration enabled:
@@ -335,8 +371,19 @@ docker run -d wisbot --gpus all ubuntu nvidia-smi
 https://docs.docker.com/desktop/gpu/
 
 ## Ollama Docker Image Documentation
-https://hub.docker.com/r/ollama/ollama 
+https://hub.docker.com/r/ollama/ollama
 
+### Environment Variables
+
+WisBot uses the following environment variables for Ollama:
+
+- `OLLAMA_URL`: The URL where the Ollama service is running (e.g., http://10.5.0.3:11434)
+- `OLLAMA_MODEL`: The model to use (e.g., llama3.2)
+- `OLLAMA_KEEP_ALIVE`: How long to keep the model loaded (e.g., 24h)
+
+### Web Interface
+
+The compose file includes configuration for an optional Ollama web UI, which is currently commented out. Uncomment the `ollama-webui` service in the compose.yaml file if you want to use it.
 
 ### Issues
 ## CRLF vs LF
