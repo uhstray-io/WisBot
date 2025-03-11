@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -21,7 +20,7 @@ func chunkDiscordMessage(input string, maxLength int) ([]string, error) {
 		if isCodeBlock[i] {
 			// Check if the code block is already too long
 			if len(chunk) > maxLength {
-				return nil, errors.New(fmt.Sprintf("Code block too large: %d > %d", len(chunk), maxLength))
+				return nil, fmt.Errorf("code block too large: %d > %d", len(chunk), maxLength)
 			}
 			// Keep code blocks intact
 			result = append(result, chunk)
@@ -35,7 +34,7 @@ func chunkDiscordMessage(input string, maxLength int) ([]string, error) {
 	// Final validation
 	for _, chunk := range result {
 		if len(chunk) > maxLength {
-			return nil, errors.New(fmt.Sprintf("Chunk exceeds maximum length. %v > %v ", len(chunk), maxLength))
+			return nil, fmt.Errorf("chunk exceeds maximum length. %v > %v", len(chunk), maxLength)
 		}
 	}
 

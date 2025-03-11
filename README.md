@@ -4,7 +4,14 @@
 <!-- omit in toc -->
 ## WisBot
 
-A bot for the automation of things
+WisBot is a multi-functional automation bot with several key components:
+
+Discord Integration: WisBot connects to Discord through the Discord API, enabling command handling and message processing.
+LLM Capabilities: The bot integrates with Ollama to provide large language model functionality, allowing users to interact with AI models.
+File Management: WisBot includes a file upload/download system with database storage, user tracking, and automatic cleanup.
+Web Server Interface: The bot offers a web interface built with Go templates for user interaction outside of Discord.
+Observability: The system includes OpenTelemetry integration for monitoring and tracing.
+
 
 - [Getting Started](#getting-started)
   - [Start using Wisbot with Commands](#start-using-wisbot-with-commands)
@@ -12,6 +19,7 @@ A bot for the automation of things
   - [WisBot Design Architecture](#wisbot-design-architecture)
   - [User Experience Workflows](#user-experience-workflows)
 - [Commands](#commands)
+- [Core Beliefs](#core-beliefs)
 - [Requirements \& Dependencies](#requirements--dependencies)
   - [Bot Dependencies](#bot-dependencies)
     - [Templ, SQLc \& Air](#templ-sqlc--air)
@@ -48,6 +56,26 @@ A bot for the automation of things
 `/wis upload` - Uploads a file to the server
 
 `/wis llm` - Sends a request to the attached WisBot LLM
+
+
+## Core Beliefs
+
+Wisbot may never fail silently.
+Wisbot must always trace errors with complete stack information.
+Wisbot must return meaningful errors to users.
+Wisbot must be fast and responsive.
+Wisbot must handle resources efficiently.
+Wisbot must enforce user quotas and limits.
+Wisbot must cleanup expired resources automatically.
+Wisbot must log telemetry when appropriate.
+Wisbot must maintain separation of concerns.
+Wisbot must be containerized and deployable.
+Wisbot must be observable and monitorable.
+Wisbot must communicate clearly with users.
+Wisbot must keep data secure.
+Wisbot must scale when needed.
+Wisbot must fail gracefully when external systems are unavailable.
+
 
 
 ## Requirements & Dependencies

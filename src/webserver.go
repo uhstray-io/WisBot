@@ -30,7 +30,7 @@ func requestStackTrace(next func(http.ResponseWriter, *http.Request) error) http
 	return func(w http.ResponseWriter, r *http.Request) {
 		err := next(w, r)
 		if err != nil {
-			err = fmt.Errorf("Error while executing request: %v: %w", r.URL.Path, err)
+			err = fmt.Errorf("error while executing request: %v: %w", r.URL.Path, err)
 		}
 
 		PrintTrace(err)
@@ -84,7 +84,7 @@ func WebServer() {
 	fmt.Println("listening on", string(serverPort))
 	err := http.ListenAndServe(":"+serverPort, muxWithSessionMiddleware)
 	if err != nil {
-		err = fmt.Errorf("Error while issuing ListenAndServe: %w", err)
+		err = fmt.Errorf("error while issuing ListenAndServe: %w", err)
 	}
 
 	PrintTrace(err)

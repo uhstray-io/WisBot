@@ -5,13 +5,49 @@ import (
 	"fmt"
 	"log"
 	"slices"
-	"strings"
 	"time"
 	"wisbot/src/sqlgo"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
 )
+
+var commands = []*discordgo.ApplicationCommand{
+	{
+		Name:        "wis",
+		Description: "Main WisBot command",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "llm",
+				Description: "Interact with the Large Language Model",
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Type:        discordgo.ApplicationCommandOptionString,
+						Name:        "text",
+						Description: "Text to send to the LLM",
+						Required:    true,
+					},
+				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "upload",
+				Description: "Upload a file",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "help",
+				Description: "Show help message",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "stats",
+				Description: "Show server statistics",
+			},
+		},
+	},
+}
 
 func StartBot() {
 	discordSess, err := discordgo.New("Bot " + discordToken)
@@ -22,10 +58,14 @@ func StartBot() {
 	defer discordSess.Close()
 
 	discordSess.AddHandler(messageCreate)
+	discordSess.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
+		log.Println("Bot is ready! Logged in as:", s.State.User.Username)
+		registerCommands(s)
+	})
+	discordSess.AddHandler(interactionCreate)
 
 	discordSess.Identify.Intents = discordgo.IntentsAll
 
-	// Open a websocket connection to Discord and begin listening.
 	err2 := discordSess.Open()
 	if err2 != nil {
 		err2 = fmt.Errorf("error while opening Discord session: %w", err2)
@@ -33,10 +73,19 @@ func StartBot() {
 	}
 }
 
+func registerCommands(s *discordgo.Session) {
+	for _, command := range commands {
+		_, err := s.ApplicationCommandCreate(s.State.User.ID, "", command)
+		if err != nil {
+			log.Printf("Error creating command %v: %v", command.Name, err)
+		}
+	}
+	log.Println("Slash commands registered successfully")
+}
+
 func onReady(discordSess *discordgo.Session, event *discordgo.Ready) {
 	fmt.Printf("Logged in as: %v#%v \n", discordSess.State.User.Username, discordSess.State.User.Discriminator)
 
-	// ServerID := "889910011113906186"
 	ChannelID := "998632857306136617"
 
 	messages, _ := discordSess.ChannelMessages(ChannelID, 100, "", "", "")
@@ -48,16 +97,13 @@ func onReady(discordSess *discordgo.Session, event *discordgo.Ready) {
 }
 
 func printMessage(discordSess *discordgo.Session, message *discordgo.MessageCreate) {
-	// timestamp := message.Timestamp.Local().Format("2006-09-25 03:04:05 PM")
-
 	channel, err := discordSess.Channel(message.ChannelID)
 	if err != nil {
-		fmt.Printf("Error: Could not retreive channel. %v \n", err)
+		fmt.Printf("Error: Could not retrieve channel. %v \n", err)
 	}
 
 	guild, err2 := discordSess.Guild(message.GuildID)
 	if err2 != nil {
-		// fmt.Printf("Error: Could not retreive guild. %v \n", err2)
 		guild = &discordgo.Guild{Name: "Private Message"}
 	}
 
@@ -66,86 +112,71 @@ func printMessage(discordSess *discordgo.Session, message *discordgo.MessageCrea
 }
 
 type MessageProperties struct {
-	IsPrivate bool
-	IsCommand bool
-
+	IsPrivate      bool
+	IsCommand      bool
 	ReplyChannelID string
 }
 
-// This function will be called (due to AddHandler above) every time a new
-// message is created on any channel that the authenticated bot has access to.
+// Legacy message handler - keeping for backward compatibility
 func messageCreate(discordSess *discordgo.Session, message *discordgo.MessageCreate) {
 	if message.Author.ID == discordSess.State.User.ID {
 		return
 	}
 
-	var err error
-
 	printMessage(discordSess, message)
+}
 
-	messageProp := &MessageProperties{
-		IsPrivate:      false,
-		IsCommand:      false,
-		ReplyChannelID: message.ChannelID,
+func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if i.Type != discordgo.InteractionApplicationCommand {
+		return
 	}
 
-	// Check if the message is a command
-	head, tail := nextToken(message.Content)
-	message.Content = tail
-	switch head {
-	case "/wis", "/wis?", "/wisbot", "/wisbot?":
-		if strings.HasSuffix(head, "?") {
-			messageProp.IsPrivate = true
-			userChannel, _ := discordSess.UserChannelCreate(message.Author.ID)
-			messageProp.ReplyChannelID = userChannel.ID
-		}
-		messageProp.IsCommand = true
+	data := i.ApplicationCommandData()
 
-		// Handle the command
-		head, tail = nextToken(tail)
-		message.Content = tail
+	if data.Name != "wis" {
+		return
+	}
 
-		switch head {
-		case "llm":
-			err := llmCommand(discordSess, messageProp, message)
-			if err != nil {
-				err = fmt.Errorf("error while executing llm command: %w", err)
-				PrintTrace(err)
-			}
+	// Get the subcommand
+	subcommand := data.Options[0].Name
+	options := data.Options[0].Options
 
-		case "upload":
-			err = uploadCommand(discordSess, messageProp, message)
-			if err != nil {
-				err = fmt.Errorf("error while executing upload command: %w", err)
-				PrintTrace(err)
-			}
-
-		case "stats":
-			err = statsCommand(discordSess, messageProp, message)
-			if err != nil {
-				err = fmt.Errorf("error while executing stats command: %w", err)
-				PrintTrace(err)
-			}
-
-		case "help":
-			helpCommand(discordSess, messageProp, message)
-		}
+	switch subcommand {
+	case "llm":
+		handleLLMCommand(s, i, options)
+	case "upload":
+		handleUploadCommand(s, i)
+	case "stats":
+		handleStatsCommand(s, i)
+	case "help":
+		handleHelpCommand(s, i)
 	}
 }
 
-func helpCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) {
-	mess := `Commands:
-		/wis llm <text> - Large Language Model
-		/wis upload - Upload a file
-		/wis help - Show this message
-		/wis stats - Show some stats about the server
-	`
-	discordSess.ChannelMessageSend(messageProperties.ReplyChannelID, mess)
+func handleHelpCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	helpText := `Commands:
+- /wis llm [text] - Large Language Model
+- /wis upload - Upload a file
+- /wis help - Show this message
+- /wis stats - Show some stats about the server`
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: helpText,
+		},
+	})
 }
 
-func llmCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) error {
+func handleLLMCommand(s *discordgo.Session, i *discordgo.InteractionCreate, options []*discordgo.ApplicationCommandInteractionDataOption) {
+	// Acknowledge the interaction to prevent timeout
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	})
 
-	chatMessages, _ := discordSess.ChannelMessages(message.ChannelID, 100, "", "", "")
+	text := options[0].StringValue()
+
+	chatMessages, _ := s.ChannelMessages(i.ChannelID, 100, "", "", "")
 	slices.Reverse(chatMessages)
 
 	UserMessages := []UserMessage{}
@@ -153,79 +184,136 @@ func llmCommand(discordSess *discordgo.Session, messageProperties *MessageProper
 		UserMessages = append(UserMessages, UserMessage{UserName: msg.Author.Username, Content: msg.Content})
 	}
 
+	// Add the current command as a message
+	UserMessages = append(UserMessages, UserMessage{
+		UserName: getUserFromInteraction(i),
+		Content:  "/wis llm " + text,
+	})
+
 	InputChatChannel <- UserMessages
-	mess := <-OutputChatChannel
+	response := <-OutputChatChannel
 
-	log.Println("output mess:", mess)
+	log.Println("LLM response:", response)
 
-	chunks, err := chunkDiscordMessage(mess, 1995)
+	chunks, err := chunkDiscordMessage(response, 1995)
 	if err != nil {
-		return fmt.Errorf("error while chunking Discord message: %w", err)
+		log.Printf("Error chunking message: %v", err)
+
+		str := fmt.Sprintf("Error: %v", err)
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Content: &str,
+		})
+		return
 	}
 
-	for _, message := range chunks {
-		discordSess.ChannelMessageSend(messageProperties.ReplyChannelID, message)
+	// Send the first chunk as the interaction response
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Content: &chunks[0],
+	})
+
+	// Send additional chunks as follow-up messages
+	for _, chunk := range chunks[1:] {
+		s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+			Content: chunk,
+		})
 		time.Sleep(200 * time.Millisecond)
 	}
-
-	return nil
 }
 
-func uploadCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) error {
-	uuid := uuid.New()
+// getUserFromInteraction extracts the username from the interaction
+// The member who invoked this interaction. NOTE: the Member field is only filled when the slash command was invoked in a guild; if it was invoked in a DM, the `User` field will be filled instead. Make sure to check for `nil` before using this field.
+func getUserFromInteraction(i *discordgo.InteractionCreate) string {
+	if i.Member != nil {
+		return i.Member.User.Username
+	}
+	return i.User.Username
+}
 
-	// Count the number of files the user has uploaded.
-	count, err := wisQueries.CountFilesFromUser(context.Background(), message.Author.Username)
+func handleUploadCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	uuid := uuid.New()
+	username := getUserFromInteraction(i)
+
+	// Count the number of files the user has uploaded
+	count, err := wisQueries.CountFilesFromUser(context.Background(), username)
 	if err != nil {
-		return fmt.Errorf("error while executing CountFilesFromUser: %w", err)
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("Error: %v", err),
+			},
+		})
+		return
 	}
 
-	// Remove the oldest files if the user has uploaded too many.
+	// Remove the oldest files if the user has uploaded too many
 	if count >= maxFilesPerUser {
-		err1 := wisQueries.DeleteFileWhereUsersCountIsProvided(context.Background(),
+		err := wisQueries.DeleteFileWhereUsersCountIsProvided(context.Background(),
 			sqlgo.DeleteFileWhereUsersCountIsProvidedParams{
-				DiscordUsername: message.Author.Username,
+				DiscordUsername: username,
 				Limit:           int32(count - maxFilesPerUser + 1),
 			})
-		if err1 != nil {
-			return fmt.Errorf("error while executing DeleteFileWhereUsersCountIsProvided: %w", err1)
+		if err != nil {
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: fmt.Sprintf("Error cleaning up old files: %v", err),
+				},
+			})
+			return
 		}
 	}
 
-	// Insert the new file.
-	err2 := wisQueries.InsertFile(context.Background(), sqlgo.InsertFileParams{
+	// Insert the new file
+	err = wisQueries.InsertFile(context.Background(), sqlgo.InsertFileParams{
 		ID:              uuid.String(),
 		Uploaded:        false,
-		DiscordUsername: message.Author.Username,
+		DiscordUsername: username,
 		Name:            "empty file",
 	})
-	if err2 != nil {
-		return fmt.Errorf("error while executing InsertFile: %w", err2)
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("Error creating file entry: %v", err),
+			},
+		})
+		return
 	}
 
-	mess := fmt.Sprintf("Here is the link: https://%s/id/%s", serverIp, uuid.String())
-	discordSess.ChannelMessageSend(message.ChannelID, mess)
-
-	return nil
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: fmt.Sprintf("Here is the link: https://%s/id/%s", serverIp, uuid.String()),
+		},
+	})
 }
 
-func statsCommand(discordSess *discordgo.Session, messageProperties *MessageProperties, message *discordgo.MessageCreate) error {
-	guild, err := discordSess.Guild(message.GuildID)
+func handleStatsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	guild, err := s.Guild(i.GuildID)
 	if err != nil {
-		return fmt.Errorf("error while executing Guild query: %w", err)
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("Error getting guild info: %v", err),
+			},
+		})
+		return
 	}
 
-	memberCount := len(guild.Members) - 1        // Get the number of users in the discord server.
-	serverCount := len(discordSess.State.Guilds) // Get the number of servers the bot is in.
+	memberCount := len(guild.Members) - 1 // Get the number of users in the discord server
+	serverCount := len(s.State.Guilds)    // Get the number of servers the bot is in
 	nsfwLevel := guild.NSFWLevel
-	channelCount := len(guild.Channels) // Get the number of channels in the discord server.
+	channelCount := len(guild.Channels) // Get the number of channels in the discord server
 
-	mess := fmt.Sprintf(
+	stats := fmt.Sprintf(
 		"Stats:\n- Users: %d\n- Servers: %d\n- Channels: %d\n- NSFW Level: %d",
 		memberCount, serverCount, channelCount, nsfwLevel,
 	)
 
-	discordSess.ChannelMessageSend(messageProperties.ReplyChannelID, mess)
-
-	return nil
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: stats,
+		},
+	})
 }

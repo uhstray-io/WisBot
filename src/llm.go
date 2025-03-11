@@ -33,13 +33,13 @@ func StartLLM() {
 
 	llm, err := ollama.New(conn, model)
 	if err != nil {
-		err = fmt.Errorf("Error while creating LLM: %w", err)
+		err = fmt.Errorf("error while creating LLM: %w", err)
 	}
 	ctx := context.Background()
 
 	err2 := LLMChat(ctx, llm)
 	if err2 != nil {
-		err2 = fmt.Errorf("Error while running LLM: %w", err2)
+		err2 = fmt.Errorf("error while running LLM: %w", err2)
 	}
 
 	err = errors.Join(err, err2)
@@ -99,7 +99,7 @@ func LLMChat(ctx context.Context, llm *ollama.LLM) error {
 		))
 
 		if err != nil {
-			return fmt.Errorf("Error while generating content: %w", err)
+			return fmt.Errorf("error while generating content: %w", err)
 		}
 		_ = completion
 
