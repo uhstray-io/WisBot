@@ -15,6 +15,7 @@ WisBot is a versatile automation bot that combines Discord integration, AI capab
 
 - [Getting Started](#getting-started)
   - [Quick Start Guide](#quick-start-guide)
+  - [Tiltfile Quickstart](#tiltfile-quickstart)
 - [Architecture](#architecture)
   - [WisBot Design Architecture](#wisbot-design-architecture)
   - [User Experience Workflows](#user-experience-workflows)
@@ -48,6 +49,20 @@ WisBot is a versatile automation bot that combines Discord integration, AI capab
 
 - [Review our Code of Conduct](https://www.uhstray.io/en/code-of-conduct)
 - [Check our CONTRIBUTING.MD](./CONTRIBUTING.md)
+
+### Tiltfile Quickstart
+
+The `Tiltfile` in this repository is designed to streamline the development process for WisBot. It automates the setup of the development environment, including:
+
+1. Uses Docker Compose to orchestrate the services defined in compose.yaml
+2. Sets up code generation for Templ and SQLC, watching for changes in template and SQL files
+3. Compiles the Go application with proper settings for Linux targets
+4. Configures Docker build with live updates to sync code changes without full rebuilds
+5. Sets resource dependencies to ensure proper build order
+6. Organizes resources with labels for better UI grouping
+7. Configures port forwarding for the database dashboard
+
+With this configuration, developers can run `tilt up` to start WisBot with live reload capabilities, making the development workflow much more efficient.
 
 ## Architecture
 
