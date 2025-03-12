@@ -20,6 +20,30 @@ templ Counts(global, session int) {
 templ Header() {
 	<head>
 		<script src="https://unpkg.com/htmx.org@2.0.4" crossorigin="anonymous"></script>
+		<link rel="stylesheet" href="/static/styles.css">
+		<style>
+			body {
+				font-family: Arial, sans-serif;
+				line-height: 1.6;
+				margin: 0;
+				padding: 20px;
+				color: #333;
+			}
+			h1 {
+				color: #4a86e8;
+				text-align: center;
+			}
+			.htmx-indicator {
+				display: none;
+			}
+			.htmx-request .htmx-indicator {
+				display: inline;
+			}
+			@keyframes bounce {
+				0%, 80%, 100% { transform: scale(0); }
+				40% { transform: scale(1); }
+			}
+		</style>
 	</head>
 }
 

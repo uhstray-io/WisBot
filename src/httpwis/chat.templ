@@ -1,0 +1,64 @@
+package httpwis
+
+templ ChatPage() {
+	@Header()
+	<div>
+		<h1>WisBot AI Chat</h1>
+		<p>Ask questions and get AI-powered answers from WisBot</p>
+		@ChatInterface()
+	</div>
+}
+
+templ ChatInterface() {
+	<div class={ ChatContainer() }>
+		<div id="chat-history" class={ ChatHistory() }>
+			<div class="bot-message">
+				Hello! I'm WisBot. How can I help you today?
+			</div>
+		</div>
+		<div class={ ChatInputForm() }>
+			<form
+				id="chatForm"
+				hx-post="/llm/chat"
+				hx-target="#chat-history"
+				hx-swap="beforeend"
+				hx-indicator="#loading-indicator"
+			>
+				<input
+					type="text"
+					name="question"
+					id="question-input"
+					class={ ChatInput() }
+					placeholder="Type your question here..."
+					autocomplete="off"
+					required
+				/>
+				<button type="submit" class={ SendButton() }>Send</button>
+			</form>
+			<div id="loading-indicator" class="htmx-indicator">
+				<div class="loading-dots">
+					<span></span><span></span><span></span>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script>
+		document.getElementById('chatForm').addEventListener('htmx:afterOnLoad', function() {
+			document.getElementById('question-input').value = '';
+			const chatHistory = document.getElementById('chat-history');
+			chatHistory.scrollTop = chatHistory.scrollHeight;
+		});
+	</script>
+}
+
+templ UserMessage(message string) {
+	<div class="user-message">
+		{ message }
+	</div>
+}
+
+templ BotMessage(message string) {
+	<div class="bot-message">
+		{ message }
+	</div>
+}

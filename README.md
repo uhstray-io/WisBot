@@ -1,18 +1,20 @@
 <!-- omit in toc -->
-# Introduction & Table of Contents
+# WisBot
 
 <!-- omit in toc -->
-## WisBot
-WisBot is a multi-functional automation bot with several key components:
+## A Multi-functional Discord Automation Bot
 
-Discord Integration: WisBot connects to Discord through the Discord API, enabling command handling and message processing.
-LLM Capabilities: The bot integrates with Ollama to provide large language model functionality, allowing users to interact with AI models.
-File Management: WisBot includes a file upload/download system with database storage, user tracking, and automatic cleanup.
-Web Server Interface: The bot offers a web interface built with Go templates for user interaction outside of Discord.
-Observability: The system includes OpenTelemetry integration for monitoring and tracing.
+WisBot is a versatile automation bot that combines Discord integration, AI capabilities, file management, and a web interface into one powerful solution.
+
+**Key Features:**
+- **Discord Integration:** Seamless connection with Discord API for command handling and message processing
+- **AI Capabilities:** Integration with Ollama to provide LLM functionality for natural language interactions
+- **File Management:** Robust file upload/download system with database storage, user tracking, and automatic cleanup
+- **Web Interface:** User-friendly web interface built with Go templates for interaction outside Discord
+- **Observability:** Comprehensive monitoring and tracing with OpenTelemetry integration
 
 - [Getting Started](#getting-started)
-  - [Start using Wisbot with Commands](#start-using-wisbot-with-commands)
+  - [Quick Start Guide](#quick-start-guide)
 - [Architecture](#architecture)
   - [WisBot Design Architecture](#wisbot-design-architecture)
   - [User Experience Workflows](#user-experience-workflows)
@@ -38,7 +40,11 @@ Observability: The system includes OpenTelemetry integration for monitoring and 
 
 ## Getting Started
 
-### Start using Wisbot with [Commands](#commands)
+### Quick Start Guide
+
+1. Set up your environment variables (see [Running the bot](#running-the-bot))
+2. Deploy using Docker or Go (see [deployment options](#running-the-bot))
+3. Interact with WisBot using [commands](#commands)
 
 ## Architecture
 
@@ -52,31 +58,38 @@ Observability: The system includes OpenTelemetry integration for monitoring and 
 
 ## Commands
 
-`/wis help` - Shows the help message
-
-`/wis upload` - Uploads a file to the server
-
-`/wis llm <text>` - Sends a request to the attached WisBot LLM
-
-`/wis stats` - Shows statistics about the server
+| Command | Description |
+|---------|-------------|
+| `/wis help` | Displays available commands and usage information |
+| `/wis upload` | Uploads a file to the server for processing or storage |
+| `/wis llm <text>` | Sends a request to the integrated LLM and returns its response |
+| `/wis stats` | Displays system statistics and performance metrics |
 
 ## Core Beliefs
 
-Wisbot may never fail silently.
-Wisbot must always trace errors with complete stack information.
-Wisbot must return meaningful errors to users.
-Wisbot must be fast and responsive.
-Wisbot must handle resources efficiently.
-Wisbot must enforce user quotas and limits.
-Wisbot must cleanup expired resources automatically.
-Wisbot must log telemetry when appropriate.
-Wisbot must maintain separation of concerns.
-Wisbot must be containerized and deployable.
-Wisbot must be observable and monitorable.
-Wisbot must communicate clearly with users.
-Wisbot must keep data secure.
-Wisbot must scale when needed.
-Wisbot must fail gracefully when external systems are unavailable.
+WisBot adheres to these core principles:
+
+- **Reliability**
+  - May never fail silently
+  - Must always trace errors with complete stack information
+  - Must return meaningful errors to users
+  - Must fail gracefully when external systems are unavailable
+
+- **Performance**
+  - Must be fast and responsive
+  - Must handle resources efficiently
+  - Must enforce user quotas and limits
+  - Must cleanup expired resources automatically
+
+- **Architecture**
+  - Must maintain separation of concerns
+  - Must be containerized and deployable
+  - Must be observable and monitorable
+  - Must scale when needed
+
+- **User Experience**
+  - Must communicate clearly with users
+  - Must keep data secure
 
 ## Requirements & Dependencies
 

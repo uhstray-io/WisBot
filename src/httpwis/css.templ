@@ -22,3 +22,38 @@ css Center() {
 	justify-content: center;
 	align-items: center;
 }
+
+// Added styles from styles.css
+
+// Removing conflicting UserMessage and BotMessage CSS definitions
+// as they are already implemented as templ components in chat.templ
+
+css LoadingDots() {
+	display: inline-flex;
+	align-items: center;
+}
+
+css LoadingDot() {
+	width: 8px;
+	height: 8px;
+	margin: 0 4px;
+	background-color: #4a86e8;
+	border-radius: 50%;
+	display: inline-block;
+	animation: bounce 1.4s infinite ease-in-out both;
+}
+
+css LoadingDotFirst() {
+	animation-delay: -0.32s;
+}
+
+css LoadingDotSecond() {
+	animation-delay: -0.16s;
+}
+
+script BounceKeyframes() {
+	@keyframes bounce {
+		0%, 80%, 100% { transform: scale(0); }
+		40% { transform: scale(1); }
+	}
+}

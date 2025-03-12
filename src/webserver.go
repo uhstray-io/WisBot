@@ -75,7 +75,12 @@ func WebServer() {
 	server.HandleFunc("POST /id/{id}/upload", requestLogger(requestStackTrace(postIdUploadFile)))
 	server.HandleFunc("GET /id/{id}/download", requestLogger(requestStackTrace(getIdDownloadFile)))
 
-	server.HandleFunc("GET /llm/", requestLogger(getLLM))
+	server.HandleFunc("GET /llm", requestLogger(getLLM))
+	server.HandleFunc("GET /llm/chat", requestLogger(getLLMChat))
+	server.HandleFunc("POST /llm/chat", requestLogger(postLLMChat))
+
+	// Serve static files
+	server.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 
 	// Add the middleware.
 	muxWithSessionMiddleware := sessionManager.LoadAndSave(server)
@@ -93,4 +98,42 @@ func WebServer() {
 func getLLM(w http.ResponseWriter, r *http.Request) {
 	component := httpwis.LlmPage()
 	component.Render(r.Context(), w)
+}
+
+func getLLMChat(w http.ResponseWriter, r *http.Request) {
+	component := httpwis.ChatPage()
+	component.Render(r.Context(), w)
+}
+
+func postLLMChat(w http.ResponseWriter, r *http.Request) {
+
+	fmt.Println("Started LLM chat")
+
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	question := r.FormValue("question")
+	if question == "" {
+		http.Error(w, "Question cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	fmt.Println("User question:", question)
+
+	// Render the user's message immediately
+	userMsg := httpwis.UserMessage(question)
+	userMsg.Render(r.Context(), w)
+
+	// Send the question to the LLM
+	InputChannel <- question
+
+	// Wait for the response
+	response := <-OutputChannel
+
+	// Render the bot's response
+	botMsg := httpwis.BotMessage(response)
+	botMsg.Render(r.Context(), w)
 }

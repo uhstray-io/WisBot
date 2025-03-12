@@ -74,12 +74,31 @@ func StartBot() {
 }
 
 func registerCommands(s *discordgo.Session) {
+	// First, get all guilds the bot is in
+	guilds, err := s.UserGuilds(100, "", "", false)
+	if err != nil {
+		log.Printf("Error getting guilds: %v", err)
+	}
+
+	// Register commands to each guild for faster updates during development
+	for _, guild := range guilds {
+		log.Printf("Registering commands to guild: %s (%s)", guild.Name, guild.ID)
+		for _, command := range commands {
+			_, err := s.ApplicationCommandCreate(s.State.User.ID, guild.ID, command)
+			if err != nil {
+				log.Printf("Error creating command %v in guild %s: %v", command.Name, guild.ID, err)
+			}
+		}
+	}
+
+	// Also register globally as a backup, but these take up to an hour to propagate
 	for _, command := range commands {
 		_, err := s.ApplicationCommandCreate(s.State.User.ID, "", command)
 		if err != nil {
-			log.Printf("Error creating command %v: %v", command.Name, err)
+			log.Printf("Error creating global command %v: %v", command.Name, err)
 		}
 	}
+
 	log.Println("Slash commands registered successfully")
 }
 

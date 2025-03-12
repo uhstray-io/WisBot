@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
@@ -37,6 +36,11 @@ func StartLLM() {
 	}
 	ctx := context.Background()
 
+	err1 := LLM(ctx, llm)
+	if err1 != nil {
+		err1 = fmt.Errorf("error while running LLM: %w", err1)
+	}
+
 	err2 := LLMChat(ctx, llm)
 	if err2 != nil {
 		err2 = fmt.Errorf("error while running LLM: %w", err2)
@@ -46,7 +50,7 @@ func StartLLM() {
 	ErrorTrace(err)
 }
 
-func LLM(ctx context.Context, llm *ollama.LLM) {
+func LLM(ctx context.Context, llm *ollama.LLM) error {
 	for {
 		userInput := <-InputChannel
 
@@ -62,7 +66,7 @@ func LLM(ctx context.Context, llm *ollama.LLM) {
 		))
 
 		if err != nil {
-			log.Fatal(err)
+			return fmt.Errorf("error while generating content: %w", err)
 		}
 		_ = completion
 
