@@ -46,6 +46,9 @@ WisBot is a versatile automation bot that combines Discord integration, AI capab
 2. Deploy using Docker or Go (see [deployment options](#running-the-bot))
 3. Interact with WisBot using [commands](#commands)
 
+- [Review our Code of Conduct](https://www.uhstray.io/en/code-of-conduct)
+- [Check our CONTRIBUTING.MD](./CONTRIBUTING.md)
+
 ## Architecture
 
 ### WisBot Design Architecture
