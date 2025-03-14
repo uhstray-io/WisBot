@@ -7,6 +7,8 @@ import (
 	"wisbot/src/httpwis"
 
 	"github.com/alexedwards/scs/v2"
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/log/global"
 )
 
 var globalState GlobalState
@@ -21,7 +23,22 @@ type GlobalState struct {
 // The returned function logs the details of the incoming request and then calls the original handler.
 func requestLogger(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("Request: `%s %s` %s", r.Method, r.URL.Path, "\n")
+		// fmt.Printf("Request: `%s %s` %s", r.Method, r.URL.Path, "\n")
+
+		// Get a logger from the global provider
+		logger := global.Logger("requestLogger")
+
+		record := log.Record{}
+		record.SetTimestamp(time.Now())
+		record.SetObservedTimestamp(time.Now())
+		record.SetSeverity(log.SeverityInfo)
+		record.SetBody(log.StringValue(fmt.Sprintf("Request: `%s %s`", r.Method, r.URL.Path)))
+		record.AddAttributes(log.String("method", r.Method))
+		record.AddAttributes(log.String("path", r.URL.Path))
+
+		// Log the request details with OpenTelemetry
+		logger.Emit(r.Context(), record)
+
 		next(w, r)
 	}
 }
