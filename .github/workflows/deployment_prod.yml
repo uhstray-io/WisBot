@@ -13,6 +13,8 @@ jobs:
 
     - name: Checkout code
       uses: actions/checkout@v2
+      with:
+        repository: uhstray-io/WisBot
 
     - name: Append Secret to .env file
       run: printf "\nDISCORD_TOKEN_WISBOT=${{ secrets.DISCORD_TOKEN_WISBOT }}" >> .env
