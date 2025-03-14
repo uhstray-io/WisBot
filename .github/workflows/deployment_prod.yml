@@ -23,7 +23,7 @@ jobs:
         repository: uhstray-io/WisBot
       
     - name: Change to WisBot Directory
-      run: cd $GITHUB_WORKSPACE/WisBot
+      run: cd $GITHUB_WORKSPACE
 
     - name: Docker Down
       run: docker compose down
