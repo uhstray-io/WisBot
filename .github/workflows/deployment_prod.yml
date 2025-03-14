@@ -16,9 +16,6 @@ jobs:
     # - name: Re-create WisBot Directory
     #   run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S mkdir -p /home/uhstray/actions-runner/_work/WisBot/WisBot
 
-    - name: Docker Down
-      run: docker compose down
-
     - name: Checkout code
       uses: actions/checkout@v4
       with:
@@ -27,6 +24,9 @@ jobs:
       
     - name: Change to WisBot Directory
       run: cd $GITHUB_WORKSPACE/WisBot
+
+    - name: Docker Down
+      run: docker compose down
 
     - name: Append Secret to .env file
       run: printf "\nDISCORD_TOKEN_WISBOT=${{ secrets.DISCORD_TOKEN_WISBOT }}" >> .env
