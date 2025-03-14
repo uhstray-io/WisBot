@@ -10,16 +10,21 @@ jobs:
     runs-on: self-hosted # This specifies that the job should run on your self-hosted runner
 
     steps:
-    - name: Clear Checkout Code Repository before new Checkout
-      run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S rm -rf /home/uhstray/actions-runner/_work/WisBot/WisBot/
+    # - name: Clear Checkout Code Repository before new Checkout
+    #   run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S rm -rf /home/uhstray/actions-runner/_work/WisBot/WisBot/
     
-    - name: Re-create WisBot Directory
-      run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S mkdir -p /home/uhstray/actions-runner/_work/WisBot/WisBot/
+    # - name: Re-create WisBot Directory
+    #   run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S mkdir -p /home/uhstray/actions-runner/_work/WisBot/WisBot/
+
+    
 
     - name: Checkout code
       uses: actions/checkout@v4
       with:
+        path: '/home/uhstray/WisBot'
+        clean: 'true'
         repository: uhstray-io/WisBot
+      
 
     - name: Append Secret to .env file
       run: printf "\nDISCORD_TOKEN_WISBOT=${{ secrets.DISCORD_TOKEN_WISBOT }}" >> .env
