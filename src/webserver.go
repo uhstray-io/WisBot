@@ -129,9 +129,6 @@ func WebServer(ctx context.Context) {
 	server.HandleFunc("GET /llm/chat", requestTracer(requestLogger(getLLMChat)))
 	server.HandleFunc("POST /llm/chat", requestTracer(requestLogger(postLLMChat)))
 
-	// Serve static files
-	server.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
-
 	// Add the middleware.
 	muxWithSessionMiddleware := sessionManager.LoadAndSave(server)
 
