@@ -21,7 +21,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        path: '/home/uhstray/WisBot'
+        path: 'WisBot/'
         clean: 'true'
         repository: uhstray-io/WisBot
       
