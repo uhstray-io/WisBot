@@ -16,9 +16,9 @@ processors:
     spike_limit_mib: 200
   resource:
     attributes:
-      - key: deployment.environment
-        value: production
-        action: upsert
+    - key: deployment.environment
+      value: production
+      action: upsert
 
 exporters:
   prometheus:
@@ -30,7 +30,7 @@ exporters:
       enabled: true
     headers:
       x-scope-orgid: o11y
-  
+
   # loki:
   #   endpoint: http://192.168.1.18:3100/loki/api/v1/push
   #   tenant_id: "wisbot"
@@ -39,7 +39,7 @@ exporters:
   #       service.name: "wisbot"
   #   headers:
   #     x-scope-orgid: o11y
-  
+
   otlp:
     endpoint: http://192.168.1.18:4317
     tls:
@@ -50,15 +50,14 @@ exporters:
 service:
   pipelines:
     traces:
-      receivers: [otlp]
-      processors: [memory_limiter, batch, resource]
-      exporters: [otlp]
-    
+      receivers: [ otlp ]
+      processors: [ memory_limiter, batch, resource ]
+      exporters: [ otlp ]
+
     metrics:
-      receivers: [otlp]
-      processors: [memory_limiter, batch, resource]
-      exporters: [prometheus]
-    
+      receivers: [ otlp ]
+      processors: [ memory_limiter, batch, resource ]
+      exporters: [ prometheus ]
     # logs:
     #   receivers: [otlp]
     #   processors: [memory_limiter, batch, resource]

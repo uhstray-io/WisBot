@@ -6,23 +6,22 @@ services:
     image: otel/opentelemetry-collector-contrib:latest
     container_name: otel-collector
     restart: always
-    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    command: [ "--config=/etc/otelcol-contrib/config.yaml" ]
     volumes:
-      - ./config/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+    - ./config/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
     ports:
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP
-      # - "8889:8889"   # Prometheus exporter
+    - "4317:4317" # OTLP gRPC
+    - "4318:4318" # OTLP HTTP
+    # - "8889:8889"   # Prometheus exporter
     networks:
-      - wis_net
-
+    - wis_net
   # Prometheus for metrics
   # prometheus:
   #   image: prom/prometheus:latest
   #   container_name: prometheus
   #   restart: always
   #   volumes:
-  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  #     - ./prometheus.yaml:/etc/prometheus/prometheus.yml
   #     - prometheus_data:/prometheus
   #   ports:
   #     - "9090:9090"
@@ -33,5 +32,4 @@ networks:
   wis_net:
     external: true
 
-volumes:
-  # prometheus_data:
+volumes: # prometheus_data:
