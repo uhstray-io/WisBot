@@ -21,6 +21,10 @@ var (
 
 	ollamaUrl   = os.Getenv("OLLAMA_URL")
 	ollamaModel = os.Getenv("OLLAMA_MODEL")
+
+	otelExporterOtlpEndpoint = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	otelServiceName          = os.Getenv("OTEL_SERVICE_NAME")
+	otelResourceAttrs        = os.Getenv("OTEL_RESOURCE_ATTRIBUTES")
 )
 
 func main() {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/tmc/langchaingo/llms"
@@ -37,20 +36,23 @@ func StartLLM(ctx context.Context) {
 	llm, err := ollama.New(conn, model)
 	if err != nil {
 		err = fmt.Errorf("error while creating LLM: %w", err)
+		ErrorTrace(err)
+		return
 	}
 
-	err1 := LLM(ctx, llm)
-	if err1 != nil {
-		err1 = fmt.Errorf("error while running LLM: %w", err1)
-	}
+	// Start LLM in a separate goroutine
+	go func() {
+		if err := LLM(ctx, llm); err != nil {
+			ErrorTrace(fmt.Errorf("error while running LLM: %w", err))
+		}
+	}()
 
-	err2 := LLMChat(ctx, llm)
-	if err2 != nil {
-		err2 = fmt.Errorf("error while running LLM: %w", err2)
-	}
-
-	err = errors.Join(err, err2)
-	ErrorTrace(err)
+	// Start LLMChat in a separate goroutine
+	go func() {
+		if err := LLMChat(ctx, llm); err != nil {
+			ErrorTrace(fmt.Errorf("error while running LLMChat: %w", err))
+		}
+	}()
 }
 
 func LLM(ctx context.Context, llm *ollama.LLM) error {

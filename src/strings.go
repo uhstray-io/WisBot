@@ -146,20 +146,20 @@ func splitCodeBlocks(input string) ([]string, []bool) {
 // Returns:
 //   - string: The first word (token)
 //   - string: The remainder of the string after removing the first word
-func nextToken(s string) (string, string) {
-	if len(s) == 0 {
-		return "", "" // Handle empty string case
-	}
+// func nextToken(s string) (string, string) {
+// 	if len(s) == 0 {
+// 		return "", "" // Handle empty string case
+// 	}
 
-	s = strings.TrimSpace(s)            // Remove leading/trailing whitespace
-	tokens := strings.SplitN(s, " ", 2) // Split into at most 2 parts at the first space
+// 	s = strings.TrimSpace(s)            // Remove leading/trailing whitespace
+// 	tokens := strings.SplitN(s, " ", 2) // Split into at most 2 parts at the first space
 
-	if len(tokens) == 1 {
-		return tokens[0], "" // Only one token, no remainder
-	}
+// 	if len(tokens) == 1 {
+// 		return tokens[0], "" // Only one token, no remainder
+// 	}
 
-	return tokens[0], tokens[1] // Return first token and the rest
-}
+// 	return tokens[0], tokens[1] // Return first token and the rest
+// }
 
 // peekNextToken returns the first word from a string without modifying the original string.
 // Parameters:
@@ -167,7 +167,7 @@ func nextToken(s string) (string, string) {
 //
 // Returns:
 //   - string: The first word (token)
-func peekNextToken(s string) string {
-	head, _ := nextToken(s)
-	return head
-}
+// func peekNextToken(s string) string {
+// 	head, _ := nextToken(s)
+// 	return head
+// }

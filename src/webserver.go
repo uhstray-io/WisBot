@@ -8,6 +8,7 @@ import (
 	"wisbot/src/httpwis"
 
 	"github.com/alexedwards/scs/v2"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/log/global"
@@ -47,7 +48,8 @@ func requestLogger(next http.HandlerFunc) http.HandlerFunc {
 
 func requestTracer(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, span := StartSpan(r.Context(), fmt.Sprintf("%s %s", r.Method, r.URL.Path))
+		ctx, span := otel.Tracer("wisbot").Start(r.Context(), fmt.Sprintf("%s %s", r.Method, r.URL.Path))
+		// span := trace.SpanFromContext(r.Context())
 		defer span.End()
 
 		// Add request details as span attributes
@@ -74,6 +76,38 @@ func requestStackTrace(next func(http.ResponseWriter, *http.Request) error) http
 
 		PrintTrace(err)
 	}
+}
+
+func WebServer(ctx context.Context) {
+
+	sessionManager = scs.New()
+	sessionManager.Lifetime = 24 * time.Hour
+
+	server := http.NewServeMux()
+
+	server.HandleFunc("GET /", requestTracer(requestLogger(getRoot)))
+	server.HandleFunc("POST /", requestTracer(requestLogger(postRoot)))
+
+	server.HandleFunc("GET /id/{id}", requestTracer(requestLogger(getId)))
+	server.HandleFunc("POST /id/{id}/upload", requestTracer(requestLogger(requestStackTrace(postIdUploadFile))))
+	server.HandleFunc("GET /id/{id}/download", requestTracer(requestLogger(requestStackTrace(getIdDownloadFile))))
+
+	server.HandleFunc("GET /llm", requestTracer(requestLogger(getLLM)))
+	server.HandleFunc("GET /llm/chat", requestTracer(requestLogger(getLLMChat)))
+	server.HandleFunc("POST /llm/chat", requestTracer(requestLogger(postLLMChat)))
+
+	// Add the middleware.
+	muxWithSessionMiddleware := sessionManager.LoadAndSave(server)
+
+	// Start the server.
+	fmt.Println("listening on", string(serverPort))
+
+	err := http.ListenAndServe(":"+serverPort, muxWithSessionMiddleware)
+	if err != nil {
+		err = fmt.Errorf("error while issuing ListenAndServe: %w", err)
+	}
+
+	PrintTrace(err)
 }
 
 func getRoot(w http.ResponseWriter, r *http.Request) {
@@ -107,42 +141,6 @@ func postRoot(w http.ResponseWriter, r *http.Request) {
 
 	// Display the form.
 	getRoot(w, r.WithContext(ctx))
-}
-
-func WebServer(ctx context.Context) {
-	ctx, span := StartSpan(ctx, "WebServer")
-	defer span.End()
-
-	sessionManager = scs.New()
-	sessionManager.Lifetime = 24 * time.Hour
-
-	server := http.NewServeMux()
-
-	server.HandleFunc("GET /", requestTracer(requestLogger(getRoot)))
-	server.HandleFunc("POST /", requestTracer(requestLogger(postRoot)))
-
-	server.HandleFunc("GET /id/{id}", requestTracer(requestLogger(getId)))
-	server.HandleFunc("POST /id/{id}/upload", requestTracer(requestLogger(requestStackTrace(postIdUploadFile))))
-	server.HandleFunc("GET /id/{id}/download", requestTracer(requestLogger(requestStackTrace(getIdDownloadFile))))
-
-	server.HandleFunc("GET /llm", requestTracer(requestLogger(getLLM)))
-	server.HandleFunc("GET /llm/chat", requestTracer(requestLogger(getLLMChat)))
-	server.HandleFunc("POST /llm/chat", requestTracer(requestLogger(postLLMChat)))
-
-	// Add the middleware.
-	muxWithSessionMiddleware := sessionManager.LoadAndSave(server)
-
-	// Start the server.
-	fmt.Println("listening on", string(serverPort))
-	span.SetAttributes(attribute.String("server.port", serverPort))
-
-	err := http.ListenAndServe(":"+serverPort, muxWithSessionMiddleware)
-	if err != nil {
-		span.RecordError(err)
-		err = fmt.Errorf("error while issuing ListenAndServe: %w", err)
-	}
-
-	PrintTrace(err)
 }
 
 func getLLM(w http.ResponseWriter, r *http.Request) {
