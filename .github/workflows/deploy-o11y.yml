@@ -1,9 +1,10 @@
 name: Deployment Wisbot Observability Agents
 
 on:
-  push:
-    branches:
-    - main
+  # push:
+  #   branches:
+  #   - main
+  workflow_dispatch:
 
 jobs:
   deployment:
@@ -12,7 +13,7 @@ jobs:
     steps:
 
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         repository: uhstray-io/o11y
         
