@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"syscall"
 )
 
 var (
@@ -25,25 +24,40 @@ var (
 )
 
 func main() {
+	// Create a root context with cancellation
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	// Initialize OpenTelemetry
+	shutdown, err := setupOTelSDK(ctx)
+	if err != nil {
+		fmt.Printf("Error setting up OpenTelemetry: %v\n", err)
+	}
+	// Ensure cleanup at the end
+	defer func() {
+		err := shutdown(ctx)
+		if err != nil {
+			fmt.Printf("Error shutting down OpenTelemetry: %v\n", err)
+		}
+	}()
+
 	// Initialize the database
-	db, err := StartDatabase()
+	db, err := StartDatabase(ctx)
 	if err != nil {
 		PrintTrace(err)
 	}
 	defer db.Close(context.Background())
 
 	// Start the database cleanup process
-	go StartDatabaseCleanup(db)
+	go StartDatabaseCleanup(ctx, db)
 
 	// Start the LLM
-	go StartLLM()
+	go StartLLM(ctx)
 
-	go WebServer()
-	go StartBot()
+	// Start the web server
+	go WebServer(ctx)
+	go StartBot(ctx)
 
-	// Wait here until CTRL-C or other term signal is received.
-	fmt.Println("If in iteractive mode, Press CTRL-C to exit.")
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
-	<-sc
+	// Wait for context cancellation
+	<-ctx.Done()
 }

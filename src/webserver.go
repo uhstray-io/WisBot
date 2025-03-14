@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
 	"wisbot/src/httpwis"
 
 	"github.com/alexedwards/scs/v2"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/log/global"
 )
@@ -43,6 +45,26 @@ func requestLogger(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func requestTracer(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := StartSpan(r.Context(), fmt.Sprintf("%s %s", r.Method, r.URL.Path))
+		defer span.End()
+
+		// Add request details as span attributes
+		span.SetAttributes(
+			attribute.String("http.method", r.Method),
+			attribute.String("http.url", r.URL.String()),
+			attribute.String("http.user_agent", r.UserAgent()),
+		)
+
+		// Create new request with the span context
+		r = r.WithContext(ctx)
+
+		// Call the actual handler
+		next(w, r)
+	}
+}
+
 func requestStackTrace(next func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		err := next(w, r)
@@ -55,46 +77,57 @@ func requestStackTrace(next func(http.ResponseWriter, *http.Request) error) http
 }
 
 func getRoot(w http.ResponseWriter, r *http.Request) {
-	userCount := sessionManager.GetInt(r.Context(), "session")
-	// fmt.Println(userCount)
+	ctx, span := StartSpan(r.Context(), "getRoot")
+	defer span.End()
+
+	userCount := sessionManager.GetInt(ctx, "session")
+	span.SetAttributes(attribute.Int("user.count", userCount))
 
 	component := httpwis.RootPage(globalState.Count, userCount)
-	component.Render(r.Context(), w)
+	component.Render(ctx, w)
 }
 
 func postRoot(w http.ResponseWriter, r *http.Request) {
+	ctx, span := StartSpan(r.Context(), "postRoot")
+	defer span.End()
+
 	// Update state.
 	r.ParseForm()
 
 	// Check to see if the global button was pressed.
 	if r.Form.Has("global") {
 		globalState.Count++
+		span.SetAttributes(attribute.String("action", "global_increment"))
 	}
 	if r.Form.Has("session") {
-		currentSessionCount := sessionManager.GetInt(r.Context(), "session")
-		sessionManager.Put(r.Context(), "session", currentSessionCount+1)
+		currentSessionCount := sessionManager.GetInt(ctx, "session")
+		sessionManager.Put(ctx, "session", currentSessionCount+1)
+		span.SetAttributes(attribute.String("action", "session_increment"))
 	}
 
 	// Display the form.
-	getRoot(w, r)
+	getRoot(w, r.WithContext(ctx))
 }
 
-func WebServer() {
+func WebServer(ctx context.Context) {
+	ctx, span := StartSpan(ctx, "WebServer")
+	defer span.End()
+
 	sessionManager = scs.New()
 	sessionManager.Lifetime = 24 * time.Hour
 
 	server := http.NewServeMux()
 
-	server.HandleFunc("GET /", requestLogger(getRoot))
-	server.HandleFunc("POST /", requestLogger(postRoot))
+	server.HandleFunc("GET /", requestTracer(requestLogger(getRoot)))
+	server.HandleFunc("POST /", requestTracer(requestLogger(postRoot)))
 
-	server.HandleFunc("GET /id/{id}", requestLogger(getId))
-	server.HandleFunc("POST /id/{id}/upload", requestLogger(requestStackTrace(postIdUploadFile)))
-	server.HandleFunc("GET /id/{id}/download", requestLogger(requestStackTrace(getIdDownloadFile)))
+	server.HandleFunc("GET /id/{id}", requestTracer(requestLogger(getId)))
+	server.HandleFunc("POST /id/{id}/upload", requestTracer(requestLogger(requestStackTrace(postIdUploadFile))))
+	server.HandleFunc("GET /id/{id}/download", requestTracer(requestLogger(requestStackTrace(getIdDownloadFile))))
 
-	server.HandleFunc("GET /llm", requestLogger(getLLM))
-	server.HandleFunc("GET /llm/chat", requestLogger(getLLMChat))
-	server.HandleFunc("POST /llm/chat", requestLogger(postLLMChat))
+	server.HandleFunc("GET /llm", requestTracer(requestLogger(getLLM)))
+	server.HandleFunc("GET /llm/chat", requestTracer(requestLogger(getLLMChat)))
+	server.HandleFunc("POST /llm/chat", requestTracer(requestLogger(postLLMChat)))
 
 	// Serve static files
 	server.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
@@ -104,8 +137,11 @@ func WebServer() {
 
 	// Start the server.
 	fmt.Println("listening on", string(serverPort))
+	span.SetAttributes(attribute.String("server.port", serverPort))
+
 	err := http.ListenAndServe(":"+serverPort, muxWithSessionMiddleware)
 	if err != nil {
+		span.RecordError(err)
 		err = fmt.Errorf("error while issuing ListenAndServe: %w", err)
 	}
 
@@ -113,44 +149,56 @@ func WebServer() {
 }
 
 func getLLM(w http.ResponseWriter, r *http.Request) {
+	ctx, span := StartSpan(r.Context(), "getLLM")
+	defer span.End()
+
 	component := httpwis.LlmPage()
-	component.Render(r.Context(), w)
+	component.Render(ctx, w)
 }
 
 func getLLMChat(w http.ResponseWriter, r *http.Request) {
+	ctx, span := StartSpan(r.Context(), "getLLMChat")
+	defer span.End()
+
 	component := httpwis.ChatPage()
-	component.Render(r.Context(), w)
+	component.Render(ctx, w)
 }
 
 func postLLMChat(w http.ResponseWriter, r *http.Request) {
+	ctx, span := StartSpan(r.Context(), "postLLMChat")
+	defer span.End()
 
 	fmt.Println("Started LLM chat")
 
 	err := r.ParseForm()
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, "Failed to parse form", http.StatusBadRequest)
 		return
 	}
 
 	question := r.FormValue("question")
 	if question == "" {
+		span.SetAttributes(attribute.String("error", "empty_question"))
 		http.Error(w, "Question cannot be empty", http.StatusBadRequest)
 		return
 	}
 
+	span.SetAttributes(attribute.Int("question.length", len(question)))
 	fmt.Println("User question:", question)
 
 	// Render the user's message immediately
 	userMsg := httpwis.UserMessage(question)
-	userMsg.Render(r.Context(), w)
+	userMsg.Render(ctx, w)
 
 	// Send the question to the LLM
 	InputChannel <- question
 
 	// Wait for the response
 	response := <-OutputChannel
+	span.SetAttributes(attribute.Int("response.length", len(response)))
 
 	// Render the bot's response
 	botMsg := httpwis.BotMessage(response)
-	botMsg.Render(r.Context(), w)
+	botMsg.Render(ctx, w)
 }

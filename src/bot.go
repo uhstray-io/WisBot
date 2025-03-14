@@ -3,13 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"slices"
 	"time"
 	"wisbot/src/sqlgo"
 
+	"go.opentelemetry.io/otel/log"
+
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 var commands = []*discordgo.ApplicationCommand{
@@ -49,7 +51,12 @@ var commands = []*discordgo.ApplicationCommand{
 	},
 }
 
-func StartBot() {
+func StartBot(ctx context.Context) {
+	ctx, span := StartSpan(ctx, "bot.StartBot")
+	defer span.End()
+
+	LogEvent(ctx, log.SeverityInfo, "Starting Discord bot")
+
 	discordSess, err := discordgo.New("Bot " + discordToken)
 	if err != nil {
 		err = fmt.Errorf("error while creating Discord session: %w", err)
@@ -59,8 +66,13 @@ func StartBot() {
 
 	discordSess.AddHandler(messageCreate)
 	discordSess.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
-		log.Println("Bot is ready! Logged in as:", s.State.User.Username)
-		registerCommands(s)
+		fmt.Println("Bot is ready! Logged in as:", s.State.User.Username)
+		// Create a new context for the handler since we don't have the original
+		handlerCtx, handlerSpan := StartSpan(ctx, "bot.onReady")
+		defer handlerSpan.End()
+
+		LogEvent(handlerCtx, log.SeverityInfo, "Bot ready", attribute.String("username", s.State.User.Username))
+		registerCommands(handlerCtx, s)
 	})
 	discordSess.AddHandler(interactionCreate)
 
@@ -71,22 +83,86 @@ func StartBot() {
 		err2 = fmt.Errorf("error while opening Discord session: %w", err2)
 		ErrorTrace(err2)
 	}
+
+	// Block until context is done
+	<-ctx.Done()
+
+	// Unregister commands before shutting down
+	cleanupCtx, cleanupSpan := StartSpan(ctx, "bot.cleanup")
+	defer cleanupSpan.End()
+
+	LogEvent(cleanupCtx, log.SeverityInfo, "Bot shutting down, unregistering commands")
+	unregisterCommands(cleanupCtx, discordSess)
 }
 
-func registerCommands(s *discordgo.Session) {
+func unregisterCommands(ctx context.Context, s *discordgo.Session) {
+	ctx, span := StartSpan(ctx, "bot.unregisterCommands")
+	defer span.End()
+
+	// Get all guilds the bot is in
+	guilds, err := s.UserGuilds(100, "", "", false)
+	if err != nil {
+		fmt.Printf("Error getting guilds during unregister: %v", err)
+		span.RecordError(err)
+		return
+	}
+
+	// Get all registered commands for each guild and delete them
+	for _, guild := range guilds {
+		registeredCommands, err := s.ApplicationCommands(s.State.User.ID, guild.ID)
+		if err != nil {
+			fmt.Printf("Error getting commands for guild %s: %v", guild.ID, err)
+			span.RecordError(err)
+			continue
+		}
+
+		for _, cmd := range registeredCommands {
+			err := s.ApplicationCommandDelete(s.State.User.ID, guild.ID, cmd.ID)
+			if err != nil {
+				fmt.Printf("Error deleting command %s in guild %s: %v", cmd.Name, guild.ID, err)
+				span.RecordError(err)
+			}
+		}
+	}
+
+	// Also unregister global commands
+	globalCommands, err := s.ApplicationCommands(s.State.User.ID, "")
+	if err != nil {
+		fmt.Printf("Error getting global commands: %v", err)
+		span.RecordError(err)
+		return
+	}
+
+	for _, cmd := range globalCommands {
+		err := s.ApplicationCommandDelete(s.State.User.ID, "", cmd.ID)
+		if err != nil {
+			fmt.Printf("Error deleting global command %s: %v", cmd.Name, err)
+			span.RecordError(err)
+		}
+	}
+
+	LogEvent(ctx, log.SeverityInfo, "Discord commands unregistered successfully")
+}
+
+func registerCommands(ctx context.Context, s *discordgo.Session) {
+	ctx, span := StartSpan(ctx, "bot.registerCommands")
+	defer span.End()
+
 	// First, get all guilds the bot is in
 	guilds, err := s.UserGuilds(100, "", "", false)
 	if err != nil {
-		log.Printf("Error getting guilds: %v", err)
+		fmt.Printf("Error getting guilds: %v", err)
+		span.RecordError(err)
 	}
 
 	// Register commands to each guild for faster updates during development
 	for _, guild := range guilds {
-		log.Printf("Registering commands to guild: %s (%s)", guild.Name, guild.ID)
+		fmt.Printf("Registering commands to guild: %s (%s)", guild.Name, guild.ID)
 		for _, command := range commands {
 			_, err := s.ApplicationCommandCreate(s.State.User.ID, guild.ID, command)
 			if err != nil {
-				log.Printf("Error creating command %v in guild %s: %v", command.Name, guild.ID, err)
+				fmt.Printf("Error creating command %v in guild %s: %v", command.Name, guild.ID, err)
+				span.RecordError(err)
 			}
 		}
 	}
@@ -95,11 +171,12 @@ func registerCommands(s *discordgo.Session) {
 	for _, command := range commands {
 		_, err := s.ApplicationCommandCreate(s.State.User.ID, "", command)
 		if err != nil {
-			log.Printf("Error creating global command %v: %v", command.Name, err)
+			fmt.Printf("Error creating global command %v: %v", command.Name, err)
+			span.RecordError(err)
 		}
 	}
 
-	log.Println("Slash commands registered successfully")
+	LogEvent(ctx, log.SeverityInfo, "Slash commands registered successfully")
 }
 
 func onReady(discordSess *discordgo.Session, event *discordgo.Ready) {
@@ -146,11 +223,16 @@ func messageCreate(discordSess *discordgo.Session, message *discordgo.MessageCre
 }
 
 func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	// Create a context for tracing this interaction
+	ctx, span := StartSpan(context.Background(), "bot.interactionCreate")
+	defer span.End()
+
 	if i.Type != discordgo.InteractionApplicationCommand {
 		return
 	}
 
 	data := i.ApplicationCommandData()
+	span.SetAttributes(attribute.String("command", data.Name))
 
 	if data.Name != "wis" {
 		return
@@ -158,44 +240,68 @@ func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	// Get the subcommand
 	subcommand := data.Options[0].Name
+	span.SetAttributes(attribute.String("subcommand", subcommand))
 	options := data.Options[0].Options
 
 	switch subcommand {
 	case "llm":
-		handleLLMCommand(s, i, options)
+		handleLLMCommand(ctx, s, i, options)
 	case "upload":
-		handleUploadCommand(s, i)
+		handleUploadCommand(ctx, s, i)
 	case "stats":
-		handleStatsCommand(s, i)
+		handleStatsCommand(ctx, s, i)
 	case "help":
-		handleHelpCommand(s, i)
+		handleHelpCommand(ctx, s, i)
 	}
 }
 
-func handleHelpCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func handleHelpCommand(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) {
+	ctx, span := StartSpan(ctx, "bot.handleHelpCommand")
+	defer span.End()
+
 	helpText := `Commands:
 - /wis llm [text] - Large Language Model
 - /wis upload - Upload a file
 - /wis help - Show this message
 - /wis stats - Show some stats about the server`
 
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: helpText,
 		},
 	})
+
+	if err != nil {
+		span.RecordError(err)
+		LogEvent(ctx, log.SeverityError, "Failed to respond to help command", attribute.String("error", err.Error()))
+	}
 }
 
-func handleLLMCommand(s *discordgo.Session, i *discordgo.InteractionCreate, options []*discordgo.ApplicationCommandInteractionDataOption) {
+func handleLLMCommand(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, options []*discordgo.ApplicationCommandInteractionDataOption) {
+	ctx, span := StartSpan(ctx, "bot.handleLLMCommand")
+	defer span.End()
+
 	// Acknowledge the interaction to prevent timeout
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 	})
 
-	text := options[0].StringValue()
+	if err != nil {
+		span.RecordError(err)
+		LogError(ctx, err, "Failed to acknowledge LLM command")
+		return
+	}
 
-	chatMessages, _ := s.ChannelMessages(i.ChannelID, 100, "", "", "")
+	text := options[0].StringValue()
+	span.SetAttributes(attribute.String("prompt", text))
+
+	chatMessages, err := s.ChannelMessages(i.ChannelID, 100, "", "", "")
+	if err != nil {
+		span.RecordError(err)
+		LogError(ctx, err, "Failed to fetch channel messages")
+	}
+
 	slices.Reverse(chatMessages)
 
 	UserMessages := []UserMessage{}
@@ -209,14 +315,19 @@ func handleLLMCommand(s *discordgo.Session, i *discordgo.InteractionCreate, opti
 		Content:  "/wis llm " + text,
 	})
 
+	LogEvent(ctx, log.SeverityInfo, "Sending prompt to LLM",
+		attribute.String("user", getUserFromInteraction(i)),
+		attribute.Int("context_messages", len(UserMessages)))
+
 	InputChatChannel <- UserMessages
 	response := <-OutputChatChannel
 
-	log.Println("LLM response:", response)
+	LogEvent(ctx, log.SeverityInfo, "Received LLM response", attribute.Int("response_length", len(response)))
 
 	chunks, err := chunkDiscordMessage(response, 1995)
 	if err != nil {
-		log.Printf("Error chunking message: %v", err)
+		span.RecordError(err)
+		LogError(ctx, err, "Error chunking message")
 
 		str := fmt.Sprintf("Error: %v", err)
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
@@ -226,15 +337,26 @@ func handleLLMCommand(s *discordgo.Session, i *discordgo.InteractionCreate, opti
 	}
 
 	// Send the first chunk as the interaction response
-	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+	_, err = s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Content: &chunks[0],
 	})
 
+	if err != nil {
+		span.RecordError(err)
+		LogError(ctx, err, "Failed to edit response")
+	}
+
 	// Send additional chunks as follow-up messages
 	for _, chunk := range chunks[1:] {
-		s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+		_, err := s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
 			Content: chunk,
 		})
+
+		if err != nil {
+			span.RecordError(err)
+			LogError(ctx, err, "Failed to send follow-up message")
+		}
+
 		time.Sleep(200 * time.Millisecond)
 	}
 }
@@ -248,13 +370,23 @@ func getUserFromInteraction(i *discordgo.InteractionCreate) string {
 	return i.User.Username
 }
 
-func handleUploadCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func handleUploadCommand(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) {
+	ctx, span := StartSpan(ctx, "bot.handleUploadCommand")
+	defer span.End()
+
 	uuid := uuid.New()
 	username := getUserFromInteraction(i)
 
+	span.SetAttributes(attribute.String("user", username), attribute.String("file_id", uuid.String()))
+
 	// Count the number of files the user has uploaded
-	count, err := wisQueries.CountFilesFromUser(context.Background(), username)
+	count, err := wisQueries.CountFilesFromUser(ctx, username)
 	if err != nil {
+		span.RecordError(err)
+		LogError(ctx, err, "Failed to count user files",
+			attribute.String("user", username),
+			attribute.String("error", err.Error()))
+
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
@@ -266,12 +398,17 @@ func handleUploadCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	// Remove the oldest files if the user has uploaded too many
 	if count >= maxFilesPerUser {
-		err := wisQueries.DeleteFileWhereUsersCountIsProvided(context.Background(),
+		err := wisQueries.DeleteFileWhereUsersCountIsProvided(ctx,
 			sqlgo.DeleteFileWhereUsersCountIsProvidedParams{
 				DiscordUsername: username,
 				Limit:           int32(count - maxFilesPerUser + 1),
 			})
 		if err != nil {
+			span.RecordError(err)
+			LogError(ctx, err, "Failed to delete old files",
+				attribute.String("user", username),
+				attribute.String("error", err.Error()))
+
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
@@ -280,16 +417,25 @@ func handleUploadCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			})
 			return
 		}
+
+		LogError(ctx, err, "Deleted old files to stay under limit",
+			attribute.String("user", username),
+			attribute.Int64("deleted", count-maxFilesPerUser+1))
 	}
 
 	// Insert the new file
-	err = wisQueries.InsertFile(context.Background(), sqlgo.InsertFileParams{
+	err = wisQueries.InsertFile(ctx, sqlgo.InsertFileParams{
 		ID:              uuid.String(),
 		Uploaded:        false,
 		DiscordUsername: username,
 		Name:            "empty file",
 	})
 	if err != nil {
+		span.RecordError(err)
+		LogError(ctx, err, "Failed to insert file",
+			attribute.String("file_id", uuid.String()),
+			attribute.String("error", err.Error()))
+
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
@@ -299,6 +445,10 @@ func handleUploadCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
+	LogError(ctx, err, "Created new file",
+		attribute.String("user", username),
+		attribute.String("file_id", uuid.String()))
+
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
@@ -307,9 +457,15 @@ func handleUploadCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	})
 }
 
-func handleStatsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func handleStatsCommand(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) {
+	ctx, span := StartSpan(ctx, "bot.handleStatsCommand")
+	defer span.End()
+
 	guild, err := s.Guild(i.GuildID)
 	if err != nil {
+		span.RecordError(err)
+		LogError(ctx, err, "Failed to get guild info", attribute.String("error", err.Error()))
+
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
@@ -328,6 +484,11 @@ func handleStatsCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		"Stats:\n- Users: %d\n- Servers: %d\n- Channels: %d\n- NSFW Level: %d",
 		memberCount, serverCount, channelCount, nsfwLevel,
 	)
+
+	LogError(ctx, err, "Retrieved stats",
+		attribute.Int("members", memberCount),
+		attribute.Int("servers", serverCount),
+		attribute.Int("channels", channelCount))
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,

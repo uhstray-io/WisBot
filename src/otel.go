@@ -6,14 +6,16 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/log/global"
+	"go.opentelemetry.io/otel/propagation"
+
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutlog"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/log/global"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/log"
-	"go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/trace"
+
+	sdkLog "go.opentelemetry.io/otel/sdk/log"
+	sdkMetric "go.opentelemetry.io/otel/sdk/metric"
+	sdkTrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // setupOTelSDK bootstraps the OpenTelemetry pipeline.
@@ -79,43 +81,43 @@ func newPropagator() propagation.TextMapPropagator {
 	)
 }
 
-func newTraceProvider() (*trace.TracerProvider, error) {
+func newTraceProvider() (*sdkTrace.TracerProvider, error) {
 	traceExporter, err := stdouttrace.New(
 		stdouttrace.WithPrettyPrint())
 	if err != nil {
 		return nil, err
 	}
 
-	traceProvider := trace.NewTracerProvider(
-		trace.WithBatcher(traceExporter,
+	traceProvider := sdkTrace.NewTracerProvider(
+		sdkTrace.WithBatcher(traceExporter,
 			// Default is 5s. Set to 1s for demonstrative purposes.
-			trace.WithBatchTimeout(time.Second)),
+			sdkTrace.WithBatchTimeout(time.Second)),
 	)
 	return traceProvider, nil
 }
 
-func newMeterProvider() (*metric.MeterProvider, error) {
+func newMeterProvider() (*sdkMetric.MeterProvider, error) {
 	metricExporter, err := stdoutmetric.New()
 	if err != nil {
 		return nil, err
 	}
 
-	meterProvider := metric.NewMeterProvider(
-		metric.WithReader(metric.NewPeriodicReader(metricExporter,
+	meterProvider := sdkMetric.NewMeterProvider(
+		sdkMetric.WithReader(sdkMetric.NewPeriodicReader(metricExporter,
 			// Default is 1m. Set to 3s for demonstrative purposes.
-			metric.WithInterval(3*time.Second))),
+			sdkMetric.WithInterval(3*time.Second))),
 	)
 	return meterProvider, nil
 }
 
-func newLoggerProvider() (*log.LoggerProvider, error) {
+func newLoggerProvider() (*sdkLog.LoggerProvider, error) {
 	logExporter, err := stdoutlog.New()
 	if err != nil {
 		return nil, err
 	}
 
-	loggerProvider := log.NewLoggerProvider(
-		log.WithProcessor(log.NewBatchProcessor(logExporter)),
+	loggerProvider := sdkLog.NewLoggerProvider(
+		sdkLog.WithProcessor(sdkLog.NewBatchProcessor(logExporter)),
 	)
 	return loggerProvider, nil
 }

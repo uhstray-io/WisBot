@@ -7,16 +7,23 @@ import (
 	"wisbot/src/sqlgo"
 
 	"github.com/jackc/pgx/v5"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/log"
 )
 
 // Global database query handler
 var wisQueries *sqlgo.Queries
 
 // StartDatabase initializes the database connection and creates required tables
-func StartDatabase() (*pgx.Conn, error) {
-	ctx := context.Background()
+func StartDatabase(ctx context.Context) (*pgx.Conn, error) {
+	ctx, span := StartSpan(ctx, "database.StartDatabase")
+	defer span.End()
+
+	LogEvent(ctx, log.SeverityInfo, "Connecting to database")
+
 	conn, err := pgx.Connect(ctx, databaseUrl)
 	if err != nil {
+		span.RecordError(err)
 		return nil, fmt.Errorf("error while connecting to database: %w", err)
 	}
 
@@ -25,14 +32,22 @@ func StartDatabase() (*pgx.Conn, error) {
 	// Create the tables if they don't exist
 	err = wisQueries.CreateFilesTable(ctx)
 	if err != nil {
+		span.RecordError(err)
 		return nil, fmt.Errorf("error creating files table: %w", err)
 	}
+
+	LogEvent(ctx, log.SeverityInfo, "Database successfully initialized")
 
 	return conn, nil
 }
 
 // StartDatabaseCleanup begins a periodic task that removes old files
-func StartDatabaseCleanup(db *pgx.Conn) {
+func StartDatabaseCleanup(ctx context.Context, db *pgx.Conn) {
+	ctx, span := StartSpan(ctx, "database.StartDatabaseCleanup")
+	defer span.End()
+
+	LogEvent(ctx, log.SeverityInfo, "Starting database cleanup process", attribute.Int("delete_older_than_days", deleteFilesAfterDays))
+
 	go func() {
 		// Initial delay before starting cleanup
 		time.Sleep(5 * time.Second)
@@ -42,27 +57,40 @@ func StartDatabaseCleanup(db *pgx.Conn) {
 		defer ticker.Stop()
 
 		// Run cleanup immediately, then on each tick
-		if err := runCleanup(); err != nil {
+		cleanupCtx, _ := StartSpan(ctx, "database.initialCleanup")
+		if err := runCleanup(cleanupCtx); err != nil {
 			fmt.Printf("Error in initial cleanup: %v\n", err)
 		}
 
-		for range ticker.C {
-			if err := runCleanup(); err != nil {
-				fmt.Printf("error in scheduled cleanup: %v\n", err)
+		for {
+			select {
+			case <-ticker.C:
+				tickCtx, _ := StartSpan(ctx, "database.scheduledCleanup")
+				if err := runCleanup(tickCtx); err != nil {
+					fmt.Printf("error in scheduled cleanup: %v\n", err)
+				}
+			case <-ctx.Done():
+				LogEvent(ctx, log.SeverityInfo, "Stopping database cleanup process")
+				return
 			}
 		}
 	}()
 }
 
 // runCleanup performs a single database cleanup operation
-func runCleanup() error {
-	fmt.Println("Running database cleanup process")
+func runCleanup(ctx context.Context) error {
+	ctx, span := StartSpan(ctx, "database.runCleanup")
+	defer span.End()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	LogEvent(ctx, log.SeverityInfo, "Running database cleanup process", attribute.Int("delete_older_than_days", deleteFilesAfterDays))
+
+	cleanupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	err := wisQueries.DeleteFileWhereOlderThan(ctx, int32(deleteFilesAfterDays))
+	err := wisQueries.DeleteFileWhereOlderThan(cleanupCtx, int32(deleteFilesAfterDays))
 	if err != nil {
+		span.RecordError(err)
+		LogError(ctx, err, "Cleanup failed")
 		return fmt.Errorf("error while executing DeleteFileWhereOlderThan query: %w", err)
 	}
 
