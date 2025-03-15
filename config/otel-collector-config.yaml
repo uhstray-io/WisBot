@@ -22,12 +22,30 @@ processors:
 
 exporters:
   prometheus:
-    endpoint: "0.0.0.0:8889"
+    endpoint: http://192.168.1.18:9009/api/v1/push
     namespace: wisbot
     send_timestamps: true
     metric_expiration: 180m
     resource_to_telemetry_conversion:
       enabled: true
+    headers:
+      x-scope-orgid: o11y
+
+  # loki:
+  #   endpoint: http://192.168.1.18:3100/loki/api/v1/push
+  #   tenant_id: "wisbot"
+  #   labels:
+  #     resource:
+  #       service.name: "wisbot"
+  #   headers:
+  #     x-scope-orgid: o11y
+
+  otlp:
+    endpoint: http://192.168.1.18:4317
+    tls:
+      insecure: true
+    headers:
+      x-scope-orgid: o11y
 
   debug:
     verbosity: detailed
@@ -37,7 +55,7 @@ service:
     traces:
       receivers: [ otlp ]
       processors: [ memory_limiter, batch, resource ]
-      exporters: [ debug ]
+      exporters: [ otlp, debug ]
 
     metrics:
       receivers: [ otlp ]
