@@ -97,7 +97,7 @@ services:
     ports:
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
-      # - "8889:8889"   # Prometheus exporter
+      - "8889:8889"   # Prometheus exporter
     networks:
       - wis_net
 
@@ -110,7 +110,6 @@ volumes:
   ollama:
   postgres:
   postgres_data:
-  prometheus_data:
 
 
 networks:

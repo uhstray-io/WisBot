@@ -1,3 +1,4 @@
 #!/bin/bash
 
-docker compose down
+# Bring down all running containers
+docker compose down --remove-orphans
