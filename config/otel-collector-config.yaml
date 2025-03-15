@@ -28,8 +28,6 @@ exporters:
     metric_expiration: 180m
     resource_to_telemetry_conversion:
       enabled: true
-    headers:
-      x-scope-orgid: o11y
 
   # loki:
   #   endpoint: http://192.168.1.18:3100/loki/api/v1/push
