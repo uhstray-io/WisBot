@@ -99,7 +99,8 @@ services:
       - "4318:4318"   # OTLP HTTP
       - "8889:8889"   # Prometheus exporter
     networks:
-      - wis_net
+      wis_net:
+        ipv4_address: 10.5.0.6
 
 
 secrets:

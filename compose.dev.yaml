@@ -15,7 +15,8 @@ services:
     ports:
       - "9090:9090"
     networks:
-      - wis_net
+      wis_net:
+        ipv4_address: 10.5.0.7
 
 volumes:
   prometheus_data:
