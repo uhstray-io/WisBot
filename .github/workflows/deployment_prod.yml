@@ -10,8 +10,8 @@ jobs:
     runs-on: self-hosted # This specifies that the job should run on your self-hosted runner
 
     steps:
-    # - name: Clear Checkout Code Repository before new Checkout
-    #   run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S rm -rf /home/uhstray/actions-runner/_work/WisBot
+    - name: Clear Checkout Code Repository before new Checkout
+      run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S rm -rf /home/uhstray/actions-runner/_work/WisBot/prometheus
     
     # - name: Re-create WisBot Directory
     #   run: echo ${{ secrets.UHSTRAY_SUDO }} | sudo -S mkdir -p /home/uhstray/actions-runner/_work/WisBot/WisBot
