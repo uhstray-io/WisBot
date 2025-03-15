@@ -22,7 +22,7 @@ processors:
 
 exporters:
   prometheus:
-    endpoint: http://192.168.1.18:9009/api/v1/push
+    endpoint: 192.168.1.18:9009/api/v1/push
     namespace: wisbot
     send_timestamps: true
     metric_expiration: 180m
@@ -39,7 +39,7 @@ exporters:
   #     x-scope-orgid: o11y
 
   otlp:
-    endpoint: http://192.168.1.18:4317
+    endpoint: 192.168.1.18:4317
     tls:
       insecure: true
     headers:
