@@ -1,0 +1,81 @@
+flowchart TB
+    subgraph "GitHub Repository"
+        GH["GitHub Code Repository"]
+    end
+
+    subgraph "CI/CD Automation"
+        GA["GitHub Actions<br>Self-hosted Runner"]
+        GA_PROD["deployment_prod.yml"]
+        GA_REFRESH["deployment_refresh_prod.yml"]
+        GA_SHUTDOWN["shutdown.yml"]
+        GA_O11Y["deploy-o11y.yml"]
+    end
+
+    subgraph "Configuration Management"
+        ENV[".env File<br>Environment Variables"]
+        COMPOSE["compose.yaml<br>Service Definitions"]
+        DEV_COMPOSE["compose.dev.yaml<br>Development Config"]
+        OTEL["otel-collector-config.yaml<br>Observability Config"]
+        SECRETS["Discord API Token<br>Secrets Management"]
+    end
+
+    subgraph "Development Workflow"
+        TILT["Tiltfile<br>Development Definition"]
+        BUILD["Docker Build<br>wisbot:latest"]
+        SCRIPTS["Shell Scripts<br>start.sh, restart.sh, stop.sh"]
+    end
+
+    subgraph "Development Environment"
+        DC["Docker Compose"]
+        WISBOT["WisBot Service<br>10.5.0.2"]
+        LLM["Ollama LLM Service<br>10.5.0.3"]
+        DB["PostgreSQL<br>10.5.0.4"]
+        ADMINER["DB Dashboard<br>10.5.0.5"]
+        OTEL_SVC["OpenTelemetry Collector<br>10.5.0.6"]
+    end
+
+    subgraph "QA Environment (Kubernetes)"
+        KOMPOSE["Kompose<br>Docker Compose to K8s"]
+        HELM["Helm Charts"]
+        K8S["Kubernetes Cluster"]
+        K8S_WISBOT["WisBot Deployment"]
+        K8S_LLM["LLM Deployment"]
+        K8S_DB["Database Deployment"]
+    end
+
+    GH --> GA
+    GA --> GA_PROD & GA_REFRESH & GA_SHUTDOWN & GA_O11Y
+    
+    GA_PROD & GA_REFRESH --> SECRETS
+    SECRETS --> ENV
+    
+    GA_PROD & GA_REFRESH --> BUILD
+    BUILD --> DC
+    
+    ENV --> COMPOSE & DEV_COMPOSE
+    ENV --> OTEL
+    
+    TILT --> BUILD
+    TILT --> DC
+    
+    SCRIPTS --> DC
+    
+    COMPOSE & DEV_COMPOSE --> DC
+    
+    DC --> WISBOT & LLM & DB & ADMINER & OTEL_SVC
+    
+    COMPOSE --> KOMPOSE
+    KOMPOSE --> HELM
+    HELM --> K8S
+    
+    K8S --> K8S_WISBOT & K8S_LLM & K8S_DB
+    
+    classDef environment fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef config fill:#bbf,stroke:#333,stroke-width:1px;
+    classDef tool fill:#bfb,stroke:#333,stroke-width:1px;
+    classDef service fill:#fbb,stroke:#333,stroke-width:1px;
+    
+    class DC,K8S environment;
+    class ENV,COMPOSE,DEV_COMPOSE,OTEL,SECRETS config;
+    class TILT,BUILD,SCRIPTS,KOMPOSE,HELM tool;
+    class WISBOT,LLM,DB,ADMINER,OTEL_SVC,K8S_WISBOT,K8S_LLM,K8S_DB service;
