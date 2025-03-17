@@ -1,3 +1,4 @@
+```mermaid
 flowchart TB
     subgraph "GitHub Repository"
         GH["GitHub Code Repository"]
@@ -70,12 +71,13 @@ flowchart TB
     
     K8S --> K8S_WISBOT & K8S_LLM & K8S_DB
     
-    classDef environment fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef config fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef tool fill:#bfb,stroke:#333,stroke-width:1px;
-    classDef service fill:#fbb,stroke:#333,stroke-width:1px;
+    classDef environment fill:#f9f,stroke:#000,stroke-width:2px;
+    classDef config fill:#bbf,stroke:#000,stroke-width:1px;
+    classDef tool fill:#bfb,stroke:#000,stroke-width:1px;
+    classDef service fill:#fbb,stroke:#000,stroke-width:1px;
     
     class DC,K8S environment;
     class ENV,COMPOSE,DEV_COMPOSE,OTEL,SECRETS config;
     class TILT,BUILD,SCRIPTS,KOMPOSE,HELM tool;
     class WISBOT,LLM,DB,ADMINER,OTEL_SVC,K8S_WISBOT,K8S_LLM,K8S_DB service;
+```
