@@ -96,9 +96,8 @@ services:
       - ./config/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
     ports:
       - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # Mimir OTLP HTTP
-      - "3100:3100"   # Loki
-      - "9009:9009"   # Mimir Metrics
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Prometheus exporter
     networks:
       wis_net:
         ipv4_address: 10.5.0.6
