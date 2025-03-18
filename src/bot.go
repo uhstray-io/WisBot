@@ -296,31 +296,16 @@ func handleLLMCommand(ctx context.Context, s *discordgo.Session, i *discordgo.In
 	text := options[0].StringValue()
 	span.SetAttributes(attribute.String("prompt", text))
 
-	chatMessages, err := s.ChannelMessages(i.ChannelID, 100, "", "", "")
-	if err != nil {
-		span.RecordError(err)
-		LogError(ctx, err, "Failed to fetch channel messages")
-	}
+	// Previous chat message collection removed
 
-	slices.Reverse(chatMessages)
-
-	UserMessages := []UserMessage{}
-	for _, msg := range chatMessages {
-		UserMessages = append(UserMessages, UserMessage{UserName: msg.Author.Username, Content: msg.Content})
-	}
-
-	// Add the current command as a message
-	UserMessages = append(UserMessages, UserMessage{
-		UserName: getUserFromInteraction(i),
-		Content:  "/wis llm " + text,
-	})
-
+	username := getUserFromInteraction(i)
 	LogEvent(ctx, log.SeverityInfo, "Sending prompt to LLM",
-		attribute.String("user", getUserFromInteraction(i)),
-		attribute.Int("context_messages", len(UserMessages)))
+		attribute.String("user", username),
+		attribute.String("prompt", text))
 
-	InputChatChannel <- UserMessages
-	response := <-OutputChatChannel
+	// Use single message channel instead of chat channel
+	InputChannel <- text
+	response := <-OutputChannel
 
 	LogEvent(ctx, log.SeverityInfo, "Received LLM response", attribute.Int("response_length", len(response)))
 

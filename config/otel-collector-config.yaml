@@ -22,20 +22,20 @@ processors:
 
 exporters:
   prometheus:
-    endpoint: 192.168.1.14:9090/api/v1/push
+    endpoint: localhost:9090/api/v1/push
     namespace: wisbot
     send_timestamps: true
     metric_expiration: 180m
     resource_to_telemetry_conversion:
       enabled: true
 
-  loki:
-    endpoint: http://192.168.1.14:3100/loki/api/v1/push
-    tenant_id: "wisbot"
-    labels:
-      resource:
-        service.name: "wisbot"
+  otlphttp/logs:
+    endpoint: "http://192.168.1.14:3100/otlp"
+    tls:
+      insecure: true
 
+  otlphttp:
+    endpoint: 192.168.1.14:9009/otlp
 
   # otlp:
   #   endpoint: 192.168.1.14:4317
@@ -52,7 +52,7 @@ service:
     traces:
       receivers: [ otlp ]
       processors: [ memory_limiter, batch, resource ]
-      exporters: [ debug ]
+      exporters: [ debug, otlphttp ]
 
     metrics:
       receivers: [ otlp ]
@@ -62,4 +62,4 @@ service:
     logs:
       receivers: [ otlp ]
       processors: [ memory_limiter, batch, resource ]
-      exporters: [ debug, loki ]
+      exporters: [ debug, otlphttp/logs ]
