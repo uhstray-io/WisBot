@@ -22,18 +22,20 @@ processors:
 
 exporters:
   prometheus:
-    endpoint: localhost:9090/api/v1/push
+    endpoint: localhost:9091/api/v1/push
     namespace: wisbot
     send_timestamps: true
     metric_expiration: 180m
     resource_to_telemetry_conversion:
       enabled: true
 
+  #loki otlp http logs
   otlphttp/logs:
     endpoint: "http://192.168.1.14:3100/otlp"
     tls:
       insecure: true
 
+  #mimir otlphttp exporter
   otlphttp:
     endpoint: 192.168.1.14:9009/otlp
 
