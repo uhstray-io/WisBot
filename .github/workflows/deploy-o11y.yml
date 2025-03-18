@@ -25,13 +25,13 @@ jobs:
 #    - name: Print the contents of the .env file
 #      run: cat .env
     - name: Docker Down Prometheus
-      run: cd ./prometheus && docker compose -f compose-remote.yml down 
+      run: cd o11y/prometheus && docker compose -f compose-remote.yml down 
 
     - name: Docker Up Prometheus
-      run: cd ./prometheus && docker compose -f compose-remote.yml up -d
+      run: cd o11y/prometheus && docker compose -f compose-remote.yml up -d
 
     - name: Docker Down Promtail
-      run: cd ./promtail && docker compose -f compose-remote.yml down 
+      run: cd o11y/promtail && docker compose -f compose-remote.yml down 
 
     - name: Docker Up Promtail
-      run: cd ./promtail && docker compose -f compose-remote.yml up -d
+      run: cd o11y/promtail && docker compose -f compose-remote.yml up -d

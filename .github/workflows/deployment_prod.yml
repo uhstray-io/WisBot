@@ -1,9 +1,10 @@
 name: Deployment Script
 
 on:
-  push:
-    branches:
-    - main
+  # push:
+  #   branches:
+  #   - main
+  workflow_dispatch:
 
 jobs:
   deployment:
