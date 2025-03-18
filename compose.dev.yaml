@@ -1,24 +1,23 @@
-version: '3'
 
 include:
   - compose.yaml
 
-services:
-  # Prometheus for metrics
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    restart: always
-    volumes:
-      - ./prometheus.yaml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    ports:
-      - "9090:9090"
-    networks:
-      wis_net:
-        ipv4_address: 10.5.0.7
+# services:
+#   # Prometheus for metrics
+#   prometheus:
+#     image: prom/prometheus:latest
+#     container_name: prometheus
+#     restart: always
+#     volumes:
+#       - ./prometheus.yaml:/etc/prometheus/prometheus.yml
+#       - prometheus_data:/prometheus
+#     ports:
+#       - "9090:9090"
+#     networks:
+#       wis_net:
+#         ipv4_address: 10.5.0.7
 
-volumes:
-  prometheus_data:
+# volumes:
+#   prometheus_data:
 
 
