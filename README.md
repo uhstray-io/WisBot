@@ -13,6 +13,8 @@ WisBot is a versatile automation bot that combines Discord integration, AI capab
 - **Web Interface:** User-friendly web interface built with Go templates for interaction outside Discord
 - **Observability:** Comprehensive monitoring and tracing with OpenTelemetry integration
 
+---
+
 - [Getting Started](#getting-started)
   - [Quick Start Guide](#quick-start-guide)
   - [Tiltfile Quickstart](#tiltfile-quickstart)
