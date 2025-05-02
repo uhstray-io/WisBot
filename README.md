@@ -70,7 +70,63 @@ With this configuration, developers can run `tilt up` to start WisBot with live 
 
 ### WisBot Design Architecture
 
-![WisBot Design Architecture](./diagrams/architecture.excalidraw.png)
+```mermaid
+flowchart TD
+subgraph subgraph1["Users"]
+    User["Discord Members"]
+    WebUser["Web Users"]
+end
+subgraph subGraph5["Connected Services"]
+    NocoDB["NocoDB"]
+    Postiz["Postiz Social Media Scheduler"]
+    Superset["Superset Data Analytics"]
+end
+subgraph WisBot["WisBot"]
+    Discord["Discord API"]
+    WebSite["WebSite"]
+    DiscordBot["Discord Bot"]
+    FileManager["File Manager"]
+    WisLLM["WisLLM Processor"]
+    WebServerAPI["Web Server REST API"]
+end
+subgraph subGraph3["LLM PLatform"]
+    Models[("Model Storage")]
+    Ollama["Ollama LLM Service"]
+end
+subgraph DataBases["Data Warehousing"]
+    subgraph subGraph4["Data Cache and Pipelines"]
+        Redis["Redis Cache"]
+    end
+        DataWarehouse[("Data Warehouse PostgreSQL DB")]
+        WisbotDB[("Wisbot PostgreSQL DB")]
+        bizS3["minIO S3 Object Storage"]
+        Drives["Documents/Drives - Proton, Sharepoint, Google"]
+        VectorDB[("pgVector Database")]
+end
+
+
+
+
+
+    Ollama -- "llama3.2" --> Models
+    User --> Discord
+    WebUser --> WebSite
+    WebSite --> WebServerAPI
+    Discord --> DiscordBot
+    DiscordBot --> WisLLM & FileManager
+    WebServerAPI --> WisLLM & FileManager
+    FileManager --> WisbotDB
+    WisbotDB <--> DataWarehouse
+    DataWarehouse <--> VectorDB
+    VectorDB <--> Drives
+    WisLLM <--> WisbotDB
+    bizS3 <--> VectorDB
+    Postiz --> WebServerAPI
+    WisLLM <--> Ollama
+    Postiz --> Redis --> bizS3
+    NocoDB --> bizS3 & DataWarehouse & WebServerAPI
+    Superset --> DataWarehouse & bizS3
+```
 
 ### User Experience Workflows
 
