@@ -76,6 +76,10 @@ subgraph subgraph1["Users"]
     User["Discord Members"]
     WebUser["Web Users"]
 end
+subgraph subgraph7["Business Users"]
+    Employees
+    Developers
+end
 subgraph subGraph5["Connected Services"]
     NocoDB["NocoDB Project Management"]
     Postiz["Postiz Social Media Scheduler"]
@@ -110,6 +114,8 @@ end
 
     Ollama -- "llama3.2" --> Models
     User --> Discord
+    Employees --> NocoDB & Postiz
+    Developers --> Superset
     WebUser --> WebSite
     WebSite --> WebServerAPI
     Discord --> DiscordBot
