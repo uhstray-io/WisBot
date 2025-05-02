@@ -77,7 +77,7 @@ subgraph subgraph1["Users"]
     WebUser["Web Users"]
 end
 subgraph subGraph5["Connected Services"]
-    NocoDB["NocoDB"]
+    NocoDB["NocoDB Project Management"]
     Postiz["Postiz Social Media Scheduler"]
     Superset["Superset Data Analytics"]
 end
