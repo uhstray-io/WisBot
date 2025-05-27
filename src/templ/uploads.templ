@@ -1,8 +1,8 @@
-package httpwis
+package templ
 
-import "wisbot/src/sqlgo"
+import "wisbot/src/sqlc"
 
-templ RootIdPage(file *sqlgo.File) {
+templ RootIdPage(file *sqlc.File) {
 	@Header()
 	<div class={ Center() }>
 		<div class={ Border() }>
@@ -24,7 +24,7 @@ templ RootIdPage(file *sqlgo.File) {
 	</div>
 }
 
-templ UploadFileForm(file *sqlgo.File) {
+templ UploadFileForm(file *sqlc.File) {
 	<form hx-post={ "/id/" + file.ID + "/upload" } enctype="multipart/form-data" hx-swap="outerHTML">
 		<input type="file" name="file"/>
 		<button type="submit">Upload</button>
@@ -34,7 +34,7 @@ templ UploadFileForm(file *sqlgo.File) {
 // The uploadFileFormCompleted template is used to display a message after the file upload is completed.
 // The success parameter is a boolean that indicates whether the upload was successful or not.
 // The message parameter is a string that contains the message to display.
-templ UploadFileFormCompleted(file *sqlgo.File, success bool, message string) {
+templ UploadFileFormCompleted(file *sqlc.File, success bool, message string) {
 	if success {
 		<p>File Upload Successful</p>
 		@DownloadFile(file)
@@ -43,6 +43,6 @@ templ UploadFileFormCompleted(file *sqlgo.File, success bool, message string) {
 	}
 }
 
-templ DownloadFile(file *sqlgo.File) {
+templ DownloadFile(file *sqlc.File) {
 	<a href={ templ.URL("/id/" + file.ID + "/download") }>Download File </a>
 }

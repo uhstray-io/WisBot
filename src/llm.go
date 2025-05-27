@@ -28,8 +28,7 @@ func StartLLMService(ctx context.Context) {
 
 	llm, err := ollama.New(conn, model)
 	if err != nil {
-		err = fmt.Errorf("error while creating LLM: %w", err)
-		ErrorTrace(err)
+		ErrorTrace(fmt.Errorf("error while creating LLM: %w", err))
 		return
 	}
 
@@ -40,7 +39,6 @@ func StartLLMService(ctx context.Context) {
 		}
 	}()
 
-	// LLMChat goroutine removed
 }
 
 func LLM(ctx context.Context, llm *ollama.LLM) error {

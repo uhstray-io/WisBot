@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"time"
-	"wisbot/src/sqlgo"
+	"wisbot/src/sqlc"
 
 	"go.opentelemetry.io/otel/log"
 
@@ -52,6 +52,11 @@ var commands = []*discordgo.ApplicationCommand{
 }
 
 func StartDiscordService(ctx context.Context) {
+	if !discordServiceEnabled {
+		fmt.Println("Discord service is disabled. Skipping bot initialization.")
+		return
+	}
+
 	ctx, span := StartSpan(ctx, "bot.StartBot")
 	defer span.End()
 
@@ -384,7 +389,7 @@ func handleUploadCommand(ctx context.Context, s *discordgo.Session, i *discordgo
 	// Remove the oldest files if the user has uploaded too many
 	if count >= maxFilesPerUser {
 		err := wisQueries.DeleteFileWhereUsersCountIsProvided(ctx,
-			sqlgo.DeleteFileWhereUsersCountIsProvidedParams{
+			sqlc.DeleteFileWhereUsersCountIsProvidedParams{
 				DiscordUsername: username,
 				Limit:           int32(count - maxFilesPerUser + 1),
 			})
@@ -409,7 +414,7 @@ func handleUploadCommand(ctx context.Context, s *discordgo.Session, i *discordgo
 	}
 
 	// Insert the new file
-	err = wisQueries.InsertFile(ctx, sqlgo.InsertFileParams{
+	err = wisQueries.InsertFile(ctx, sqlc.InsertFileParams{
 		ID:              uuid.String(),
 		Uploaded:        false,
 		DiscordUsername: username,

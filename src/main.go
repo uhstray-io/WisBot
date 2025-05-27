@@ -20,7 +20,7 @@ var (
 	postgresServiceEnabled = os.Getenv("POSTGRES_SERVICE_ENABLED") == "true"
 	postgresUser           = os.Getenv("POSTGRES_USER")
 	postgresPassword       = os.Getenv("POSTGRES_PASSWORD")
-	postgresDatabase       = os.Getenv("POSTGRES_Db")
+	postgresDatabase       = os.Getenv("POSTGRES_DB")
 
 	discordServiceEnabled = os.Getenv("DISCORD_SERVICE_ENABLED") == "true"
 	discordToken          = os.Getenv("DISCORD_TOKEN_WISBOT")

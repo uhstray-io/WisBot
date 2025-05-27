@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"wisbot/src/httpwis"
-	"wisbot/src/sqlgo"
+	"wisbot/src/sqlc"
+	"wisbot/src/templ"
 )
 
 // rootIdPage is a helper function that renders the root page with the given file.
@@ -19,16 +19,16 @@ func getId(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			component := httpwis.RootIdPage(nil)
+			component := templ.RootIdPage(nil)
 			component.Render(r.Context(), w)
 			return
 		}
 		fmt.Println("error while executing GetFileNameAndUploadFromId query", err.Error())
 	}
 
-	file := &sqlgo.File{ID: queryfile.ID, Name: queryfile.Name, Uploaded: queryfile.Uploaded}
+	file := &sqlc.File{ID: queryfile.ID, Name: queryfile.Name, Uploaded: queryfile.Uploaded}
 
-	component := httpwis.RootIdPage(file)
+	component := templ.RootIdPage(file)
 	component.Render(r.Context(), w)
 }
 
@@ -40,13 +40,13 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 	// fmt.Println("HX-Request: ", r.Header.Get("HX-Request"))
 
 	// Check if the ID exists and the file has not been uploaded.
-	file := &sqlgo.File{ID: id}
+	file := &sqlc.File{ID: id}
 	id, err := wisQueries.GetFileIdWhereIdAndUploadedIsFalse(context.Background(), id)
 
 	// If the Id exists, and the file has not been uploaded, then continue.
 	if err != nil {
 		if err == sql.ErrNoRows {
-			httpwis.UploadFileFormCompleted(nil, false, "File not found.").Render(r.Context(), w)
+			templ.UploadFileFormCompleted(nil, false, "File not found.").Render(r.Context(), w)
 			return nil
 		}
 		return fmt.Errorf("error while executing GetFileIdWhereIdAndUploadedIsFalse query: %w", err)
@@ -56,13 +56,13 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 	var maxSize int64 = maxFileSize * 1024 * 1024
 	fmt.Println("Max File Size:", maxSize)
 	if err := r.ParseMultipartForm(maxSize); err != nil {
-		httpwis.UploadFileFormCompleted(file, false, "Unable to parse form.").Render(r.Context(), w)
+		templ.UploadFileFormCompleted(file, false, "Unable to parse form.").Render(r.Context(), w)
 		return nil
 	}
 
 	fileObject, fileHeader, err := r.FormFile("file")
 	if err != nil {
-		httpwis.UploadFileFormCompleted(file, false, "Unable to read file.").Render(r.Context(), w)
+		templ.UploadFileFormCompleted(file, false, "Unable to read file.").Render(r.Context(), w)
 		return nil
 	}
 	defer fileObject.Close()
@@ -70,7 +70,7 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 	// Read the Data into a buffer.
 	buff, _ := io.ReadAll(io.LimitReader(fileObject, maxSize))
 	if len(buff) >= int(maxSize) {
-		httpwis.UploadFileFormCompleted(file, false, "File too large.").Render(r.Context(), w)
+		templ.UploadFileFormCompleted(file, false, "File too large.").Render(r.Context(), w)
 		return nil
 	}
 
@@ -86,7 +86,7 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 
 	// Update the file in the database.
 	err2 := wisQueries.UpdateFileWhereId(context.Background(),
-		sqlgo.UpdateFileWhereIdParams{
+		sqlc.UpdateFileWhereIdParams{
 			ID:       id,
 			Name:     file.Name,
 			Data:     file.Data,
@@ -95,11 +95,11 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 		})
 
 	if err2 != nil {
-		httpwis.UploadFileFormCompleted(file, false, "Unable to update file.").Render(r.Context(), w)
+		templ.UploadFileFormCompleted(file, false, "Unable to update file.").Render(r.Context(), w)
 		return fmt.Errorf("error while executing UpdateFileWhereId query: %w", err2)
 	}
 
-	httpwis.UploadFileFormCompleted(file, true, "").Render(r.Context(), w)
+	templ.UploadFileFormCompleted(file, true, "").Render(r.Context(), w)
 
 	return nil
 }

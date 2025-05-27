@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-	"wisbot/src/httpwis"
+	"wisbot/src/templ"
 
 	"github.com/alexedwards/scs/v2"
 	"go.opentelemetry.io/otel"
@@ -122,7 +122,7 @@ func getRoot(w http.ResponseWriter, r *http.Request) {
 	userCount := sessionManager.GetInt(ctx, "session")
 	span.SetAttributes(attribute.Int("user.count", userCount))
 
-	component := httpwis.RootPage(globalState.Count, userCount)
+	component := templ.RootPage(globalState.Count, userCount)
 	component.Render(ctx, w)
 }
 
@@ -152,7 +152,7 @@ func getLLM(w http.ResponseWriter, r *http.Request) {
 	ctx, span := StartSpan(r.Context(), "getLLM")
 	defer span.End()
 
-	component := httpwis.LlmPage()
+	component := templ.LlmPage()
 	component.Render(ctx, w)
 }
 
@@ -160,7 +160,7 @@ func getLLMChat(w http.ResponseWriter, r *http.Request) {
 	ctx, span := StartSpan(r.Context(), "getLLMChat")
 	defer span.End()
 
-	component := httpwis.ChatPage()
+	component := templ.ChatPage()
 	component.Render(ctx, w)
 }
 
@@ -188,7 +188,7 @@ func postLLMChat(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("User question:", question)
 
 	// Render the user's message immediately
-	userMsg := httpwis.UserMessage(question)
+	userMsg := templ.UserMessage(question)
 	userMsg.Render(ctx, w)
 
 	// Send the question to the LLM
@@ -199,6 +199,6 @@ func postLLMChat(w http.ResponseWriter, r *http.Request) {
 	span.SetAttributes(attribute.Int("response.length", len(response)))
 
 	// Render the bot's response
-	botMsg := httpwis.BotMessage(response)
+	botMsg := templ.BotMessage(response)
 	botMsg.Render(ctx, w)
 }

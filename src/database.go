@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-	"wisbot/src/sqlgo"
+	"wisbot/src/sqlc"
 
 	"github.com/jackc/pgx/v5"
 	"go.opentelemetry.io/otel/attribute"
@@ -12,7 +12,7 @@ import (
 )
 
 // Global database query handler
-var wisQueries *sqlgo.Queries
+var wisQueries *sqlc.Queries
 
 // StartDatabaseService initializes the database connection and setup
 func StartDatabaseService(ctx context.Context) {
@@ -32,7 +32,7 @@ func StartDatabaseService(ctx context.Context) {
 		panic(fmt.Errorf("error while connecting to database: %w", err))
 	}
 
-	wisQueries = sqlgo.New(conn)
+	wisQueries = sqlc.New(conn)
 
 	// Create the tables if they don't exist
 	err = wisQueries.CreateFilesTable(ctx)
