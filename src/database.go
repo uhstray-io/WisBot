@@ -14,8 +14,13 @@ import (
 // Global database query handler
 var wisQueries *sqlgo.Queries
 
-// StartDatabase initializes the database connection and creates required tables
-func StartDatabase(ctx context.Context) (*pgx.Conn, error) {
+// StartDatabaseService initializes the database connection and setup
+func StartDatabaseService(ctx context.Context) {
+	if !postgresServiceEnabled {
+		fmt.Println("Postgres service is disabled. Skipping database initialization.")
+		return
+	}
+
 	ctx, span := StartSpan(ctx, "database.StartDatabase")
 	defer span.End()
 
@@ -24,7 +29,7 @@ func StartDatabase(ctx context.Context) (*pgx.Conn, error) {
 	conn, err := pgx.Connect(ctx, databaseUrl)
 	if err != nil {
 		span.RecordError(err)
-		return nil, fmt.Errorf("error while connecting to database: %w", err)
+		panic(fmt.Errorf("error while connecting to database: %w", err))
 	}
 
 	wisQueries = sqlgo.New(conn)
@@ -33,12 +38,15 @@ func StartDatabase(ctx context.Context) (*pgx.Conn, error) {
 	err = wisQueries.CreateFilesTable(ctx)
 	if err != nil {
 		span.RecordError(err)
-		return nil, fmt.Errorf("error creating files table: %w", err)
+		panic(fmt.Errorf("error creating files table: %w", err))
 	}
 
 	LogEvent(ctx, log.SeverityInfo, "Database successfully initialized")
 
-	return conn, nil
+	// defer conn.Close(context.Background())
+
+	go StartDatabaseCleanup(ctx, conn)
+
 }
 
 // StartDatabaseCleanup begins a periodic task that removes old files

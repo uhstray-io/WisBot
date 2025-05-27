@@ -25,15 +25,20 @@ import (
 	sdkTrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
-// setupOTelSDK bootstraps the OpenTelemetry pipeline.
+// StartOTelService bootstraps the OpenTelemetry pipeline.
 // If it does not return an error, make sure to call shutdown for proper cleanup.
-func setupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, err error) {
+func StartOTelService(ctx context.Context) {
+	if !otelServiceEnabled {
+		fmt.Println("OpenTelemetry service is disabled. Skipping initialization.")
+		return
+	}
+
 	var shutdownFuncs []func(context.Context) error
 
 	// shutdown calls cleanup functions registered via shutdownFuncs.
 	// The errors from the calls are joined.
 	// Each registered cleanup will be invoked once.
-	shutdown = func(ctx context.Context) error {
+	shutdownHandler := func(ctx context.Context) error {
 		var err error
 		for _, fn := range shutdownFuncs {
 			err = errors.Join(err, fn(ctx))
@@ -42,9 +47,17 @@ func setupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, er
 		return err
 	}
 
+	// Ensure cleanup at the end
+	defer func() {
+		err := shutdownHandler(ctx)
+		if err != nil {
+			fmt.Printf("Error shutting down OpenTelemetry: %v\n", err)
+		}
+	}()
+
 	// handleErr calls shutdown for cleanup and makes sure that all errors are returned.
 	handleErr := func(inErr error) {
-		err = errors.Join(inErr, shutdown(ctx))
+		errors.Join(inErr, shutdownHandler(ctx))
 	}
 
 	// Set up propagator.
@@ -78,7 +91,6 @@ func setupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, er
 	shutdownFuncs = append(shutdownFuncs, loggerProvider.Shutdown)
 	global.SetLoggerProvider(loggerProvider)
 
-	return
 }
 
 // newPropagator creates a new propagator for trace context and baggage.

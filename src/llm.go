@@ -12,7 +12,12 @@ import (
 var InputChannel = make(chan string)
 var OutputChannel = make(chan string)
 
-func StartLLM(ctx context.Context) {
+func StartLLMService(ctx context.Context) {
+	if !ollamaServiceEnabled {
+		fmt.Println("Ollama service is disabled. Skipping LLM initialization.")
+		return
+	}
+
 	ctx, span := StartSpan(ctx, "StartLLM")
 	defer span.End()
 

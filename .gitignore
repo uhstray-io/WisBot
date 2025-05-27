@@ -34,7 +34,6 @@ token.key
 *.pprof
 
 database.db
-config.yaml
-config*.yaml
+dev_config.yaml
 
 volumes

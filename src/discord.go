@@ -51,7 +51,7 @@ var commands = []*discordgo.ApplicationCommand{
 	},
 }
 
-func StartBot(ctx context.Context) {
+func StartDiscordService(ctx context.Context) {
 	ctx, span := StartSpan(ctx, "bot.StartBot")
 	defer span.End()
 
@@ -437,7 +437,7 @@ func handleUploadCommand(ctx context.Context, s *discordgo.Session, i *discordgo
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: fmt.Sprintf("Here is the link: https://%s/id/%s", serverIp, uuid.String()),
+			Content: fmt.Sprintf("Here is the link: https://%s/id/%s", httpServerIp, uuid.String()),
 		},
 	})
 }

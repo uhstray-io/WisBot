@@ -78,7 +78,12 @@ func requestStackTrace(next func(http.ResponseWriter, *http.Request) error) http
 	}
 }
 
-func WebServer(ctx context.Context) {
+func StartHTTPService(ctx context.Context) {
+
+	if !httpServiceEnabled {
+		fmt.Println("HTTP service is disabled. Skipping HTTP server initialization.")
+		return
+	}
 
 	sessionManager = scs.New()
 	sessionManager.Lifetime = 24 * time.Hour
@@ -100,9 +105,9 @@ func WebServer(ctx context.Context) {
 	muxWithSessionMiddleware := sessionManager.LoadAndSave(server)
 
 	// Start the server.
-	fmt.Println("listening on", string(serverPort))
+	fmt.Println("listening on", string(httpServerPort))
 
-	err := http.ListenAndServe(":"+serverPort, muxWithSessionMiddleware)
+	err := http.ListenAndServe(":"+httpServerPort, muxWithSessionMiddleware)
 	if err != nil {
 		err = fmt.Errorf("error while issuing ListenAndServe: %w", err)
 	}
