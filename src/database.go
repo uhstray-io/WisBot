@@ -14,6 +14,18 @@ import (
 // Global database query handler
 var wisQueries *sqlc.Queries
 
+// GetDBQueries returns the initialized database queries object.
+// It returns an error if the database service is not enabled or not initialized.
+func GetDBQueries() (*sqlc.Queries, error) {
+	if !postgresServiceEnabled {
+		return nil, fmt.Errorf("database service is not enabled")
+	}
+	if wisQueries == nil {
+		return nil, fmt.Errorf("database queries are not initialized")
+	}
+	return wisQueries, nil
+}
+
 // StartDatabaseService initializes the database connection and setup
 func StartDatabaseService(ctx context.Context) {
 	if !postgresServiceEnabled {
@@ -65,21 +77,23 @@ func StartDatabaseCleanup(ctx context.Context, db *pgx.Conn) {
 		defer ticker.Stop()
 
 		// Run cleanup immediately, then on each tick
-		cleanupCtx, _ := StartSpan(ctx, "database.initialCleanup")
+		cleanupCtx, cleanupSpan := StartSpan(ctx, "database.initialCleanup")
 		if err := runCleanup(cleanupCtx); err != nil {
 			fmt.Printf("Error in initial cleanup: %v\n", err)
 		}
+		cleanupSpan.End()
 
 		for {
 			select {
 			case <-ticker.C:
-				tickCtx, _ := StartSpan(ctx, "database.scheduledCleanup")
+				tickCtx, tickSpan := StartSpan(ctx, "database.scheduledCleanup")
 				if err := runCleanup(tickCtx); err != nil {
-					fmt.Printf("error in scheduled cleanup: %v\n", err)
+					LogError(tickCtx, err, "Error in scheduled database cleanup")
 				}
+				tickSpan.End()
 			case <-ctx.Done():
-				LogEvent(ctx, log.SeverityInfo, "Stopping database cleanup process")
-				return
+				LogEvent(ctx, log.SeverityInfo, "Database cleanup process stopping due to context cancellation.")
+				return // Exit the goroutine
 			}
 		}
 	}()
@@ -87,6 +101,10 @@ func StartDatabaseCleanup(ctx context.Context, db *pgx.Conn) {
 
 // runCleanup performs a single database cleanup operation
 func runCleanup(ctx context.Context) error {
+	if wisQueries == nil {
+		return nil
+	}
+
 	ctx, span := StartSpan(ctx, "database.runCleanup")
 	defer span.End()
 

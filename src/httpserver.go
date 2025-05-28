@@ -168,6 +168,11 @@ func postLLMChat(w http.ResponseWriter, r *http.Request) {
 	ctx, span := StartSpan(r.Context(), "postLLMChat")
 	defer span.End()
 
+	if !ollamaServiceEnabled {
+		http.Error(w, "LLM service is disabled", http.StatusServiceUnavailable)
+		return
+	}
+
 	fmt.Println("Started LLM chat")
 
 	err := r.ParseForm()
@@ -193,7 +198,6 @@ func postLLMChat(w http.ResponseWriter, r *http.Request) {
 
 	// Send the question to the LLM
 	InputChannel <- question
-
 	// Wait for the response
 	response := <-OutputChannel
 	span.SetAttributes(attribute.Int("response.length", len(response)))

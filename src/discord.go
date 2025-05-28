@@ -287,6 +287,14 @@ func handleLLMCommand(ctx context.Context, s *discordgo.Session, i *discordgo.In
 	ctx, span := StartSpan(ctx, "bot.handleLLMCommand")
 	defer span.End()
 
+	if !ollamaServiceEnabled {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{Content: "LLM feature is unavailable (LLM service disabled)"},
+		})
+		return
+	}
+
 	// Acknowledge the interaction to prevent timeout
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -364,13 +372,24 @@ func handleUploadCommand(ctx context.Context, s *discordgo.Session, i *discordgo
 	ctx, span := StartSpan(ctx, "bot.handleUploadCommand")
 	defer span.End()
 
+	db, err := GetDBQueries()
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "Upload feature is unavailable (database service error): " + err.Error(),
+			},
+		})
+		return
+	}
+
 	uuid := uuid.New()
 	username := getUserFromInteraction(i)
 
 	span.SetAttributes(attribute.String("user", username), attribute.String("file_id", uuid.String()))
 
 	// Count the number of files the user has uploaded
-	count, err := wisQueries.CountFilesFromUser(ctx, username)
+	count, err := db.CountFilesFromUser(ctx, username)
 	if err != nil {
 		span.RecordError(err)
 		LogError(ctx, err, "Failed to count user files",
@@ -388,7 +407,7 @@ func handleUploadCommand(ctx context.Context, s *discordgo.Session, i *discordgo
 
 	// Remove the oldest files if the user has uploaded too many
 	if count >= maxFilesPerUser {
-		err := wisQueries.DeleteFileWhereUsersCountIsProvided(ctx,
+		err := db.DeleteFileWhereUsersCountIsProvided(ctx,
 			sqlc.DeleteFileWhereUsersCountIsProvidedParams{
 				DiscordUsername: username,
 				Limit:           int32(count - maxFilesPerUser + 1),
@@ -408,13 +427,13 @@ func handleUploadCommand(ctx context.Context, s *discordgo.Session, i *discordgo
 			return
 		}
 
-		LogError(ctx, err, "Deleted old files to stay under limit",
+		LogEvent(ctx, log.SeverityInfo, "Deleted old files to stay under limit",
 			attribute.String("user", username),
-			attribute.Int64("deleted", count-maxFilesPerUser+1))
+			attribute.Int64("deleted_count", count-maxFilesPerUser+1))
 	}
 
 	// Insert the new file
-	err = wisQueries.InsertFile(ctx, sqlc.InsertFileParams{
+	err = db.InsertFile(ctx, sqlc.InsertFileParams{
 		ID:              uuid.String(),
 		Uploaded:        false,
 		DiscordUsername: username,
@@ -435,7 +454,7 @@ func handleUploadCommand(ctx context.Context, s *discordgo.Session, i *discordgo
 		return
 	}
 
-	LogError(ctx, err, "Created new file",
+	LogEvent(ctx, log.SeverityInfo, "Created new file entry",
 		attribute.String("user", username),
 		attribute.String("file_id", uuid.String()))
 
@@ -482,8 +501,6 @@ func handleStatsCommand(ctx context.Context, s *discordgo.Session, i *discordgo.
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: stats,
-		},
+		Data: &discordgo.InteractionResponseData{Content: stats},
 	})
 }

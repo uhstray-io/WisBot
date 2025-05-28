@@ -199,12 +199,20 @@ func newResource() *resource.Resource {
 
 // StartSpan creates a new span with the given name and returns the span and context
 func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
+	if !otelServiceEnabled {
+		// Return a no-op span if telemetry is disabled
+		return ctx, trace.SpanFromContext(ctx)
+	}
 	return otel.Tracer("wisbot").Start(ctx, name)
 }
 
 // LogEvent logs an event with the given severity and message, associating it with the current span
 // This is a better approach than mixing log and span APIs directly
 func LogEvent(ctx context.Context, severity log.Severity, message string, attrs ...attribute.KeyValue) {
+	if !otelServiceEnabled {
+		return
+	}
+
 	// Get the current span from context
 	span := trace.SpanFromContext(ctx)
 
@@ -243,6 +251,12 @@ func LogEvent(ctx context.Context, severity log.Severity, message string, attrs 
 // LogError logs an error and also records it on the current span
 func LogError(ctx context.Context, err error, message string, attrs ...attribute.KeyValue) {
 	if err == nil {
+		return
+	}
+
+	if !otelServiceEnabled {
+		// Fallback to simple error logging when telemetry is disabled
+		fmt.Printf("ERROR: %s: %v\n", message, err)
 		return
 	}
 

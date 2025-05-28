@@ -8,14 +8,25 @@ import (
 	"net/http"
 	"wisbot/src/sqlc"
 	"wisbot/src/templ"
+
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // rootIdPage is a helper function that renders the root page with the given file.
 func getId(w http.ResponseWriter, r *http.Request) {
+	ctx, span := StartSpan(r.Context(), "getId")
+	defer span.End()
+
+	if !postgresServiceEnabled || wisQueries == nil {
+		http.Error(w, "Upload feature is unavailable (database disabled)", http.StatusServiceUnavailable)
+		return
+	}
+
 	id := r.PathValue("id")
+	span.SetAttributes(attribute.String("file_id", id))
 
 	// Grab the file where the ID matches.
-	queryfile, err := wisQueries.GetFileNameAndUploadFromId(context.Background(), id)
+	queryfile, err := wisQueries.GetFileNameAndUploadFromId(ctx, id)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -34,6 +45,11 @@ func getId(w http.ResponseWriter, r *http.Request) {
 
 // uploadFileFormCompleted is a helper function that renders the upload file form.
 func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
+	if !postgresServiceEnabled || wisQueries == nil {
+		http.Error(w, "Upload feature is unavailable (database disabled)", http.StatusServiceUnavailable)
+		return nil
+	}
+
 	id := r.PathValue("id")
 
 	// fmt.Println("-=+=- Uploading file -=+=-")
@@ -106,6 +122,11 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 
 // getIdDownloadFile is a handler that serves the file with the given ID.
 func getIdDownloadFile(w http.ResponseWriter, r *http.Request) error {
+	if !postgresServiceEnabled || wisQueries == nil {
+		http.Error(w, "Download feature is unavailable (database disabled)", http.StatusServiceUnavailable)
+		return nil
+	}
+
 	id := r.PathValue("id")
 
 	// Grab the file where the ID matches.
