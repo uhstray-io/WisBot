@@ -26,7 +26,6 @@ type GlobalState struct {
 // The returned function logs the details of the incoming request and then calls the original handler.
 func requestLogger(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// fmt.Printf("Request: `%s %s` %s", r.Method, r.URL.Path, "\n")
 
 		// Get a logger from the global provider
 		logger := global.Logger("requestLogger")
@@ -81,7 +80,8 @@ func requestStackTrace(next func(http.ResponseWriter, *http.Request) error) http
 func StartHTTPService(ctx context.Context) {
 
 	if !httpServiceEnabled {
-		fmt.Println("HTTP service is disabled. Skipping HTTP server initialization.")
+		// fmt.Println("HTTP service is disabled. Skipping HTTP server initialization.")
+		LogEvent(ctx, log.SeverityInfo, "HTTP service is disabled. Skipping HTTP server initialization.")
 		return
 	}
 
@@ -101,15 +101,15 @@ func StartHTTPService(ctx context.Context) {
 	server.HandleFunc("GET /llm/chat", requestTracer(requestLogger(getLLMChat)))
 	server.HandleFunc("POST /llm/chat", requestTracer(requestLogger(postLLMChat)))
 
-	// Add the middleware.
+	// Add the middleware
 	muxWithSessionMiddleware := sessionManager.LoadAndSave(server)
 
-	// Start the server.
-	fmt.Println("listening on", string(httpServerPort))
+	// Start the server
+	LogEvent(ctx, log.SeverityInfo, "Starting HTTP server", attribute.String("port", httpServerPort))
 
 	err := http.ListenAndServe(":"+httpServerPort, muxWithSessionMiddleware)
 	if err != nil {
-		err = fmt.Errorf("error while issuing ListenAndServe: %w", err)
+		LogError(ctx, err, "Error while starting HTTP server")
 	}
 
 	PrintTrace(err)
@@ -167,13 +167,13 @@ func getLLMChat(w http.ResponseWriter, r *http.Request) {
 func postLLMChat(w http.ResponseWriter, r *http.Request) {
 	ctx, span := StartSpan(r.Context(), "postLLMChat")
 	defer span.End()
-
 	if !ollamaServiceEnabled {
 		http.Error(w, "LLM service is disabled", http.StatusServiceUnavailable)
 		return
 	}
 
-	fmt.Println("Started LLM chat")
+	// fmt.Println("Started LLM chat")
+	LogEvent(ctx, log.SeverityInfo, "Started LLM chat")
 
 	err := r.ParseForm()
 	if err != nil {
@@ -188,9 +188,9 @@ func postLLMChat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Question cannot be empty", http.StatusBadRequest)
 		return
 	}
-
 	span.SetAttributes(attribute.Int("question.length", len(question)))
-	fmt.Println("User question:", question)
+	// fmt.Println("User question:", question)
+	LogEvent(ctx, log.SeverityInfo, "User question received", attribute.String("question", question))
 
 	// Render the user's message immediately
 	userMsg := templ.UserMessage(question)

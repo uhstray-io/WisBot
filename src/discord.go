@@ -53,7 +53,7 @@ var commands = []*discordgo.ApplicationCommand{
 
 func StartDiscordService(ctx context.Context) {
 	if !discordServiceEnabled {
-		fmt.Println("Discord service is disabled. Skipping bot initialization.")
+		LogEvent(ctx, log.SeverityInfo, "Discord service is disabled. Skipping bot initialization.")
 		return
 	}
 
@@ -61,17 +61,14 @@ func StartDiscordService(ctx context.Context) {
 	defer span.End()
 
 	LogEvent(ctx, log.SeverityInfo, "Starting Discord bot")
-
 	discordSess, err := discordgo.New("Bot " + discordToken)
 	if err != nil {
-		err = fmt.Errorf("error while creating Discord session: %w", err)
-		ErrorTrace(err)
+		PanicError(ctx, err, "Error while creating Discord session")
 	}
 	defer discordSess.Close()
 
 	discordSess.AddHandler(messageCreate)
 	discordSess.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
-		fmt.Println("Bot is ready! Logged in as:", s.State.User.Username)
 		// Create a new context for the handler since we don't have the original
 		handlerCtx, handlerSpan := StartSpan(ctx, "bot.onReady")
 		defer handlerSpan.End()
@@ -82,11 +79,9 @@ func StartDiscordService(ctx context.Context) {
 	discordSess.AddHandler(interactionCreate)
 
 	discordSess.Identify.Intents = discordgo.IntentsAll
-
 	err2 := discordSess.Open()
 	if err2 != nil {
-		err2 = fmt.Errorf("error while opening Discord session: %w", err2)
-		ErrorTrace(err2)
+		PanicError(ctx, err2, "Error while opening Discord session")
 	}
 
 	// Block until context is done
@@ -107,7 +102,7 @@ func unregisterCommands(ctx context.Context, s *discordgo.Session) {
 	// Get all guilds the bot is in
 	guilds, err := s.UserGuilds(100, "", "", false)
 	if err != nil {
-		fmt.Printf("Error getting guilds during unregister: %v", err)
+		LogError(ctx, err, "Error getting guilds during unregister")
 		span.RecordError(err)
 		return
 	}
@@ -116,7 +111,7 @@ func unregisterCommands(ctx context.Context, s *discordgo.Session) {
 	for _, guild := range guilds {
 		registeredCommands, err := s.ApplicationCommands(s.State.User.ID, guild.ID)
 		if err != nil {
-			fmt.Printf("Error getting commands for guild %s: %v", guild.ID, err)
+			LogError(ctx, err, "Error getting commands for guild", attribute.String("guild_id", guild.ID))
 			span.RecordError(err)
 			continue
 		}
@@ -124,16 +119,16 @@ func unregisterCommands(ctx context.Context, s *discordgo.Session) {
 		for _, cmd := range registeredCommands {
 			err := s.ApplicationCommandDelete(s.State.User.ID, guild.ID, cmd.ID)
 			if err != nil {
-				fmt.Printf("Error deleting command %s in guild %s: %v", cmd.Name, guild.ID, err)
+				LogError(ctx, err, "Error deleting command in guild",
+					attribute.String("command_name", cmd.Name), attribute.String("guild_id", guild.ID))
 				span.RecordError(err)
 			}
 		}
 	}
-
 	// Also unregister global commands
 	globalCommands, err := s.ApplicationCommands(s.State.User.ID, "")
 	if err != nil {
-		fmt.Printf("Error getting global commands: %v", err)
+		LogError(ctx, err, "Error getting global commands")
 		span.RecordError(err)
 		return
 	}
@@ -141,7 +136,7 @@ func unregisterCommands(ctx context.Context, s *discordgo.Session) {
 	for _, cmd := range globalCommands {
 		err := s.ApplicationCommandDelete(s.State.User.ID, "", cmd.ID)
 		if err != nil {
-			fmt.Printf("Error deleting global command %s: %v", cmd.Name, err)
+			LogError(ctx, err, "Error deleting global command", attribute.String("command_name", cmd.Name))
 			span.RecordError(err)
 		}
 	}
@@ -156,17 +151,18 @@ func registerCommands(ctx context.Context, s *discordgo.Session) {
 	// First, get all guilds the bot is in
 	guilds, err := s.UserGuilds(100, "", "", false)
 	if err != nil {
-		fmt.Printf("Error getting guilds: %v", err)
+		LogError(ctx, err, "Error getting guilds")
 		span.RecordError(err)
 	}
 
 	// Register commands to each guild for faster updates during development
 	for _, guild := range guilds {
-		fmt.Printf("Registering commands to guild: %s (%s)", guild.Name, guild.ID)
+		LogEvent(ctx, log.SeverityInfo, "Registering commands to guild", attribute.String("guild_name", guild.Name), attribute.String("guild_id", guild.ID))
+
 		for _, command := range commands {
 			_, err := s.ApplicationCommandCreate(s.State.User.ID, guild.ID, command)
 			if err != nil {
-				fmt.Printf("Error creating command %v in guild %s: %v", command.Name, guild.ID, err)
+				LogError(ctx, err, "Error creating command in guild", attribute.String("command_name", command.Name), attribute.String("guild_id", guild.ID))
 				span.RecordError(err)
 			}
 		}
@@ -176,7 +172,7 @@ func registerCommands(ctx context.Context, s *discordgo.Session) {
 	for _, command := range commands {
 		_, err := s.ApplicationCommandCreate(s.State.User.ID, "", command)
 		if err != nil {
-			fmt.Printf("Error creating global command %v: %v", command.Name, err)
+			LogError(ctx, err, "Error creating global command", attribute.String("command_name", command.Name))
 			span.RecordError(err)
 		}
 	}
@@ -197,10 +193,10 @@ func onReady(discordSess *discordgo.Session, event *discordgo.Ready) {
 	}
 }
 
-func printMessage(discordSess *discordgo.Session, message *discordgo.MessageCreate) {
+func printMessage(ctx context.Context, discordSess *discordgo.Session, message *discordgo.MessageCreate) {
 	channel, err := discordSess.Channel(message.ChannelID)
 	if err != nil {
-		fmt.Printf("Error: Could not retrieve channel. %v \n", err)
+		LogError(ctx, err, "Could not retrieve channel", attribute.String("channel_id", message.ChannelID))
 	}
 
 	guild, err2 := discordSess.Guild(message.GuildID)
@@ -224,7 +220,9 @@ func messageCreate(discordSess *discordgo.Session, message *discordgo.MessageCre
 		return
 	}
 
-	printMessage(discordSess, message)
+	// Create context for this message processing
+	ctx := context.Background()
+	printMessage(ctx, discordSess, message)
 }
 
 func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {

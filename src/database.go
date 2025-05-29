@@ -12,7 +12,7 @@ import (
 )
 
 // Global database query handler
-var wisQueries *sqlc.Queries
+var db *sqlc.Queries
 
 // GetDBQueries returns the initialized database queries object.
 // It returns an error if the database service is not enabled or not initialized.
@@ -20,16 +20,16 @@ func GetDBQueries() (*sqlc.Queries, error) {
 	if !postgresServiceEnabled {
 		return nil, fmt.Errorf("database service is not enabled")
 	}
-	if wisQueries == nil {
+	if db == nil {
 		return nil, fmt.Errorf("database queries are not initialized")
 	}
-	return wisQueries, nil
+	return db, nil
 }
 
 // StartDatabaseService initializes the database connection and setup
 func StartDatabaseService(ctx context.Context) {
 	if !postgresServiceEnabled {
-		fmt.Println("Postgres service is disabled. Skipping database initialization.")
+		LogEvent(ctx, log.SeverityInfo, "Postgres service is disabled. Skipping database initialization.")
 		return
 	}
 
@@ -37,28 +37,23 @@ func StartDatabaseService(ctx context.Context) {
 	defer span.End()
 
 	LogEvent(ctx, log.SeverityInfo, "Connecting to database")
-
 	conn, err := pgx.Connect(ctx, databaseUrl)
 	if err != nil {
 		span.RecordError(err)
-		panic(fmt.Errorf("error while connecting to database: %w", err))
+		PanicError(ctx, err, "Error while connecting to database")
 	}
 
-	wisQueries = sqlc.New(conn)
-
+	db = sqlc.New(conn)
 	// Create the tables if they don't exist
-	err = wisQueries.CreateFilesTable(ctx)
+	err = db.CreateFilesTable(ctx)
 	if err != nil {
 		span.RecordError(err)
-		panic(fmt.Errorf("error creating files table: %w", err))
+		PanicError(ctx, err, "Error creating files table")
 	}
 
 	LogEvent(ctx, log.SeverityInfo, "Database successfully initialized")
 
-	// defer conn.Close(context.Background())
-
-	go StartDatabaseCleanup(ctx, conn)
-
+	StartDatabaseCleanup(ctx, conn)
 }
 
 // StartDatabaseCleanup begins a periodic task that removes old files
@@ -79,7 +74,7 @@ func StartDatabaseCleanup(ctx context.Context, db *pgx.Conn) {
 		// Run cleanup immediately, then on each tick
 		cleanupCtx, cleanupSpan := StartSpan(ctx, "database.initialCleanup")
 		if err := runCleanup(cleanupCtx); err != nil {
-			fmt.Printf("Error in initial cleanup: %v\n", err)
+			LogError(ctx, err, "Error in initial cleanup")
 		}
 		cleanupSpan.End()
 
@@ -101,7 +96,7 @@ func StartDatabaseCleanup(ctx context.Context, db *pgx.Conn) {
 
 // runCleanup performs a single database cleanup operation
 func runCleanup(ctx context.Context) error {
-	if wisQueries == nil {
+	if db == nil {
 		return nil
 	}
 
@@ -113,11 +108,12 @@ func runCleanup(ctx context.Context) error {
 	cleanupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	err := wisQueries.DeleteFileWhereOlderThan(cleanupCtx, int32(deleteFilesAfterDays))
+	err := db.DeleteFileWhereOlderThan(cleanupCtx, int32(deleteFilesAfterDays))
 	if err != nil {
 		span.RecordError(err)
+		err = fmt.Errorf("error while executing DeleteFileWhereOlderThan query: %w", err)
 		LogError(ctx, err, "Cleanup failed")
-		return fmt.Errorf("error while executing DeleteFileWhereOlderThan query: %w", err)
+		return err
 	}
 
 	return nil

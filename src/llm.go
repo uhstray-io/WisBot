@@ -7,7 +7,7 @@ import (
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/log" // Added import for log
+	"go.opentelemetry.io/otel/log"
 )
 
 var InputChannel = make(chan string, 10)  // Buffered to prevent blocking
@@ -15,41 +15,42 @@ var OutputChannel = make(chan string, 10) // Buffered to prevent blocking
 
 func StartLLMService(ctx context.Context) {
 	if !ollamaServiceEnabled {
-		fmt.Println("Ollama service is disabled. Skipping LLM initialization.")
+		LogEvent(ctx, log.SeverityInfo, "Ollama service is disabled. Skipping LLM initialization.")
+
 		// Start a goroutine to handle requests when LLM is disabled
 		go func() {
 			for {
 				select {
 				case prompt := <-InputChannel:
-					fmt.Printf("LLM service disabled. Received prompt: %s. Sending error response.\n", prompt)
+					LogEvent(ctx, log.SeverityInfo, "LLM service disabled. Received prompt, sending error response.", attribute.String("prompt", prompt))
+
 					OutputChannel <- "LLM service is currently disabled. Please enable it in the configuration."
 				case <-ctx.Done():
-					fmt.Println("LLM disabled-handler goroutine stopping due to context cancellation.")
+					LogEvent(ctx, log.SeverityInfo, "LLM disabled-handler goroutine stopping due to context cancellation.")
 					return
 				}
 			}
 		}()
 		return
 	}
-
 	ctx, span := StartSpan(ctx, "StartLLM")
 	defer span.End()
 
-	fmt.Println("Starting LLM")
+	// fmt.Println("Starting LLM")
+	LogEvent(ctx, log.SeverityInfo, "Starting LLM")
 
 	conn := ollama.WithServerURL(ollamaUrl)
 	model := ollama.WithModel(ollamaModel)
-
 	llm, err := ollama.New(conn, model)
 	if err != nil {
-		ErrorTrace(fmt.Errorf("error while creating LLM: %w", err))
+		PanicError(ctx, err, "Error while creating LLM")
 		return
 	}
 
 	// Start LLM in a separate goroutine
 	go func() {
 		if err := LLM(ctx, llm); err != nil {
-			ErrorTrace(fmt.Errorf("error while running LLM: %w", err))
+			PanicError(ctx, err, "Error while running LLM")
 		}
 	}()
 
@@ -107,5 +108,3 @@ func LLM(ctx context.Context, llm *ollama.LLM) error {
 		}
 	}
 }
-
-// LLMChat function removed

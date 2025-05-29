@@ -29,7 +29,8 @@ import (
 // If it does not return an error, make sure to call shutdown for proper cleanup.
 func StartOTelService(ctx context.Context) {
 	if !otelServiceEnabled {
-		fmt.Println("OpenTelemetry service is disabled. Skipping initialization.")
+		// fmt.Println("OpenTelemetry service is disabled. Skipping initialization.")
+		LogEvent(ctx, log.SeverityInfo, "OpenTelemetry service is disabled. Skipping initialization.")
 		return
 	}
 
@@ -46,12 +47,11 @@ func StartOTelService(ctx context.Context) {
 		shutdownFuncs = nil
 		return err
 	}
-
 	// Ensure cleanup at the end
 	defer func() {
 		err := shutdownHandler(ctx)
 		if err != nil {
-			fmt.Printf("Error shutting down OpenTelemetry: %v\n", err)
+			LogError(ctx, err, "Error shutting down OpenTelemetry")
 		}
 	}()
 
@@ -261,13 +261,24 @@ func LogError(ctx context.Context, err error, message string, attrs ...attribute
 	}
 
 	span := trace.SpanFromContext(ctx)
-
-	// Record error on the span
 	span.RecordError(err)
-
-	// Create error attributes
 	errorAttrs := append(attrs, attribute.String("error", err.Error()))
 
-	// Log the error
 	LogEvent(ctx, log.SeverityError, fmt.Sprintf("%s: %v", message, err), errorAttrs...)
+}
+
+// PanicError logs an error and panics.
+func PanicError(ctx context.Context, err error, message string, attrs ...attribute.KeyValue) {
+	if err == nil {
+		return
+	}
+
+	if !otelServiceEnabled {
+		// Fallback to simple error logging when telemetry is disabled
+		fmt.Printf("PANIC: %s: %v\n", message, err)
+		panic(fmt.Sprintf("%s: %v", message, err))
+	}
+
+	LogError(ctx, err, message, attrs...)
+	panic(fmt.Sprintf("%s: %v", message, err))
 }

@@ -10,6 +10,7 @@ import (
 	"wisbot/src/templ"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/log"
 )
 
 // rootIdPage is a helper function that renders the root page with the given file.
@@ -17,7 +18,7 @@ func getId(w http.ResponseWriter, r *http.Request) {
 	ctx, span := StartSpan(r.Context(), "getId")
 	defer span.End()
 
-	if !postgresServiceEnabled || wisQueries == nil {
+	if !postgresServiceEnabled || db == nil {
 		http.Error(w, "Upload feature is unavailable (database disabled)", http.StatusServiceUnavailable)
 		return
 	}
@@ -26,15 +27,15 @@ func getId(w http.ResponseWriter, r *http.Request) {
 	span.SetAttributes(attribute.String("file_id", id))
 
 	// Grab the file where the ID matches.
-	queryfile, err := wisQueries.GetFileNameAndUploadFromId(ctx, id)
-
+	queryfile, err := db.GetFileNameAndUploadFromId(ctx, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			component := templ.RootIdPage(nil)
 			component.Render(r.Context(), w)
 			return
 		}
-		fmt.Println("error while executing GetFileNameAndUploadFromId query", err.Error())
+		// fmt.Println("error while executing GetFileNameAndUploadFromId query", err.Error())
+		LogError(ctx, err, "Error while executing GetFileNameAndUploadFromId query")
 	}
 
 	file := &sqlc.File{ID: queryfile.ID, Name: queryfile.Name, Uploaded: queryfile.Uploaded}
@@ -45,19 +46,16 @@ func getId(w http.ResponseWriter, r *http.Request) {
 
 // uploadFileFormCompleted is a helper function that renders the upload file form.
 func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
-	if !postgresServiceEnabled || wisQueries == nil {
+	if !postgresServiceEnabled || db == nil {
 		http.Error(w, "Upload feature is unavailable (database disabled)", http.StatusServiceUnavailable)
 		return nil
 	}
 
 	id := r.PathValue("id")
 
-	// fmt.Println("-=+=- Uploading file -=+=-")
-	// fmt.Println("HX-Request: ", r.Header.Get("HX-Request"))
-
 	// Check if the ID exists and the file has not been uploaded.
 	file := &sqlc.File{ID: id}
-	id, err := wisQueries.GetFileIdWhereIdAndUploadedIsFalse(context.Background(), id)
+	id, err := db.GetFileIdWhereIdAndUploadedIsFalse(context.Background(), id)
 
 	// If the Id exists, and the file has not been uploaded, then continue.
 	if err != nil {
@@ -70,7 +68,7 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 
 	// Handle the file upload - 100MB max file maxFileSize.
 	var maxSize int64 = maxFileSize * 1024 * 1024
-	fmt.Println("Max File Size:", maxSize)
+	LogEvent(r.Context(), log.SeverityInfo, "File upload configured", attribute.Int64("max_file_size_bytes", maxSize))
 	if err := r.ParseMultipartForm(maxSize); err != nil {
 		templ.UploadFileFormCompleted(file, false, "Unable to parse form.").Render(r.Context(), w)
 		return nil
@@ -101,7 +99,7 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 	file.Uploaded = true
 
 	// Update the file in the database.
-	err2 := wisQueries.UpdateFileWhereId(context.Background(),
+	err2 := db.UpdateFileWhereId(context.Background(),
 		sqlc.UpdateFileWhereIdParams{
 			ID:       id,
 			Name:     file.Name,
@@ -122,7 +120,7 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 
 // getIdDownloadFile is a handler that serves the file with the given ID.
 func getIdDownloadFile(w http.ResponseWriter, r *http.Request) error {
-	if !postgresServiceEnabled || wisQueries == nil {
+	if !postgresServiceEnabled || db == nil {
 		http.Error(w, "Download feature is unavailable (database disabled)", http.StatusServiceUnavailable)
 		return nil
 	}
@@ -130,7 +128,7 @@ func getIdDownloadFile(w http.ResponseWriter, r *http.Request) error {
 	id := r.PathValue("id")
 
 	// Grab the file where the ID matches.
-	file, err := wisQueries.GetFileFromId(context.Background(), id)
+	file, err := db.GetFileFromId(context.Background(), id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.Error(w, "file not found", http.StatusNotFound)
@@ -144,7 +142,7 @@ func getIdDownloadFile(w http.ResponseWriter, r *http.Request) error {
 	w.Write(file.Data)
 
 	// Increment the download count.
-	err2 := wisQueries.UpdateFileDownloadIncrement(context.Background(), id)
+	err2 := db.UpdateFileDownloadIncrement(context.Background(), id)
 	if err2 != nil {
 		return fmt.Errorf("error while executing UpdateFileDownloadIncrement query: %w", err2)
 	}
