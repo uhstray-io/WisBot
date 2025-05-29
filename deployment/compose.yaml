@@ -1,12 +1,11 @@
 services:
-
   wisbot:
     container_name: wisbot
     image: "wisbot:latest"
     ports:
     - 8080:8080
     env_file:
-    - path: ./.env
+    - path: ../.env
       required: true
     depends_on:
       db:
@@ -21,7 +20,6 @@ services:
       wis_net:
         ipv4_address: 10.5.0.2
 
-
   llm:
     container_name: wis-llm
     image: ollama/ollama:latest
@@ -29,7 +27,7 @@ services:
     - 11434:11434
     restart: always
     env_file:
-    - path: ./.env
+    - path: ../.env
       required: true
     volumes:
     - ollama:/root/.ollama
@@ -47,14 +45,13 @@ services:
       wis_net:
         ipv4_address: 10.5.0.3
 
-
   db:
     container_name: postgres
     image: postgres:14-alpine
     ports:
     - 5432:5432
     env_file:
-    - path: ./.env
+    - path: ../.env
       required: true
     volumes:
     - postgres:/var/lib/postgresql

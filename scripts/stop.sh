@@ -1,4 +1,4 @@
 #!/bin/bash
 
 # Bring down all running containers
-docker compose down --remove-orphans
+docker compose -f ./deployment/compose.yaml down --remove-orphans

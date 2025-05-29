@@ -1,5 +1,5 @@
 # Stage 1
-FROM golang:1.24.1 AS builder
+FROM golang:1.24.3 AS builder
 
 WORKDIR /app
 
@@ -9,11 +9,11 @@ RUN go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 
 # Copy only required files
 COPY go.sum go.mod ./
-COPY /src ./src
+COPY src ./src
 
 # Run Templ
 RUN templ generate
-RUN sqlc generate -f ./src/sql/sqlc.yaml
+RUN sqlc generate -f ./src/sqlc/sqlc.yaml
 
 # Build the Go app with cache
 RUN --mount=type=cache,target=/root/.cache/go-build \

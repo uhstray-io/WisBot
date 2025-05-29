@@ -1,8 +1,10 @@
 #!/bin/bash
 
 templ generate
-sqlc generate -f ./src/sql/sqlc.yaml
+sqlc generate -f ./src/sqlc/sqlc.yaml
 
-docker compose down
-docker build -t wisbot .
-docker compose -f compose.dev.yaml up -d
+docker compose -f ./deployment/compose.yaml down
+
+docker build -t wisbot -f ./deployment/Dockerfile .
+
+docker compose -f ./deployment/compose.yaml up -d
