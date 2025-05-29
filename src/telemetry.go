@@ -29,7 +29,6 @@ import (
 // If it does not return an error, make sure to call shutdown for proper cleanup.
 func StartOTelService(ctx context.Context) {
 	if !otelServiceEnabled {
-		// fmt.Println("OpenTelemetry service is disabled. Skipping initialization.")
 		LogEvent(ctx, log.SeverityInfo, "OpenTelemetry service is disabled. Skipping initialization.")
 		return
 	}
@@ -49,8 +48,7 @@ func StartOTelService(ctx context.Context) {
 	}
 	// Ensure cleanup at the end
 	defer func() {
-		err := shutdownHandler(ctx)
-		if err != nil {
+		if err := shutdownHandler(ctx); err != nil {
 			LogError(ctx, err, "Error shutting down OpenTelemetry")
 		}
 	}()

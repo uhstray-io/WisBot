@@ -34,7 +34,6 @@ func getId(w http.ResponseWriter, r *http.Request) {
 			component.Render(r.Context(), w)
 			return
 		}
-		// fmt.Println("error while executing GetFileNameAndUploadFromId query", err.Error())
 		LogError(ctx, err, "Error while executing GetFileNameAndUploadFromId query")
 	}
 
@@ -93,6 +92,13 @@ func postIdUploadFile(w http.ResponseWriter, r *http.Request) error {
 	// fmt.Println("File Header:", fileHeader.Header)
 	// fmt.Println("File *Actual* Size:", len(buff))
 
+	LogEvent(r.Context(), log.SeverityInfo, "File upload received",
+		attribute.String("file_name", fileHeader.Filename),
+		attribute.Int64("file_size_bytes", fileHeader.Size),
+		attribute.Int("file_data_length", len(buff)),
+		attribute.String("file_header", fmt.Sprintf("%v", fileHeader.Header)),
+	)
+
 	// Update the file.
 	file.Name = fileHeader.Filename
 	file.Data = buff
@@ -142,8 +148,7 @@ func getIdDownloadFile(w http.ResponseWriter, r *http.Request) error {
 	w.Write(file.Data)
 
 	// Increment the download count.
-	err2 := db.UpdateFileDownloadIncrement(context.Background(), id)
-	if err2 != nil {
+	if err2 := db.UpdateFileDownloadIncrement(context.Background(), id); err2 != nil {
 		return fmt.Errorf("error while executing UpdateFileDownloadIncrement query: %w", err2)
 	}
 	return nil

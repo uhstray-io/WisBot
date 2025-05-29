@@ -79,8 +79,8 @@ func StartDiscordService(ctx context.Context) {
 	discordSess.AddHandler(interactionCreate)
 
 	discordSess.Identify.Intents = discordgo.IntentsAll
-	err2 := discordSess.Open()
-	if err2 != nil {
+
+	if err2 := discordSess.Open(); err2 != nil {
 		PanicError(ctx, err2, "Error while opening Discord session")
 	}
 
@@ -97,9 +97,7 @@ func StartDiscordService(ctx context.Context) {
 
 func unregisterCommands(ctx context.Context, s *discordgo.Session) {
 	ctx, span := StartSpan(ctx, "bot.unregisterCommands")
-	defer span.End()
-
-	// Get all guilds the bot is in
+	defer span.End() // Get all guilds the bot is in
 	guilds, err := s.UserGuilds(100, "", "", false)
 	if err != nil {
 		LogError(ctx, err, "Error getting guilds during unregister")
@@ -115,16 +113,15 @@ func unregisterCommands(ctx context.Context, s *discordgo.Session) {
 			span.RecordError(err)
 			continue
 		}
-
 		for _, cmd := range registeredCommands {
-			err := s.ApplicationCommandDelete(s.State.User.ID, guild.ID, cmd.ID)
-			if err != nil {
+			if err := s.ApplicationCommandDelete(s.State.User.ID, guild.ID, cmd.ID); err != nil {
 				LogError(ctx, err, "Error deleting command in guild",
 					attribute.String("command_name", cmd.Name), attribute.String("guild_id", guild.ID))
 				span.RecordError(err)
 			}
 		}
 	}
+
 	// Also unregister global commands
 	globalCommands, err := s.ApplicationCommands(s.State.User.ID, "")
 	if err != nil {
@@ -132,10 +129,8 @@ func unregisterCommands(ctx context.Context, s *discordgo.Session) {
 		span.RecordError(err)
 		return
 	}
-
 	for _, cmd := range globalCommands {
-		err := s.ApplicationCommandDelete(s.State.User.ID, "", cmd.ID)
-		if err != nil {
+		if err := s.ApplicationCommandDelete(s.State.User.ID, "", cmd.ID); err != nil {
 			LogError(ctx, err, "Error deleting global command", attribute.String("command_name", cmd.Name))
 			span.RecordError(err)
 		}
@@ -160,8 +155,7 @@ func registerCommands(ctx context.Context, s *discordgo.Session) {
 		LogEvent(ctx, log.SeverityInfo, "Registering commands to guild", attribute.String("guild_name", guild.Name), attribute.String("guild_id", guild.ID))
 
 		for _, command := range commands {
-			_, err := s.ApplicationCommandCreate(s.State.User.ID, guild.ID, command)
-			if err != nil {
+			if _, err := s.ApplicationCommandCreate(s.State.User.ID, guild.ID, command); err != nil {
 				LogError(ctx, err, "Error creating command in guild", attribute.String("command_name", command.Name), attribute.String("guild_id", guild.ID))
 				span.RecordError(err)
 			}
@@ -170,8 +164,7 @@ func registerCommands(ctx context.Context, s *discordgo.Session) {
 
 	// Also register globally as a backup, but these take up to an hour to propagate
 	for _, command := range commands {
-		_, err := s.ApplicationCommandCreate(s.State.User.ID, "", command)
-		if err != nil {
+		if _, err := s.ApplicationCommandCreate(s.State.User.ID, "", command); err != nil {
 			LogError(ctx, err, "Error creating global command", attribute.String("command_name", command.Name))
 			span.RecordError(err)
 		}
@@ -492,7 +485,7 @@ func handleStatsCommand(ctx context.Context, s *discordgo.Session, i *discordgo.
 		memberCount, serverCount, channelCount, nsfwLevel,
 	)
 
-	LogError(ctx, err, "Retrieved stats",
+	LogEvent(ctx, log.SeverityInfo, "Retrieved stats",
 		attribute.Int("members", memberCount),
 		attribute.Int("servers", serverCount),
 		attribute.Int("channels", channelCount))

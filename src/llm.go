@@ -33,10 +33,10 @@ func StartLLMService(ctx context.Context) {
 		}()
 		return
 	}
+
 	ctx, span := StartSpan(ctx, "StartLLM")
 	defer span.End()
 
-	// fmt.Println("Starting LLM")
 	LogEvent(ctx, log.SeverityInfo, "Starting LLM")
 
 	conn := ollama.WithServerURL(ollamaUrl)

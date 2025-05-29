@@ -2,5 +2,4 @@ Write code that is minimalistic, direct, and focused solely on the specific task
 Prioritize clarity and simplicity. 
 Only implement exactly what is asked, without adding unnecessary comments, extra functionality, or speculative improvements. 
 Respond with precise, lean code that addresses the core requirements only. 
-Do not delete code, instead comment out lines that you are replacing. 
 Please keep the structure generally similar so that we can see the changes via git diff.

@@ -45,8 +45,7 @@ func StartDatabaseService(ctx context.Context) {
 
 	db = sqlc.New(conn)
 	// Create the tables if they don't exist
-	err = db.CreateFilesTable(ctx)
-	if err != nil {
+	if err := db.CreateFilesTable(ctx); err != nil {
 		span.RecordError(err)
 		PanicError(ctx, err, "Error creating files table")
 	}
@@ -108,8 +107,7 @@ func runCleanup(ctx context.Context) error {
 	cleanupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	err := db.DeleteFileWhereOlderThan(cleanupCtx, int32(deleteFilesAfterDays))
-	if err != nil {
+	if err := db.DeleteFileWhereOlderThan(cleanupCtx, int32(deleteFilesAfterDays)); err != nil {
 		span.RecordError(err)
 		err = fmt.Errorf("error while executing DeleteFileWhereOlderThan query: %w", err)
 		LogError(ctx, err, "Cleanup failed")

@@ -35,7 +35,6 @@ func TestCodeBlock(t *testing.T) {
 		"```\n" +
 		"Trading Volume: Indicates market activity and liquidity.\n"
 
-	// fmt.Println(input)
 	expected := []string{"Market Capitalization: Measures the total value of all outstanding shares.",
 		"```go\nfunc main() {\nfmt.Println(\"Hello, World!\")\n}\n```",
 		"Trading Volume: Indicates market activity and liquidity.",

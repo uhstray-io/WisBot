@@ -78,9 +78,7 @@ func requestStackTrace(next func(http.ResponseWriter, *http.Request) error) http
 }
 
 func StartHTTPService(ctx context.Context) {
-
 	if !httpServiceEnabled {
-		// fmt.Println("HTTP service is disabled. Skipping HTTP server initialization.")
 		LogEvent(ctx, log.SeverityInfo, "HTTP service is disabled. Skipping HTTP server initialization.")
 		return
 	}
@@ -172,11 +170,9 @@ func postLLMChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// fmt.Println("Started LLM chat")
 	LogEvent(ctx, log.SeverityInfo, "Started LLM chat")
 
-	err := r.ParseForm()
-	if err != nil {
+	if err := r.ParseForm(); err != nil {
 		span.RecordError(err)
 		http.Error(w, "Failed to parse form", http.StatusBadRequest)
 		return
@@ -189,7 +185,7 @@ func postLLMChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	span.SetAttributes(attribute.Int("question.length", len(question)))
-	// fmt.Println("User question:", question)
+
 	LogEvent(ctx, log.SeverityInfo, "User question received", attribute.String("question", question))
 
 	// Render the user's message immediately
