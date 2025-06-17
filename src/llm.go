@@ -17,7 +17,7 @@ func StartLLMService(ctx context.Context) {
 	ctx, span := StartSpan(ctx, "StartLLM")
 	defer span.End()
 
-	LogEvent(ctx, log.SeverityInfo, "Starting LLM")
+	LogInfo(ctx, "Starting LLM")
 
 	conn := ollama.WithServerURL(ollamaUrl)
 	model := ollama.WithModel(ollamaModel)
@@ -39,7 +39,7 @@ func LLM(ctx context.Context, llm *ollama.LLM) error {
 	for {
 		select {
 		case <-ctx.Done():
-			LogEvent(ctx, log.SeverityInfo, "LLM service shutting down due to context cancellation.")
+			LogInfo(ctx, "LLM service shutting down due to context cancellation.")
 			return ctx.Err()
 		case userInput := <-InputChannel:
 			// Create a new context for this specific request to avoid carrying cancellation from previous requests.

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -25,65 +24,40 @@ import (
 	sdkTrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
-// StartOTelService bootstraps the OpenTelemetry pipeline.
-// If it does not return an error, make sure to call shutdown for proper cleanup.
+// StartOTelService sets up OpenTelemetry tracing, metrics, and logging
 func StartOTelService(ctx context.Context) {
-	var shutdownFuncs []func(context.Context) error
-
-	// shutdown calls cleanup functions registered via shutdownFuncs.
-	// The errors from the calls are joined.
-	// Each registered cleanup will be invoked once.
-	shutdownHandler := func(ctx context.Context) error {
-		var err error
-		for _, fn := range shutdownFuncs {
-			err = errors.Join(err, fn(ctx))
-		}
-		shutdownFuncs = nil
-		return err
-	}
-	// Ensure cleanup at the end
-	defer func() {
-		if err := shutdownHandler(ctx); err != nil {
-			LogError(ctx, err, "Error shutting down OpenTelemetry")
-		}
-	}()
-
-	// handleErr calls shutdown for cleanup and makes sure that all errors are returned.
-	handleErr := func(inErr error) {
-		errors.Join(inErr, shutdownHandler(ctx))
-	}
-
-	// Set up propagator.
+	// Set up propagator
 	prop := newPropagator()
 	otel.SetTextMapPropagator(prop)
 
-	// Set up trace provider.
-	tracerProvider, err := newTraceProvider(ctx)
-	if err != nil {
-		handleErr(err)
-		return
-	}
-	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
-	otel.SetTracerProvider(tracerProvider)
+	// Setup Providers
 
-	// Set up meter provider.
-	meterProvider, err := newMeterProvider(ctx)
-	if err != nil {
-		handleErr(err)
-		return
-	}
-	shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
-	otel.SetMeterProvider(meterProvider)
-
-	// Set up logger provider.
+	// Set up logger providers
 	loggerProvider, err := newLoggerProvider(ctx)
 	if err != nil {
-		handleErr(err)
+		LogError(ctx, err, "Failed to create logger provider")
 		return
 	}
-	shutdownFuncs = append(shutdownFuncs, loggerProvider.Shutdown)
 	global.SetLoggerProvider(loggerProvider)
+	LogInfo(ctx, "Logger provider initialized successfully")
 
+	// Set up trace provider
+	tracerProvider, err := newTraceProvider(ctx)
+	if err != nil {
+		LogError(ctx, err, "Failed to create trace provider")
+		return
+	}
+	otel.SetTracerProvider(tracerProvider)
+	LogInfo(ctx, "Trace provider initialized successfully")
+
+	// Set up meter provider
+	meterProvider, err := newMeterProvider(ctx)
+	if err != nil {
+		LogError(ctx, err, "Failed to create meter provider")
+		return
+	}
+	otel.SetMeterProvider(meterProvider)
+	LogInfo(ctx, "Meter provider initialized successfully")
 }
 
 // newPropagator creates a new propagator for trace context and baggage.
@@ -198,8 +172,6 @@ func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 // LogEvent logs an event with the given severity and message, associating it with the current span
 // This is a better approach than mixing log and span APIs directly
 func LogEvent(ctx context.Context, severity log.Severity, message string, attrs ...attribute.KeyValue) {
-	fmt.Println(message)
-
 	// Get the current span from context
 	span := trace.SpanFromContext(ctx)
 
@@ -227,12 +199,37 @@ func LogEvent(ctx context.Context, severity log.Severity, message string, attrs 
 
 	// Also add events to the span itself for better correlation
 	if span.IsRecording() {
-		// Convert log attributes to trace attributes
 		span.AddEvent(message, trace.WithAttributes())
 	}
 
+	printRecordAndSpan(record)
+
 	// Emit the log
 	logger.Emit(ctx, record)
+}
+
+func printRecordAndSpan(record log.Record) {
+	fmt.Printf("%v [%v] %s\n",
+		record.Timestamp().Format("2006-01-02 15:04:05"),
+		record.Severity().String(),
+		record.Body().AsString(),
+	)
+
+	record.WalkAttributes(func(kv log.KeyValue) bool {
+		if kv.Key == "trace_id" || kv.Key == "span_id" {
+			return true
+		}
+		fmt.Printf("\t%v\n", kv.String())
+		return true
+	})
+}
+
+func LogInfo(ctx context.Context, message string, attrs ...attribute.KeyValue) {
+	LogEvent(ctx, log.SeverityInfo, message, attrs...)
+}
+
+func LogWarning(ctx context.Context, message string, attrs ...attribute.KeyValue) {
+	LogEvent(ctx, log.SeverityWarn, message, attrs...)
 }
 
 // LogError logs an error and also records it on the current span

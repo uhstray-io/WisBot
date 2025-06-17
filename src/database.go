@@ -8,7 +8,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/log"
 )
 
 // Global database query handler
@@ -27,7 +26,7 @@ func StartDatabaseService(ctx context.Context) {
 	ctx, span := StartSpan(ctx, "database.StartDatabase")
 	defer span.End()
 
-	LogEvent(ctx, log.SeverityInfo, "Connecting to database")
+	LogInfo(ctx, "Connecting to database")
 	conn, err := pgx.Connect(ctx, databaseUrl)
 	if err != nil {
 		span.RecordError(err)
@@ -41,7 +40,7 @@ func StartDatabaseService(ctx context.Context) {
 		PanicError(ctx, err, "Error creating files table")
 	}
 
-	LogEvent(ctx, log.SeverityInfo, "Database successfully initialized")
+	LogInfo(ctx, "Database successfully initialized")
 
 	StartDatabaseCleanup(ctx, conn)
 }
@@ -51,17 +50,14 @@ func StartDatabaseCleanup(ctx context.Context, db *pgx.Conn) {
 	ctx, span := StartSpan(ctx, "database.StartDatabaseCleanup")
 	defer span.End()
 
-	LogEvent(ctx, log.SeverityInfo, "Starting database cleanup process", attribute.Int("delete_older_than_days", deleteFilesAfterDays))
+	LogInfo(ctx, "Starting database cleanup process", attribute.Int("delete_older_than_days", deleteFilesAfterDays))
 
 	go func() {
-		// Initial delay before starting cleanup
 		time.Sleep(5 * time.Second)
 
-		// Set up ticker for periodic cleanup
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 
-		// Run cleanup immediately, then on each tick
 		cleanupCtx, cleanupSpan := StartSpan(ctx, "database.initialCleanup")
 		if err := runCleanup(cleanupCtx); err != nil {
 			LogError(ctx, err, "Error in initial cleanup")
@@ -77,7 +73,7 @@ func StartDatabaseCleanup(ctx context.Context, db *pgx.Conn) {
 				}
 				tickSpan.End()
 			case <-ctx.Done():
-				LogEvent(ctx, log.SeverityInfo, "Database cleanup process stopping due to context cancellation.")
+				LogInfo(ctx, "Database cleanup process stopping due to context cancellation.")
 				return // Exit the goroutine
 			}
 		}
@@ -93,7 +89,7 @@ func runCleanup(ctx context.Context) error {
 	ctx, span := StartSpan(ctx, "database.runCleanup")
 	defer span.End()
 
-	LogEvent(ctx, log.SeverityInfo, "Running database cleanup process", attribute.Int("delete_older_than_days", deleteFilesAfterDays))
+	LogInfo(ctx, "Running database cleanup process", attribute.Int("delete_older_than_days", deleteFilesAfterDays))
 
 	cleanupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()

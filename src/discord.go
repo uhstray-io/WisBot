@@ -7,8 +7,6 @@ import (
 	"time"
 	"wisbot/src/sqlc"
 
-	"go.opentelemetry.io/otel/log"
-
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -56,7 +54,7 @@ func StartDiscordService(ctx context.Context) {
 	ctx, span := StartSpan(ctx, "bot.StartBot")
 	defer span.End()
 
-	LogEvent(ctx, log.SeverityInfo, "Starting Discord bot")
+	LogInfo(ctx, "Starting Discord bot")
 	discordSess, err := discordgo.New("Bot " + discordToken)
 	if err != nil {
 		PanicError(ctx, err, "Error while creating Discord session")
@@ -69,7 +67,7 @@ func StartDiscordService(ctx context.Context) {
 		handlerCtx, handlerSpan := StartSpan(ctx, "bot.onReady")
 		defer handlerSpan.End()
 
-		LogEvent(handlerCtx, log.SeverityInfo, "Bot ready", attribute.String("username", s.State.User.Username))
+		LogInfo(handlerCtx, "Bot ready", attribute.String("username", s.State.User.Username))
 		registerCommands(handlerCtx, s)
 	})
 	discordSess.AddHandler(interactionCreate)
@@ -86,7 +84,7 @@ func StartDiscordService(ctx context.Context) {
 	cleanupCtx, cleanupSpan := StartSpan(ctx, "bot.cleanup")
 	defer cleanupSpan.End()
 
-	LogEvent(cleanupCtx, log.SeverityInfo, "Bot shutting down, unregistering commands")
+	LogInfo(cleanupCtx, "Bot shutting down, unregistering commands")
 	unregisterCommands(cleanupCtx, discordSess)
 }
 
@@ -131,7 +129,7 @@ func unregisterCommands(ctx context.Context, s *discordgo.Session) {
 		}
 	}
 
-	LogEvent(ctx, log.SeverityInfo, "Discord commands unregistered successfully")
+	LogInfo(ctx, "Discord commands unregistered successfully")
 }
 
 func registerCommands(ctx context.Context, s *discordgo.Session) {
@@ -147,7 +145,7 @@ func registerCommands(ctx context.Context, s *discordgo.Session) {
 
 	// Register commands to each guild for faster updates during development
 	for _, guild := range guilds {
-		LogEvent(ctx, log.SeverityInfo, "Registering commands to guild", attribute.String("guild_name", guild.Name), attribute.String("guild_id", guild.ID))
+		LogInfo(ctx, "Registering commands to guild", attribute.String("guild_name", guild.Name), attribute.String("guild_id", guild.ID))
 
 		for _, command := range commands {
 			if _, err := s.ApplicationCommandCreate(s.State.User.ID, guild.ID, command); err != nil {
@@ -165,11 +163,11 @@ func registerCommands(ctx context.Context, s *discordgo.Session) {
 		}
 	}
 
-	LogEvent(ctx, log.SeverityInfo, "Slash commands registered successfully")
+	LogInfo(ctx, "Slash commands registered successfully")
 }
 
 func onReady(discordSess *discordgo.Session, event *discordgo.Ready) {
-	fmt.Printf("Logged in as: %v#%v \n", discordSess.State.User.Username, discordSess.State.User.Discriminator)
+	LogInfo(context.Background(), "Bot is ready", attribute.String("username", discordSess.State.User.Username), attribute.String("discriminator", discordSess.State.User.Discriminator))
 
 	ChannelID := "998632857306136617"
 
@@ -287,7 +285,7 @@ func handleLLMCommand(ctx context.Context, s *discordgo.Session, i *discordgo.In
 	// Previous chat message collection removed
 
 	username := getUserFromInteraction(i)
-	LogEvent(ctx, log.SeverityInfo, "Sending prompt to LLM",
+	LogInfo(ctx, "Sending prompt to LLM",
 		attribute.String("user", username),
 		attribute.String("prompt", text))
 
@@ -295,7 +293,7 @@ func handleLLMCommand(ctx context.Context, s *discordgo.Session, i *discordgo.In
 	InputChannel <- text
 	response := <-OutputChannel
 
-	LogEvent(ctx, log.SeverityInfo, "Received LLM response", attribute.Int("response_length", len(response)))
+	LogInfo(ctx, "Received LLM response", attribute.Int("response_length", len(response)))
 
 	chunks, err := chunkDiscordMessage(response, 1995)
 	if err != nil {
@@ -402,7 +400,7 @@ func handleUploadCommand(ctx context.Context, s *discordgo.Session, i *discordgo
 			return
 		}
 
-		LogEvent(ctx, log.SeverityInfo, "Deleted old files to stay under limit",
+		LogInfo(ctx, "Deleted old files to stay under limit",
 			attribute.String("user", username),
 			attribute.Int64("deleted_count", count-maxFilesPerUser+1))
 	}
@@ -429,7 +427,7 @@ func handleUploadCommand(ctx context.Context, s *discordgo.Session, i *discordgo
 		return
 	}
 
-	LogEvent(ctx, log.SeverityInfo, "Created new file entry",
+	LogInfo(ctx, "Created new file entry",
 		attribute.String("user", username),
 		attribute.String("file_id", uuid.String()))
 
@@ -469,7 +467,7 @@ func handleStatsCommand(ctx context.Context, s *discordgo.Session, i *discordgo.
 		memberCount, serverCount, channelCount, nsfwLevel,
 	)
 
-	LogEvent(ctx, log.SeverityInfo, "Retrieved stats",
+	LogInfo(ctx, "Retrieved stats",
 		attribute.Int("members", memberCount),
 		attribute.Int("servers", serverCount),
 		attribute.Int("channels", channelCount))

@@ -21,7 +21,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/log"
 )
 
 var globalState GlobalState
@@ -82,7 +81,7 @@ func StartHTTPService(ctx context.Context) {
 	_ = humafiber.New(app, huma.DefaultConfig("WisBot API", "0.0.1"))
 
 	// Start the server
-	LogEvent(ctx, log.SeverityInfo, "Starting HTTP server", attribute.String("port", httpServerPort))
+	LogInfo(ctx, "Starting HTTP server", attribute.String("port", httpServerPort))
 
 	err := app.Listen(":" + httpServerPort)
 	if err != nil {
@@ -190,7 +189,7 @@ func postLLMChat(c *fiber.Ctx) error {
 	_, span := StartSpan(ctx, "postLLMChat")
 	defer span.End()
 
-	LogEvent(ctx, log.SeverityInfo, "Started LLM chat")
+	LogInfo(ctx, "Started LLM chat")
 
 	question := c.FormValue("question")
 	if question == "" {
@@ -199,7 +198,7 @@ func postLLMChat(c *fiber.Ctx) error {
 	}
 	span.SetAttributes(attribute.Int("question.length", len(question)))
 
-	LogEvent(ctx, log.SeverityInfo, "User question received", attribute.String("question", question))
+	LogInfo(ctx, "User question received", attribute.String("question", question))
 
 	// Render the user's message immediately
 	var userBuf bytes.Buffer
@@ -292,7 +291,7 @@ func postIdUploadFile(c *fiber.Ctx) error {
 	}
 	// Handle the file upload - 100MB max file maxFileSize.
 	var maxSize int64 = maxFileSize * 1024 * 1024
-	LogEvent(ctx, log.SeverityInfo, "File upload configured", attribute.Int64("max_file_size_bytes", maxSize))
+	LogInfo(ctx, "File upload configured", attribute.Int64("max_file_size_bytes", maxSize))
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
@@ -327,7 +326,7 @@ func postIdUploadFile(c *fiber.Ctx) error {
 		return c.Send(buf.Bytes())
 	}
 
-	LogEvent(ctx, log.SeverityInfo, "File upload received",
+	LogInfo(ctx, "File upload received",
 		attribute.String("file_name", fileHeader.Filename),
 		attribute.Int64("file_size_bytes", fileHeader.Size),
 		attribute.Int("file_data_length", len(buff)),
