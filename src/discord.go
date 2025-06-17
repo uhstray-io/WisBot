@@ -80,12 +80,11 @@ func StartDiscordService(ctx context.Context) {
 
 	discordSess.Identify.Intents = discordgo.IntentsAll
 
-	if err2 := discordSess.Open(); err2 != nil {
-		PanicError(ctx, err2, "Error while opening Discord session")
+	if err := discordSess.Open(); err != nil {
+		PanicError(ctx, err, "Error while opening Discord session")
 	}
 
-	// Block until context is done
-	<-ctx.Done()
+	<-ctx.Done() // Block until context is done
 
 	// Unregister commands before shutting down
 	cleanupCtx, cleanupSpan := StartSpan(ctx, "bot.cleanup")
@@ -263,14 +262,11 @@ func handleHelpCommand(ctx context.Context, s *discordgo.Session, i *discordgo.I
 
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: helpText,
-		},
+		Data: &discordgo.InteractionResponseData{Content: helpText},
 	})
 
 	if err != nil {
-		span.RecordError(err)
-		LogEvent(ctx, log.SeverityError, "Failed to respond to help command", attribute.String("error", err.Error()))
+		LogError(ctx, err, "Failed to respond to help command")
 	}
 }
 

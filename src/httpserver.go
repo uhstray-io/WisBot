@@ -1,80 +1,29 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"fmt"
-	"net/http"
+	"io"
 	"time"
+	"wisbot/src/sqlc"
 	"wisbot/src/templ"
 
-	"github.com/alexedwards/scs/v2"
-	"go.opentelemetry.io/otel"
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humafiber"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/monitor"
+	"github.com/gofiber/fiber/v2/middleware/session"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log"
-	"go.opentelemetry.io/otel/log/global"
 )
 
 var globalState GlobalState
-var sessionManager *scs.SessionManager
+var store *session.Store
 
 type GlobalState struct {
 	Count int
-}
-
-// requestLogger is a middleware function that logs incoming HTTP requests.
-// It takes a http.HandlerFunc as input and returns a new http.HandlerFunc.
-// The returned function logs the details of the incoming request and then calls the original handler.
-func requestLogger(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-
-		// Get a logger from the global provider
-		logger := global.Logger("requestLogger")
-
-		record := log.Record{}
-		record.SetTimestamp(time.Now())
-		record.SetObservedTimestamp(time.Now())
-		record.SetSeverity(log.SeverityInfo)
-		record.SetBody(log.StringValue(fmt.Sprintf("Request: `%s %s`", r.Method, r.URL.Path)))
-		record.AddAttributes(log.String("method", r.Method))
-		record.AddAttributes(log.String("path", r.URL.Path))
-
-		// Log the request details with OpenTelemetry
-		logger.Emit(r.Context(), record)
-
-		next(w, r)
-	}
-}
-
-func requestTracer(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, span := otel.Tracer("wisbot").Start(r.Context(), fmt.Sprintf("%s %s", r.Method, r.URL.Path))
-		// span := trace.SpanFromContext(r.Context())
-		defer span.End()
-
-		// Add request details as span attributes
-		span.SetAttributes(
-			attribute.String("http.method", r.Method),
-			attribute.String("http.url", r.URL.String()),
-			attribute.String("http.user_agent", r.UserAgent()),
-		)
-
-		// Create new request with the span context
-		r = r.WithContext(ctx)
-
-		// Call the actual handler
-		next(w, r)
-	}
-}
-
-func requestStackTrace(next func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		err := next(w, r)
-		if err != nil {
-			err = fmt.Errorf("error while executing request: %v: %w", r.URL.Path, err)
-		}
-
-		PrintTrace(err)
-	}
 }
 
 func StartHTTPService(ctx context.Context) {
@@ -83,114 +32,158 @@ func StartHTTPService(ctx context.Context) {
 		return
 	}
 
-	sessionManager = scs.New()
-	sessionManager.Lifetime = 24 * time.Hour
+	store = session.New(session.Config{Expiration: 24 * time.Hour})
 
-	server := http.NewServeMux()
+	app := fiber.New()
 
-	server.HandleFunc("GET /", requestTracer(requestLogger(getRoot)))
-	server.HandleFunc("POST /", requestTracer(requestLogger(postRoot)))
+	app.Get("/metrics", monitor.New())
 
-	server.HandleFunc("GET /id/{id}", requestTracer(requestLogger(getId)))
-	server.HandleFunc("POST /id/{id}/upload", requestTracer(requestLogger(requestStackTrace(postIdUploadFile))))
-	server.HandleFunc("GET /id/{id}/download", requestTracer(requestLogger(requestStackTrace(getIdDownloadFile))))
+	// Direct Fiber routes for session-dependent endpoints
+	app.Get("/", getRoot)
+	app.Post("/", postRoot)
 
-	server.HandleFunc("GET /llm", requestTracer(requestLogger(getLLM)))
-	server.HandleFunc("GET /llm/chat", requestTracer(requestLogger(getLLMChat)))
-	server.HandleFunc("POST /llm/chat", requestTracer(requestLogger(postLLMChat)))
+	app.Get("/id/:id", getId)
+	app.Get("/id/:id/download", getIdDownloadFile)
+	app.Post("/id/:id/upload", postIdUploadFile)
 
-	// Add the middleware
-	muxWithSessionMiddleware := sessionManager.LoadAndSave(server)
+	app.Get("/llm", getLLM)
+	app.Get("/llm/chat", getLLMChat)
+	app.Post("/llm/chat", postLLMChat)
+
+	// Keep Huma API available for other endpoints if needed in the future
+	_ = humafiber.New(app, huma.DefaultConfig("WisBot API", "0.0.1"))
 
 	// Start the server
 	LogEvent(ctx, log.SeverityInfo, "Starting HTTP server", attribute.String("port", httpServerPort))
 
-	err := http.ListenAndServe(":"+httpServerPort, muxWithSessionMiddleware)
+	err := app.Listen(":" + httpServerPort)
 	if err != nil {
 		LogError(ctx, err, "Error while starting HTTP server")
 	}
-
 	PrintTrace(err)
 }
 
-func getRoot(w http.ResponseWriter, r *http.Request) {
-	ctx, span := StartSpan(r.Context(), "getRoot")
-	defer span.End()
+// Fiber handlers for session management
+func getRoot(c *fiber.Ctx) error {
+	ctx := c.Context()
+	sess, err := store.Get(c)
+	if err != nil {
+		return err
+	}
 
-	userCount := sessionManager.GetInt(ctx, "session")
-	span.SetAttributes(attribute.Int("user.count", userCount))
+	userCount := sess.Get("count")
+	if userCount == nil {
+		userCount = 0
+	}
 
-	component := templ.RootPage(globalState.Count, userCount)
-	component.Render(ctx, w)
+	var buf bytes.Buffer
+	component := templ.RootPage(globalState.Count, userCount.(int))
+	err = component.Render(ctx, &buf)
+	if err != nil {
+		return err
+	}
+
+	c.Set("Content-Type", "text/html")
+	return c.Send(buf.Bytes())
 }
 
-func postRoot(w http.ResponseWriter, r *http.Request) {
-	ctx, span := StartSpan(r.Context(), "postRoot")
-	defer span.End()
+func postRoot(c *fiber.Ctx) error {
+	ctx := c.Context()
+	sess, err := store.Get(c)
+	if err != nil {
+		return err
+	}
 
-	// Update state.
-	r.ParseForm()
-
-	// Check to see if the global button was pressed.
-	if r.Form.Has("global") {
+	// Check which button was pressed
+	if c.FormValue("global") != "" {
 		globalState.Count++
-		span.SetAttributes(attribute.String("action", "global_increment"))
-	}
-	if r.Form.Has("session") {
-		currentSessionCount := sessionManager.GetInt(ctx, "session")
-		sessionManager.Put(ctx, "session", currentSessionCount+1)
-		span.SetAttributes(attribute.String("action", "session_increment"))
 	}
 
-	// Display the form.
-	getRoot(w, r.WithContext(ctx))
+	if c.FormValue("session") != "" {
+		currentCount := sess.Get("count")
+		if currentCount == nil {
+			currentCount = 0
+		}
+		sess.Set("count", currentCount.(int)+1)
+		sess.Save()
+	}
+
+	// Render the updated page
+	userCount := sess.Get("count")
+	if userCount == nil {
+		userCount = 0
+	}
+
+	var buf bytes.Buffer
+	component := templ.RootPage(globalState.Count, userCount.(int))
+	err = component.Render(ctx, &buf)
+	if err != nil {
+		return err
+	}
+
+	c.Set("Content-Type", "text/html")
+	return c.Send(buf.Bytes())
 }
 
-func getLLM(w http.ResponseWriter, r *http.Request) {
-	ctx, span := StartSpan(r.Context(), "getLLM")
+func getLLM(c *fiber.Ctx) error {
+	ctx := c.Context()
+	_, span := StartSpan(ctx, "getLLM")
 	defer span.End()
 
+	var buf bytes.Buffer
 	component := templ.LlmPage()
-	component.Render(ctx, w)
+	err := component.Render(ctx, &buf)
+	if err != nil {
+		return err
+	}
+
+	c.Set("Content-Type", "text/html")
+	return c.Send(buf.Bytes())
 }
 
-func getLLMChat(w http.ResponseWriter, r *http.Request) {
-	ctx, span := StartSpan(r.Context(), "getLLMChat")
+func getLLMChat(c *fiber.Ctx) error {
+	ctx := c.Context()
+	_, span := StartSpan(ctx, "getLLMChat")
 	defer span.End()
 
+	var buf bytes.Buffer
 	component := templ.ChatPage()
-	component.Render(ctx, w)
+	err := component.Render(ctx, &buf)
+	if err != nil {
+		return err
+	}
+
+	c.Set("Content-Type", "text/html")
+	return c.Send(buf.Bytes())
 }
 
-func postLLMChat(w http.ResponseWriter, r *http.Request) {
-	ctx, span := StartSpan(r.Context(), "postLLMChat")
+func postLLMChat(c *fiber.Ctx) error {
+	ctx := c.Context()
+	_, span := StartSpan(ctx, "postLLMChat")
 	defer span.End()
+
 	if !ollamaServiceEnabled {
-		http.Error(w, "LLM service is disabled", http.StatusServiceUnavailable)
-		return
+		return c.Status(fiber.StatusServiceUnavailable).SendString("LLM service is disabled")
 	}
 
 	LogEvent(ctx, log.SeverityInfo, "Started LLM chat")
 
-	if err := r.ParseForm(); err != nil {
-		span.RecordError(err)
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
-		return
-	}
-
-	question := r.FormValue("question")
+	question := c.FormValue("question")
 	if question == "" {
 		span.SetAttributes(attribute.String("error", "empty_question"))
-		http.Error(w, "Question cannot be empty", http.StatusBadRequest)
-		return
+		return c.Status(fiber.StatusBadRequest).SendString("Question cannot be empty")
 	}
 	span.SetAttributes(attribute.Int("question.length", len(question)))
 
 	LogEvent(ctx, log.SeverityInfo, "User question received", attribute.String("question", question))
 
 	// Render the user's message immediately
+	var userBuf bytes.Buffer
 	userMsg := templ.UserMessage(question)
-	userMsg.Render(ctx, w)
+	err := userMsg.Render(ctx, &userBuf)
+	if err != nil {
+		return err
+	}
 
 	// Send the question to the LLM
 	InputChannel <- question
@@ -199,6 +192,187 @@ func postLLMChat(w http.ResponseWriter, r *http.Request) {
 	span.SetAttributes(attribute.Int("response.length", len(response)))
 
 	// Render the bot's response
+	var botBuf bytes.Buffer
 	botMsg := templ.BotMessage(response)
-	botMsg.Render(ctx, w)
+	err = botMsg.Render(ctx, &botBuf)
+	if err != nil {
+		return err
+	}
+
+	// Combine both messages
+	var combinedBuf bytes.Buffer
+	combinedBuf.Write(userBuf.Bytes())
+	combinedBuf.Write(botBuf.Bytes())
+
+	c.Set("Content-Type", "text/html")
+	return c.Send(combinedBuf.Bytes())
+}
+
+func getId(c *fiber.Ctx) error {
+	ctx := c.Context()
+	_, span := StartSpan(ctx, "getId")
+	defer span.End()
+
+	if !postgresServiceEnabled || db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).SendString("Upload feature is unavailable (database disabled)")
+	}
+
+	id := c.Params("id")
+	span.SetAttributes(attribute.String("file_id", id))
+
+	// Grab the file where the ID matches.
+	queryfile, err := db.GetFileNameAndUploadFromId(ctx, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			var buf bytes.Buffer
+			component := templ.RootIdPage(nil)
+			err := component.Render(ctx, &buf)
+			if err != nil {
+				return err
+			}
+			c.Set("Content-Type", "text/html")
+			return c.Send(buf.Bytes())
+		}
+		LogError(ctx, err, "Error while executing GetFileNameAndUploadFromId query")
+		return err
+	}
+
+	file := &sqlc.File{ID: queryfile.ID, Name: queryfile.Name, Uploaded: queryfile.Uploaded}
+
+	var buf bytes.Buffer
+	component := templ.RootIdPage(file)
+	err = component.Render(ctx, &buf)
+	if err != nil {
+		return err
+	}
+
+	c.Set("Content-Type", "text/html")
+
+	return c.Send(buf.Bytes())
+}
+
+func postIdUploadFile(c *fiber.Ctx) error {
+	ctx := c.Context()
+
+	if !postgresServiceEnabled || db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).SendString("Upload feature is unavailable (database disabled)")
+	}
+
+	id := c.Params("id")
+
+	// Check if the ID exists and the file has not been uploaded.
+	file := &sqlc.File{ID: id}
+	id, err := db.GetFileIdWhereIdAndUploadedIsFalse(ctx, id)
+
+	// If the Id exists, and the file has not been uploaded, then continue.
+	if err != nil {
+		if err == sql.ErrNoRows {
+			var buf bytes.Buffer
+			templ.UploadFileFormCompleted(nil, false, "File not found.").Render(ctx, &buf)
+			c.Set("Content-Type", "text/html")
+			return c.Send(buf.Bytes())
+		}
+		return fmt.Errorf("error while executing GetFileIdWhereIdAndUploadedIsFalse query: %w", err)
+	}
+	// Handle the file upload - 100MB max file maxFileSize.
+	var maxSize int64 = maxFileSize * 1024 * 1024
+	LogEvent(ctx, log.SeverityInfo, "File upload configured", attribute.Int64("max_file_size_bytes", maxSize))
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		var buf bytes.Buffer
+		templ.UploadFileFormCompleted(file, false, "Unable to read file.").Render(ctx, &buf)
+		c.Set("Content-Type", "text/html")
+		return c.Send(buf.Bytes())
+	}
+
+	if fileHeader.Size > maxSize {
+		var buf bytes.Buffer
+		templ.UploadFileFormCompleted(file, false, "File too large.").Render(ctx, &buf)
+		c.Set("Content-Type", "text/html")
+		return c.Send(buf.Bytes())
+	}
+
+	// Read file content
+	fileObject, err := fileHeader.Open()
+	if err != nil {
+		var buf bytes.Buffer
+		templ.UploadFileFormCompleted(file, false, "Unable to read file.").Render(ctx, &buf)
+		c.Set("Content-Type", "text/html")
+		return c.Send(buf.Bytes())
+	}
+	defer fileObject.Close()
+
+	buff, err := io.ReadAll(io.LimitReader(fileObject, int64(maxSize)))
+	if err != nil {
+		var buf bytes.Buffer
+		templ.UploadFileFormCompleted(file, false, "Unable to read file.").Render(ctx, &buf)
+		c.Set("Content-Type", "text/html")
+		return c.Send(buf.Bytes())
+	}
+
+	LogEvent(ctx, log.SeverityInfo, "File upload received",
+		attribute.String("file_name", fileHeader.Filename),
+		attribute.Int64("file_size_bytes", fileHeader.Size),
+		attribute.Int("file_data_length", len(buff)),
+		attribute.String("file_header", fmt.Sprintf("%v", fileHeader.Header)),
+	)
+
+	// Update the file.
+	file.Name = fileHeader.Filename
+	file.Data = buff
+	file.Uploaded = true
+
+	// Update the file in the database.
+	err2 := db.UpdateFileWhereId(ctx,
+		sqlc.UpdateFileWhereIdParams{
+			ID:       id,
+			Name:     file.Name,
+			Data:     file.Data,
+			Size:     int32(len(buff)),
+			Uploaded: file.Uploaded,
+		})
+
+	if err2 != nil {
+		var buf bytes.Buffer
+		templ.UploadFileFormCompleted(file, false, "Unable to update file.").Render(ctx, &buf)
+		c.Set("Content-Type", "text/html")
+		c.Send(buf.Bytes())
+		return fmt.Errorf("error while executing UpdateFileWhereId query: %w", err2)
+	}
+
+	var buf bytes.Buffer
+	templ.UploadFileFormCompleted(file, true, "").Render(ctx, &buf)
+	c.Set("Content-Type", "text/html")
+	return c.Send(buf.Bytes())
+}
+
+func getIdDownloadFile(c *fiber.Ctx) error {
+	ctx := c.Context()
+
+	if !postgresServiceEnabled || db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).SendString("Download feature is unavailable (database disabled)")
+	}
+
+	id := c.Params("id")
+
+	// Grab the file where the ID matches.
+	file, err := db.GetFileFromId(ctx, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.Status(fiber.StatusNotFound).SendString("file not found")
+		}
+		return fmt.Errorf("error while executing GetFileFromId query: %w", err)
+	}
+
+	c.Set("Content-Disposition", "attachment; filename="+file.Name)
+	c.Set("Content-Type", "application/octet-stream")
+	c.Set("Content-Length", fmt.Sprintf("%d", file.Size))
+
+	// Increment the download count.
+	if err2 := db.UpdateFileDownloadIncrement(ctx, id); err2 != nil {
+		return fmt.Errorf("error while executing UpdateFileDownloadIncrement query: %w", err2)
+	}
+
+	return c.Send(file.Data)
 }

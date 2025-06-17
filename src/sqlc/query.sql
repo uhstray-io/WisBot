@@ -1,6 +1,7 @@
 
 -- name: CountFilesFromUser :one
-SELECT COUNT(*) FROM files
+SELECT COUNT(*) 
+FROM files
 WHERE Discord_Username = $1;
 
 
@@ -23,14 +24,19 @@ VALUES
 
 
 -- name: GetFileFromId :one
-SELECT Name, Data, Size 
+SELECT Name,
+Data, 
+Size 
 FROM files 
 WHERE Id = $1;
 
 
 -- name: UpdateFileWhereId :exec
 UPDATE files
-SET Name = $1, Data = $2, Size =  $3, Uploaded = $4
+SET Name = $1, 
+Data = $2, 
+Size = $3, 
+Uploaded = $4
 WHERE Id = $5;
 
 
@@ -48,7 +54,9 @@ AND Uploaded = False;
 
 
 -- name: GetFileNameAndUploadFromId :one
-SELECT Id, Name, Uploaded 
+SELECT Id, 
+Name, 
+Uploaded 
 FROM files
 WHERE Id = $1;
 

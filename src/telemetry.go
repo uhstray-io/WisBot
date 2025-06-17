@@ -211,6 +211,8 @@ func LogEvent(ctx context.Context, severity log.Severity, message string, attrs 
 		return
 	}
 
+	fmt.Println(message)
+
 	// Get the current span from context
 	span := trace.SpanFromContext(ctx)
 
