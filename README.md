@@ -198,6 +198,9 @@ WisBot adheres to these core principles:
 go install github.com/a-h/templ/cmd/templ@latest && go install github.com/air-verse/air@latest && go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 ```
 
+go get -tool github.com/a-h/templ/cmd/templ@latest && go get -tool github.com/air-verse/air@latest && go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
+
 Run the following command to generate the Templ files for the bot:
 ```sh
 templ generate

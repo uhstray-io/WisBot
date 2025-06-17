@@ -13,7 +13,12 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humafiber"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/healthcheck"
+	"github.com/gofiber/fiber/v2/middleware/helmet"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/monitor"
+	"github.com/gofiber/fiber/v2/middleware/pprof"
+	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/gofiber/fiber/v2/middleware/session"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log"
@@ -27,16 +32,39 @@ type GlobalState struct {
 }
 
 func StartHTTPService(ctx context.Context) {
-	if !httpServiceEnabled {
-		LogEvent(ctx, log.SeverityInfo, "HTTP service is disabled. Skipping HTTP server initialization.")
-		return
-	}
-
 	store = session.New(session.Config{Expiration: 24 * time.Hour})
 
 	app := fiber.New()
 
-	app.Get("/metrics", monitor.New())
+	// Middleware
+
+	// Add security headers
+	app.Use(helmet.New())
+
+	// Health checks
+	app.Use(healthcheck.New(healthcheck.Config{ // / /live and /ready endpoints
+		LivenessProbe:     func(c *fiber.Ctx) bool { return true },
+		LivenessEndpoint:  "/live",
+		ReadinessEndpoint: "/ready",
+	}))
+
+	// Rate limiting
+	app.Use(limiter.New(limiter.Config{
+		Max:               20,
+		Expiration:        30 * time.Second,
+		LimiterMiddleware: limiter.SlidingWindow{},
+	}))
+
+	// Performance profiling
+	app.Use(pprof.New()) // /debug/pprof endpoints
+
+	// Request ID
+	app.Use(requestid.New())
+
+	// Monitoring endpoint
+	app.Get("/metrics", monitor.New()) // /metrics endpoint
+
+	// Routes
 
 	// Direct Fiber routes for session-dependent endpoints
 	app.Get("/", getRoot)
@@ -162,10 +190,6 @@ func postLLMChat(c *fiber.Ctx) error {
 	_, span := StartSpan(ctx, "postLLMChat")
 	defer span.End()
 
-	if !ollamaServiceEnabled {
-		return c.Status(fiber.StatusServiceUnavailable).SendString("LLM service is disabled")
-	}
-
 	LogEvent(ctx, log.SeverityInfo, "Started LLM chat")
 
 	question := c.FormValue("question")
@@ -213,10 +237,6 @@ func getId(c *fiber.Ctx) error {
 	_, span := StartSpan(ctx, "getId")
 	defer span.End()
 
-	if !postgresServiceEnabled || db == nil {
-		return c.Status(fiber.StatusServiceUnavailable).SendString("Upload feature is unavailable (database disabled)")
-	}
-
 	id := c.Params("id")
 	span.SetAttributes(attribute.String("file_id", id))
 
@@ -253,10 +273,6 @@ func getId(c *fiber.Ctx) error {
 
 func postIdUploadFile(c *fiber.Ctx) error {
 	ctx := c.Context()
-
-	if !postgresServiceEnabled || db == nil {
-		return c.Status(fiber.StatusServiceUnavailable).SendString("Upload feature is unavailable (database disabled)")
-	}
 
 	id := c.Params("id")
 
@@ -349,10 +365,6 @@ func postIdUploadFile(c *fiber.Ctx) error {
 
 func getIdDownloadFile(c *fiber.Ctx) error {
 	ctx := c.Context()
-
-	if !postgresServiceEnabled || db == nil {
-		return c.Status(fiber.StatusServiceUnavailable).SendString("Download feature is unavailable (database disabled)")
-	}
 
 	id := c.Params("id")
 

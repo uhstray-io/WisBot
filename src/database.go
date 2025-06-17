@@ -15,11 +15,7 @@ import (
 var db *sqlc.Queries
 
 // GetDBQueries returns the initialized database queries object.
-// It returns an error if the database service is not enabled or not initialized.
 func GetDBQueries() (*sqlc.Queries, error) {
-	if !postgresServiceEnabled {
-		return nil, fmt.Errorf("database service is not enabled")
-	}
 	if db == nil {
 		return nil, fmt.Errorf("database queries are not initialized")
 	}
@@ -28,11 +24,6 @@ func GetDBQueries() (*sqlc.Queries, error) {
 
 // StartDatabaseService initializes the database connection and setup
 func StartDatabaseService(ctx context.Context) {
-	if !postgresServiceEnabled {
-		LogEvent(ctx, log.SeverityInfo, "Postgres service is disabled. Skipping database initialization.")
-		return
-	}
-
 	ctx, span := StartSpan(ctx, "database.StartDatabase")
 	defer span.End()
 

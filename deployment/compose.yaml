@@ -4,9 +4,6 @@ services:
     image: "wisbot:latest"
     ports:
     - 8080:8080
-    env_file:
-    - path: ../.env
-      required: true
     depends_on:
       db:
         condition: service_healthy

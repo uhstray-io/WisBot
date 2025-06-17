@@ -28,11 +28,6 @@ import (
 // StartOTelService bootstraps the OpenTelemetry pipeline.
 // If it does not return an error, make sure to call shutdown for proper cleanup.
 func StartOTelService(ctx context.Context) {
-	if !otelServiceEnabled {
-		LogEvent(ctx, log.SeverityInfo, "OpenTelemetry service is disabled. Skipping initialization.")
-		return
-	}
-
 	var shutdownFuncs []func(context.Context) error
 
 	// shutdown calls cleanup functions registered via shutdownFuncs.
@@ -197,20 +192,12 @@ func newResource() *resource.Resource {
 
 // StartSpan creates a new span with the given name and returns the span and context
 func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
-	if !otelServiceEnabled {
-		// Return a no-op span if telemetry is disabled
-		return ctx, trace.SpanFromContext(ctx)
-	}
 	return otel.Tracer("wisbot").Start(ctx, name)
 }
 
 // LogEvent logs an event with the given severity and message, associating it with the current span
 // This is a better approach than mixing log and span APIs directly
 func LogEvent(ctx context.Context, severity log.Severity, message string, attrs ...attribute.KeyValue) {
-	if !otelServiceEnabled {
-		return
-	}
-
 	fmt.Println(message)
 
 	// Get the current span from context
@@ -254,12 +241,6 @@ func LogError(ctx context.Context, err error, message string, attrs ...attribute
 		return
 	}
 
-	if !otelServiceEnabled {
-		// Fallback to simple error logging when telemetry is disabled
-		fmt.Printf("ERROR: %s: %v\n", message, err)
-		return
-	}
-
 	span := trace.SpanFromContext(ctx)
 	span.RecordError(err)
 	errorAttrs := append(attrs, attribute.String("error", err.Error()))
@@ -271,12 +252,6 @@ func LogError(ctx context.Context, err error, message string, attrs ...attribute
 func PanicError(ctx context.Context, err error, message string, attrs ...attribute.KeyValue) {
 	if err == nil {
 		return
-	}
-
-	if !otelServiceEnabled {
-		// Fallback to simple error logging when telemetry is disabled
-		fmt.Printf("PANIC: %s: %v\n", message, err)
-		panic(fmt.Sprintf("%s: %v", message, err))
 	}
 
 	LogError(ctx, err, message, attrs...)

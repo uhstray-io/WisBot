@@ -52,10 +52,6 @@ var commands = []*discordgo.ApplicationCommand{
 }
 
 func StartDiscordService(ctx context.Context) {
-	if !discordServiceEnabled {
-		LogEvent(ctx, log.SeverityInfo, "Discord service is disabled. Skipping bot initialization.")
-		return
-	}
 
 	ctx, span := StartSpan(ctx, "bot.StartBot")
 	defer span.End()
@@ -273,14 +269,6 @@ func handleHelpCommand(ctx context.Context, s *discordgo.Session, i *discordgo.I
 func handleLLMCommand(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, options []*discordgo.ApplicationCommandInteractionDataOption) {
 	ctx, span := StartSpan(ctx, "bot.handleLLMCommand")
 	defer span.End()
-
-	if !ollamaServiceEnabled {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{Content: "LLM feature is unavailable (LLM service disabled)"},
-		})
-		return
-	}
 
 	// Acknowledge the interaction to prevent timeout
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{

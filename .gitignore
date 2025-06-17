@@ -33,7 +33,9 @@ token.key
 # Preformance profiling
 *.pprof
 
+# Environment files
+dev.env
+
 database.db
-dev_config.yaml
 
 volumes

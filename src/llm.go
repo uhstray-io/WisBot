@@ -14,26 +14,6 @@ var InputChannel = make(chan string, 10)  // Buffered to prevent blocking
 var OutputChannel = make(chan string, 10) // Buffered to prevent blocking
 
 func StartLLMService(ctx context.Context) {
-	if !ollamaServiceEnabled {
-		LogEvent(ctx, log.SeverityInfo, "Ollama service is disabled. Skipping LLM initialization.")
-
-		// Start a goroutine to handle requests when LLM is disabled
-		go func() {
-			for {
-				select {
-				case prompt := <-InputChannel:
-					LogEvent(ctx, log.SeverityInfo, "LLM service disabled. Received prompt, sending error response.", attribute.String("prompt", prompt))
-
-					OutputChannel <- "LLM service is currently disabled. Please enable it in the configuration."
-				case <-ctx.Done():
-					LogEvent(ctx, log.SeverityInfo, "LLM disabled-handler goroutine stopping due to context cancellation.")
-					return
-				}
-			}
-		}()
-		return
-	}
-
 	ctx, span := StartSpan(ctx, "StartLLM")
 	defer span.End()
 
@@ -53,7 +33,6 @@ func StartLLMService(ctx context.Context) {
 			PanicError(ctx, err, "Error while running LLM")
 		}
 	}()
-
 }
 
 func LLM(ctx context.Context, llm *ollama.LLM) error {
