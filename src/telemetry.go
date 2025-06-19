@@ -209,8 +209,7 @@ func LogEvent(ctx context.Context, severity log.Severity, message string, attrs 
 }
 
 func printRecordAndSpan(record log.Record) {
-	fmt.Printf("%v [%v] %s\n",
-		record.Timestamp().Format("2006-01-02 15:04:05"),
+	fmt.Printf("[%v] %s\n",
 		record.Severity().String(),
 		record.Body().AsString(),
 	)

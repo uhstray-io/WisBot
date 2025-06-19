@@ -75,7 +75,8 @@ func StartDiscordService(ctx context.Context) {
 	discordSess.Identify.Intents = discordgo.IntentsAll
 
 	if err := discordSess.Open(); err != nil {
-		PanicError(ctx, err, "Error while opening Discord session")
+		LogError(ctx, err, "Error while opening Discord session")
+		return
 	}
 
 	<-ctx.Done() // Block until context is done
