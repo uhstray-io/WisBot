@@ -3,14 +3,12 @@ module wisbot
 go 1.24.3
 
 require (
-	github.com/a-h/templ v0.3.898
 	github.com/bwmarrin/discordgo v0.29.0
 	github.com/danielgtaylor/huma/v2 v2.32.0
-	github.com/gofiber/fiber/v2 v2.52.8
+	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/joho/godotenv v1.5.1
-	github.com/pgvector/pgvector-go v0.3.0
 	github.com/tmc/langchaingo v0.1.13
 	go.opentelemetry.io/otel v1.36.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.12.2
@@ -21,12 +19,12 @@ require (
 	go.opentelemetry.io/otel/sdk/log v0.12.2
 	go.opentelemetry.io/otel/sdk/metric v1.36.0
 	go.opentelemetry.io/otel/trace v1.36.0
-
 )
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/a-h/parse v0.0.0-20250122154542-74294addb73e // indirect
+	github.com/a-h/templ v0.3.898 // indirect
 	github.com/air-verse/air v1.62.0 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/bep/godartsass/v2 v2.5.0 // indirect
