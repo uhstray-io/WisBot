@@ -7,7 +7,6 @@ import (
 	"wisbot/src/sqlc"
 
 	"github.com/jackc/pgx/v5"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // Global database query handler
@@ -23,34 +22,29 @@ func GetDBQueries() (*sqlc.Queries, error) {
 
 // StartDatabaseService initializes the database connection and setup
 func StartDatabaseService(ctx context.Context) {
-	ctx, span := StartSpan(ctx, "database.StartDatabase")
-	defer span.End()
+	LogInfo("Connecting to database")
 
-	LogInfo(ctx, "Connecting to database")
 	conn, err := pgx.Connect(ctx, databaseUrl)
 	if err != nil {
-		span.RecordError(err)
-		PanicError(ctx, err, "Error while connecting to database")
+		PanicError(err, "Error while connecting to database")
 	}
 
 	db = sqlc.New(conn)
 	// Create the tables if they don't exist
 	if err := db.CreateFilesTable(ctx); err != nil {
-		span.RecordError(err)
-		PanicError(ctx, err, "Error creating files table")
+
+		PanicError(err, "Error creating files table")
 	}
 
-	LogInfo(ctx, "Database successfully initialized")
+	LogInfo("Database successfully initialized")
 
 	StartDatabaseCleanup(ctx, conn)
 }
 
 // StartDatabaseCleanup begins a periodic task that removes old files
 func StartDatabaseCleanup(ctx context.Context, db *pgx.Conn) {
-	ctx, span := StartSpan(ctx, "database.StartDatabaseCleanup")
-	defer span.End()
 
-	LogInfo(ctx, "Starting database cleanup process", attribute.Int("delete_older_than_days", deleteFilesAfterDays))
+	LogInfo("Starting database cleanup process")
 
 	go func() {
 		time.Sleep(5 * time.Second)
@@ -58,22 +52,19 @@ func StartDatabaseCleanup(ctx context.Context, db *pgx.Conn) {
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 
-		cleanupCtx, cleanupSpan := StartSpan(ctx, "database.initialCleanup")
-		if err := runCleanup(cleanupCtx); err != nil {
-			LogError(ctx, err, "Error in initial cleanup")
+		if err := runCleanup(ctx); err != nil {
+			LogError(err, "Error in initial cleanup")
 		}
-		cleanupSpan.End()
 
 		for {
 			select {
 			case <-ticker.C:
-				tickCtx, tickSpan := StartSpan(ctx, "database.scheduledCleanup")
-				if err := runCleanup(tickCtx); err != nil {
-					LogError(tickCtx, err, "Error in scheduled database cleanup")
+				if err := runCleanup(ctx); err != nil {
+					LogError(err, "Error in scheduled database cleanup")
 				}
-				tickSpan.End()
+
 			case <-ctx.Done():
-				LogInfo(ctx, "Database cleanup process stopping due to context cancellation.")
+				LogInfo("Database cleanup process stopping due to context cancellation.")
 				return // Exit the goroutine
 			}
 		}
@@ -86,18 +77,13 @@ func runCleanup(ctx context.Context) error {
 		return nil
 	}
 
-	ctx, span := StartSpan(ctx, "database.runCleanup")
-	defer span.End()
-
-	LogInfo(ctx, "Running database cleanup process", attribute.Int("delete_older_than_days", deleteFilesAfterDays))
+	LogInfo("Running database cleanup process")
 
 	cleanupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	if err := db.DeleteFileWhereOlderThan(cleanupCtx, int32(deleteFilesAfterDays)); err != nil {
-		span.RecordError(err)
-		err = fmt.Errorf("error while executing DeleteFileWhereOlderThan query: %w", err)
-		LogError(ctx, err, "Cleanup failed")
+		LogError(err, "Cleanup failed while executing DeleteFileWhereOlderThan query")
 		return err
 	}
 

@@ -1,255 +1,231 @@
 package main
 
-import (
-	"context"
-	"fmt"
-	"strings"
-	"time"
+// // StartOTelService sets up OpenTelemetry tracing, metrics, and logging
+// func StartOTelService(ctx context.Context) {
+// 	// Set up propagator
+// 	prop := newPropagator()
+// 	otel.SetTextMapPropagator(prop)
 
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/log"
-	"go.opentelemetry.io/otel/log/global"
-	"go.opentelemetry.io/otel/propagation"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
-	"go.opentelemetry.io/otel/trace"
+// 	// Setup Providers
 
-	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
-	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+// 	// Set up logger providers
+// 	loggerProvider, err := newLoggerProvider(ctx)
+// 	if err != nil {
+// 		LogError(ctx, err, "Failed to create logger provider")
+// 		return
+// 	}
+// 	global.SetLoggerProvider(loggerProvider)
+// 	LogInfo(ctx, "Logger provider initialized successfully")
 
-	sdkLog "go.opentelemetry.io/otel/sdk/log"
-	sdkMetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/resource"
-	sdkTrace "go.opentelemetry.io/otel/sdk/trace"
-)
+// 	// Set up trace provider
+// 	tracerProvider, err := newTraceProvider(ctx)
+// 	if err != nil {
+// 		LogError(ctx, err, "Failed to create trace provider")
+// 		return
+// 	}
+// 	otel.SetTracerProvider(tracerProvider)
+// 	LogInfo(ctx, "Trace provider initialized successfully")
 
-// StartOTelService sets up OpenTelemetry tracing, metrics, and logging
-func StartOTelService(ctx context.Context) {
-	// Set up propagator
-	prop := newPropagator()
-	otel.SetTextMapPropagator(prop)
+// 	// Set up meter provider
+// 	meterProvider, err := newMeterProvider(ctx)
+// 	if err != nil {
+// 		LogError(ctx, err, "Failed to create meter provider")
+// 		return
+// 	}
+// 	otel.SetMeterProvider(meterProvider)
+// 	LogInfo(ctx, "Meter provider initialized successfully")
+// }
 
-	// Setup Providers
+// // newPropagator creates a new propagator for trace context and baggage.
+// // We use the default TraceContext and Baggage propagators from OpenTelemetry.
+// func newPropagator() propagation.TextMapPropagator {
+// 	return propagation.NewCompositeTextMapPropagator(
+// 		propagation.TraceContext{},
+// 		propagation.Baggage{},
+// 	)
+// }
 
-	// Set up logger providers
-	loggerProvider, err := newLoggerProvider(ctx)
-	if err != nil {
-		LogError(ctx, err, "Failed to create logger provider")
-		return
-	}
-	global.SetLoggerProvider(loggerProvider)
-	LogInfo(ctx, "Logger provider initialized successfully")
+// func newTraceProvider(ctx context.Context) (*sdkTrace.TracerProvider, error) {
+// 	// stdoutTraceExporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
+// 	// if err != nil {
+// 	// 	return nil, err
+// 	// }
 
-	// Set up trace provider
-	tracerProvider, err := newTraceProvider(ctx)
-	if err != nil {
-		LogError(ctx, err, "Failed to create trace provider")
-		return
-	}
-	otel.SetTracerProvider(tracerProvider)
-	LogInfo(ctx, "Trace provider initialized successfully")
+// 	// Create OTLP trace exporter
+// 	traceExporter, err := otlptracegrpc.New(ctx,
+// 		otlptracegrpc.WithEndpoint(otelExporterOtlpEndpoint),
+// 		otlptracegrpc.WithInsecure(), // For development; use TLS in production
+// 	)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	// Set up meter provider
-	meterProvider, err := newMeterProvider(ctx)
-	if err != nil {
-		LogError(ctx, err, "Failed to create meter provider")
-		return
-	}
-	otel.SetMeterProvider(meterProvider)
-	LogInfo(ctx, "Meter provider initialized successfully")
-}
+// 	traceProvider := sdkTrace.NewTracerProvider(
+// 		// sdkTrace.WithSampler(sdkTrace.AlwaysSample()),
+// 		sdkTrace.WithBatcher(traceExporter,
+// 			sdkTrace.WithBatchTimeout(time.Second)),
+// 		sdkTrace.WithResource(newResource()),
+// 	)
 
-// newPropagator creates a new propagator for trace context and baggage.
-// We use the default TraceContext and Baggage propagators from OpenTelemetry.
-func newPropagator() propagation.TextMapPropagator {
-	return propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	)
-}
+// 	return traceProvider, nil
+// }
 
-func newTraceProvider(ctx context.Context) (*sdkTrace.TracerProvider, error) {
-	// stdoutTraceExporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
-	// if err != nil {
-	// 	return nil, err
-	// }
+// func newMeterProvider(ctx context.Context) (*sdkMetric.MeterProvider, error) {
+// 	// stdoutMetricExporter, err := stdoutmetric.New(stdoutmetric.WithPrettyPrint())
+// 	// if err != nil {
+// 	// 	return nil, err
+// 	// }
 
-	// Create OTLP trace exporter
-	traceExporter, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint(otelExporterOtlpEndpoint),
-		otlptracegrpc.WithInsecure(), // For development; use TLS in production
-	)
-	if err != nil {
-		return nil, err
-	}
+// 	// Create OTLP metric exporter
+// 	metricExporter, err := otlpmetricgrpc.New(ctx,
+// 		otlpmetricgrpc.WithEndpoint(otelExporterOtlpEndpoint),
+// 		otlpmetricgrpc.WithInsecure(), // For development; use TLS in production
+// 	)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	traceProvider := sdkTrace.NewTracerProvider(
-		// sdkTrace.WithSampler(sdkTrace.AlwaysSample()),
-		sdkTrace.WithBatcher(traceExporter,
-			sdkTrace.WithBatchTimeout(time.Second)),
-		sdkTrace.WithResource(newResource()),
-	)
+// 	meterProvider := sdkMetric.NewMeterProvider(
+// 		sdkMetric.WithReader(
+// 			sdkMetric.NewPeriodicReader(metricExporter, sdkMetric.WithInterval(10*time.Second))),
+// 		sdkMetric.WithResource(newResource()),
+// 	)
+// 	return meterProvider, nil
+// }
 
-	return traceProvider, nil
-}
+// func newLoggerProvider(ctx context.Context) (*sdkLog.LoggerProvider, error) {
+// 	// Use this for development purposes to log to stdout
+// 	// stdoutLogExporter, err := stdoutlog.New(stdoutlog.WithPrettyPrint())
+// 	// if err != nil {
+// 	// 	return nil, err
+// 	// }
 
-func newMeterProvider(ctx context.Context) (*sdkMetric.MeterProvider, error) {
-	// stdoutMetricExporter, err := stdoutmetric.New(stdoutmetric.WithPrettyPrint())
-	// if err != nil {
-	// 	return nil, err
-	// }
+// 	// Create OTLP log exporter
+// 	logExporter, err := otlploggrpc.New(ctx,
+// 		otlploggrpc.WithEndpoint(otelExporterOtlpEndpoint),
+// 		otlploggrpc.WithInsecure(), // For development; use TLS in production
+// 	)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	// Create OTLP metric exporter
-	metricExporter, err := otlpmetricgrpc.New(ctx,
-		otlpmetricgrpc.WithEndpoint(otelExporterOtlpEndpoint),
-		otlpmetricgrpc.WithInsecure(), // For development; use TLS in production
-	)
-	if err != nil {
-		return nil, err
-	}
+// 	loggerProvider := sdkLog.NewLoggerProvider(
+// 		sdkLog.WithProcessor(sdkLog.NewBatchProcessor(logExporter)),
+// 		sdkLog.WithResource(newResource()),
+// 	)
+// 	return loggerProvider, nil
+// }
 
-	meterProvider := sdkMetric.NewMeterProvider(
-		sdkMetric.WithReader(
-			sdkMetric.NewPeriodicReader(metricExporter, sdkMetric.WithInterval(10*time.Second))),
-		sdkMetric.WithResource(newResource()),
-	)
-	return meterProvider, nil
-}
+// // newResource creates a resource with identifying information about this application.
+// // The purpose of this resource is to provide context for the telemetry data being sent.
+// // It includes the service name and deployment environment.
+// func newResource() *resource.Resource {
+// 	// Parse deployment environment from OTEL_RESOURCE_ATTRIBUTES
+// 	env := "development"
+// 	if otelResourceAttrs != "" {
+// 		parts := strings.Split(otelResourceAttrs, "=")
+// 		if len(parts) >= 2 {
+// 			env = parts[1]
+// 		}
+// 	}
 
-func newLoggerProvider(ctx context.Context) (*sdkLog.LoggerProvider, error) {
-	// Use this for development purposes to log to stdout
-	// stdoutLogExporter, err := stdoutlog.New(stdoutlog.WithPrettyPrint())
-	// if err != nil {
-	// 	return nil, err
-	// }
+// 	res, _ := resource.Merge(
+// 		resource.Default(),
+// 		resource.NewWithAttributes(
+// 			semconv.SchemaURL,
+// 			semconv.ServiceName(otelServiceName),
+// 			attribute.String("deployment.environment", env),
+// 		),
+// 	)
+// 	return res
+// }
 
-	// Create OTLP log exporter
-	logExporter, err := otlploggrpc.New(ctx,
-		otlploggrpc.WithEndpoint(otelExporterOtlpEndpoint),
-		otlploggrpc.WithInsecure(), // For development; use TLS in production
-	)
-	if err != nil {
-		return nil, err
-	}
+// // StartSpan creates a new span with the given name and returns the span and context
+// func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
+// 	return otel.Tracer("wisbot").Start(ctx, name)
+// }
 
-	loggerProvider := sdkLog.NewLoggerProvider(
-		sdkLog.WithProcessor(sdkLog.NewBatchProcessor(logExporter)),
-		sdkLog.WithResource(newResource()),
-	)
-	return loggerProvider, nil
-}
+// // LogEvent logs an event with the given severity and message, associating it with the current span
+// // This is a better approach than mixing log and span APIs directly
+// func LogEvent(ctx context.Context, severity log.Severity, message string, attrs ...attribute.KeyValue) {
+// 	// Get the current span from context
+// 	span := trace.SpanFromContext(ctx)
 
-// newResource creates a resource with identifying information about this application.
-// The purpose of this resource is to provide context for the telemetry data being sent.
-// It includes the service name and deployment environment.
-func newResource() *resource.Resource {
-	// Parse deployment environment from OTEL_RESOURCE_ATTRIBUTES
-	env := "development"
-	if otelResourceAttrs != "" {
-		parts := strings.Split(otelResourceAttrs, "=")
-		if len(parts) >= 2 {
-			env = parts[1]
-		}
-	}
+// 	// Create a logger
+// 	logger := global.Logger("wisbot")
 
-	res, _ := resource.Merge(
-		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceName(otelServiceName),
-			attribute.String("deployment.environment", env),
-		),
-	)
-	return res
-}
+// 	// Create the log record
+// 	record := log.Record{}
+// 	record.SetTimestamp(time.Now())
+// 	record.SetObservedTimestamp(time.Now())
+// 	record.SetSeverity(severity)
+// 	record.SetBody(log.StringValue(message))
 
-// StartSpan creates a new span with the given name and returns the span and context
-func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
-	return otel.Tracer("wisbot").Start(ctx, name)
-}
+// 	// Add the span context as an attribute to correlate logs with spans
+// 	if span.SpanContext().IsValid() {
+// 		record.AddAttributes(
+// 			log.KeyValueFromAttribute(attribute.String("trace_id", span.SpanContext().TraceID().String())),
+// 			log.KeyValueFromAttribute(attribute.String("span_id", span.SpanContext().SpanID().String())))
+// 	}
 
-// LogEvent logs an event with the given severity and message, associating it with the current span
-// This is a better approach than mixing log and span APIs directly
-func LogEvent(ctx context.Context, severity log.Severity, message string, attrs ...attribute.KeyValue) {
-	// Get the current span from context
-	span := trace.SpanFromContext(ctx)
+// 	// Add user provided attributes
+// 	for _, attr := range attrs {
+// 		record.AddAttributes(log.KeyValueFromAttribute(attr))
+// 	}
 
-	// Create a logger
-	logger := global.Logger("wisbot")
+// 	// Also add events to the span itself for better correlation
+// 	if span.IsRecording() {
+// 		span.AddEvent(message, trace.WithAttributes())
+// 	}
 
-	// Create the log record
-	record := log.Record{}
-	record.SetTimestamp(time.Now())
-	record.SetObservedTimestamp(time.Now())
-	record.SetSeverity(severity)
-	record.SetBody(log.StringValue(message))
+// 	printRecordAndSpan(record)
 
-	// Add the span context as an attribute to correlate logs with spans
-	if span.SpanContext().IsValid() {
-		record.AddAttributes(
-			log.KeyValueFromAttribute(attribute.String("trace_id", span.SpanContext().TraceID().String())),
-			log.KeyValueFromAttribute(attribute.String("span_id", span.SpanContext().SpanID().String())))
-	}
+// 	// Emit the log
+// 	logger.Emit(ctx, record)
+// }
 
-	// Add user provided attributes
-	for _, attr := range attrs {
-		record.AddAttributes(log.KeyValueFromAttribute(attr))
-	}
+// func printRecordAndSpan(record log.Record) {
+// 	fmt.Printf("[%v] %s\n",
+// 		record.Severity().String(),
+// 		record.Body().AsString(),
+// 	)
 
-	// Also add events to the span itself for better correlation
-	if span.IsRecording() {
-		span.AddEvent(message, trace.WithAttributes())
-	}
+// 	record.WalkAttributes(func(kv log.KeyValue) bool {
+// 		if kv.Key == "trace_id" || kv.Key == "span_id" {
+// 			return true
+// 		}
+// 		fmt.Printf("\t%v\n", kv.String())
+// 		return true
+// 	})
+// }
 
-	printRecordAndSpan(record)
+// func LogInfo(ctx context.Context, message string, attrs ...attribute.KeyValue) {
+// 	LogEvent(ctx, log.SeverityInfo, message, attrs...)
+// }
 
-	// Emit the log
-	logger.Emit(ctx, record)
-}
+// func LogWarning(ctx context.Context, message string, attrs ...attribute.KeyValue) {
+// 	LogEvent(ctx, log.SeverityWarn, message, attrs...)
+// }
 
-func printRecordAndSpan(record log.Record) {
-	fmt.Printf("[%v] %s\n",
-		record.Severity().String(),
-		record.Body().AsString(),
-	)
+// // LogError logs an error and also records it on the current span
+// func LogError(ctx context.Context, err error, message string, attrs ...attribute.KeyValue) {
+// 	if err == nil {
+// 		return
+// 	}
 
-	record.WalkAttributes(func(kv log.KeyValue) bool {
-		if kv.Key == "trace_id" || kv.Key == "span_id" {
-			return true
-		}
-		fmt.Printf("\t%v\n", kv.String())
-		return true
-	})
-}
+// 	span := trace.SpanFromContext(ctx)
+// 	span.RecordError(err)
+// 	errorAttrs := append(attrs, attribute.String("error", err.Error()))
 
-func LogInfo(ctx context.Context, message string, attrs ...attribute.KeyValue) {
-	LogEvent(ctx, log.SeverityInfo, message, attrs...)
-}
+// 	LogEvent(ctx, log.SeverityError, fmt.Sprintf("%s: %v", message, err), errorAttrs...)
+// }
 
-func LogWarning(ctx context.Context, message string, attrs ...attribute.KeyValue) {
-	LogEvent(ctx, log.SeverityWarn, message, attrs...)
-}
+// // PanicError logs an error and panics.
+// func PanicError(ctx context.Context, err error, message string, attrs ...attribute.KeyValue) {
+// 	if err == nil {
+// 		return
+// 	}
 
-// LogError logs an error and also records it on the current span
-func LogError(ctx context.Context, err error, message string, attrs ...attribute.KeyValue) {
-	if err == nil {
-		return
-	}
-
-	span := trace.SpanFromContext(ctx)
-	span.RecordError(err)
-	errorAttrs := append(attrs, attribute.String("error", err.Error()))
-
-	LogEvent(ctx, log.SeverityError, fmt.Sprintf("%s: %v", message, err), errorAttrs...)
-}
-
-// PanicError logs an error and panics.
-func PanicError(ctx context.Context, err error, message string, attrs ...attribute.KeyValue) {
-	if err == nil {
-		return
-	}
-
-	LogError(ctx, err, message, attrs...)
-	panic(fmt.Sprintf("%s: %v", message, err))
-}
+//		LogError(ctx, err, message, attrs...)
+//		panic(fmt.Sprintf("%s: %v", message, err))
+//	}

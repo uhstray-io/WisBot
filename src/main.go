@@ -59,7 +59,6 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	go StartOTelService(ctx)
 	go StartDatabaseService(ctx)
 	go StartLLMService(ctx)
 	go StartHTTPService(ctx)

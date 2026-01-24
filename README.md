@@ -195,7 +195,13 @@ WisBot adheres to these core principles:
 - **SQLc**: SQL compiler for Go - https://github.com/sqlc-dev/sqlc
   
 ```sh
-go install github.com/a-h/templ/cmd/templ@latest && go install github.com/air-verse/air@latest && go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+go install github.com/a-h/templ/cmd/templ@latest 
+
+go install github.com/air-verse/air@latest 
+
+go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
+go install github.com/nao1215/gup@latest   
 ```
 
 go get -tool github.com/a-h/templ/cmd/templ@latest && go get -tool github.com/air-verse/air@latest && go get -tool github.com/sqlc-dev/sqlc/cmd/sqlc@latest

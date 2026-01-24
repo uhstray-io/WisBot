@@ -20,7 +20,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/pprof"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/gofiber/fiber/v2/middleware/session"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 var globalState GlobalState
@@ -81,11 +80,11 @@ func StartHTTPService(ctx context.Context) {
 	_ = humafiber.New(app, huma.DefaultConfig("WisBot API", "0.0.1"))
 
 	// Start the server
-	LogInfo(ctx, "Starting HTTP server", attribute.String("port", httpServerPort))
+	LogInfo("Starting HTTP server")
 
 	err := app.Listen(":" + httpServerPort)
 	if err != nil {
-		LogError(ctx, err, "Error while starting HTTP server")
+		LogError(err, "Error while starting HTTP server")
 	}
 	PrintTrace(err)
 }
@@ -154,8 +153,6 @@ func postRoot(c *fiber.Ctx) error {
 
 func getLLM(c *fiber.Ctx) error {
 	ctx := c.Context()
-	_, span := StartSpan(ctx, "getLLM")
-	defer span.End()
 
 	var buf bytes.Buffer
 	component := templ.LlmPage()
@@ -170,8 +167,6 @@ func getLLM(c *fiber.Ctx) error {
 
 func getLLMChat(c *fiber.Ctx) error {
 	ctx := c.Context()
-	_, span := StartSpan(ctx, "getLLMChat")
-	defer span.End()
 
 	var buf bytes.Buffer
 	component := templ.ChatPage()
@@ -186,19 +181,15 @@ func getLLMChat(c *fiber.Ctx) error {
 
 func postLLMChat(c *fiber.Ctx) error {
 	ctx := c.Context()
-	_, span := StartSpan(ctx, "postLLMChat")
-	defer span.End()
 
-	LogInfo(ctx, "Started LLM chat")
+	LogInfo("Started LLM chat")
 
 	question := c.FormValue("question")
 	if question == "" {
-		span.SetAttributes(attribute.String("error", "empty_question"))
 		return c.Status(fiber.StatusBadRequest).SendString("Question cannot be empty")
 	}
-	span.SetAttributes(attribute.Int("question.length", len(question)))
 
-	LogInfo(ctx, "User question received", attribute.String("question", question))
+	LogInfo("User question received")
 
 	// Render the user's message immediately
 	var userBuf bytes.Buffer
@@ -212,7 +203,6 @@ func postLLMChat(c *fiber.Ctx) error {
 	InputChannel <- question
 	// Wait for the response
 	response := <-OutputChannel
-	span.SetAttributes(attribute.Int("response.length", len(response)))
 
 	// Render the bot's response
 	var botBuf bytes.Buffer
@@ -233,11 +223,7 @@ func postLLMChat(c *fiber.Ctx) error {
 
 func getId(c *fiber.Ctx) error {
 	ctx := c.Context()
-	_, span := StartSpan(ctx, "getId")
-	defer span.End()
-
 	id := c.Params("id")
-	span.SetAttributes(attribute.String("file_id", id))
 
 	// Grab the file where the ID matches.
 	queryfile, err := db.GetFileNameAndUploadFromId(ctx, id)
@@ -252,7 +238,7 @@ func getId(c *fiber.Ctx) error {
 			c.Set("Content-Type", "text/html")
 			return c.Send(buf.Bytes())
 		}
-		LogError(ctx, err, "Error while executing GetFileNameAndUploadFromId query")
+		LogError(err, "Error while executing GetFileNameAndUploadFromId query")
 		return err
 	}
 
@@ -272,7 +258,6 @@ func getId(c *fiber.Ctx) error {
 
 func postIdUploadFile(c *fiber.Ctx) error {
 	ctx := c.Context()
-
 	id := c.Params("id")
 
 	// Check if the ID exists and the file has not been uploaded.
@@ -291,7 +276,7 @@ func postIdUploadFile(c *fiber.Ctx) error {
 	}
 	// Handle the file upload - 100MB max file maxFileSize.
 	var maxSize int64 = maxFileSize * 1024 * 1024
-	LogInfo(ctx, "File upload configured", attribute.Int64("max_file_size_bytes", maxSize))
+	LogInfo("File upload configured")
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
@@ -326,12 +311,7 @@ func postIdUploadFile(c *fiber.Ctx) error {
 		return c.Send(buf.Bytes())
 	}
 
-	LogInfo(ctx, "File upload received",
-		attribute.String("file_name", fileHeader.Filename),
-		attribute.Int64("file_size_bytes", fileHeader.Size),
-		attribute.Int("file_data_length", len(buff)),
-		attribute.String("file_header", fmt.Sprintf("%v", fileHeader.Header)),
-	)
+	LogInfo("File upload received")
 
 	// Update the file.
 	file.Name = fileHeader.Filename
@@ -364,7 +344,6 @@ func postIdUploadFile(c *fiber.Ctx) error {
 
 func getIdDownloadFile(c *fiber.Ctx) error {
 	ctx := c.Context()
-
 	id := c.Params("id")
 
 	// Grab the file where the ID matches.
