@@ -44,10 +44,6 @@ func TestCodeBlock(t *testing.T) {
 
 	actual, actualBool := splitCodeBlocks(input)
 
-	// if !reflect.DeepEqual(actual, expected) {
-	// 	t.Errorf("Expected %v, got %v", expected, actual)
-	// }
-
 	for i := range actual {
 		if actual[i] != expected[i] {
 			t.Errorf("Expected \"%v\", \ngot \"%v\"", actual[i], expected[i])

@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 )
 
 type Severity int8
@@ -65,7 +66,8 @@ func LogEvent(severity Severity, message string) {
 		color = colorWhite
 	}
 
-	fmt.Printf("[%s%v%s] %s\n", color, severity.String(), colorReset, message)
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	fmt.Printf("%s [%s%v%s] %s\n", timestamp, color, severity.String(), colorReset, message)
 }
 
 func LogInfo(message string) {
@@ -85,22 +87,17 @@ func PanicError(err error, message string) {
 	panic(fmt.Sprintf("%s: %v", message, err))
 }
 
-// PrintTrace prints the error trace to the console.
 func PrintTrace(err error) {
 	if err == nil {
 		return
 	}
 
-	// Print the error message
 	fmt.Printf("Error: %v\n", err)
-
-	// Print the stack trace
 	printStackTrace(err)
 
-	fmt.Println() // Add some spacing
+	fmt.Println()
 }
 
-// ErrorTrace prints the error trace and exits the program.
 func ErrorTrace(err error) {
 	if err == nil {
 		return
@@ -110,7 +107,6 @@ func ErrorTrace(err error) {
 	os.Exit(1)
 }
 
-// printStackTrace attempts to print stack trace information.
 func printStackTrace(err error) {
 	fmt.Println("Stack trace:")
 
