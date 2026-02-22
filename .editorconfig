@@ -1,0 +1,20 @@
+# top-level configuration
+root = true
+
+[*.cs]
+csharp_new_line_before_open_brace = none
+csharp_new_line_before_else = false
+csharp_new_line_before_catch = false
+csharp_new_line_before_finally = false
+csharp_new_line_before_members_in_object_initializers = false
+csharp_new_line_before_members_in_anonymous_types = false
+
+# Blank line preferences
+dotnet_style_allow_multiple_blank_lines_experimental = false
+csharp_style_allow_blank_lines_between_consecutive_braces_experimental = false
+csharp_style_allow_blank_line_after_opening_brace_experimental = false
+csharp_style_allow_blank_line_before_closing_brace_experimental = false
+
+# Trim trailing whitespace and enforce final newline
+trim_trailing_whitespace = true
+insert_final_newline = true

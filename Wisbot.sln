@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wisbot", "Wisbot.csproj", "{5CC80A49-5621-B453-D9A0-48FF1449C997}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5CC80A49-5621-B453-D9A0-48FF1449C997}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5CC80A49-5621-B453-D9A0-48FF1449C997}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5CC80A49-5621-B453-D9A0-48FF1449C997}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5CC80A49-5621-B453-D9A0-48FF1449C997}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {09709044-D17B-4211-9CF7-5675521D241A}
+	EndGlobalSection
+EndGlobal
