@@ -1,22 +1,17 @@
 using Discord;
 using Discord.WebSocket;
 
-public class Bot {
-    private readonly string _wiswardId = "265656652664012800";
-    private readonly string _wisbotId = "WisBot#2348";
-    private readonly ulong _uhstrayGuildId = 889910011113906186;
+public class Bot(Terminal terminal) {
+    private readonly string wiswardId = "265656652664012800";
+    private readonly string wisbotId = "WisBot#2348";
+    private readonly ulong uhstrayGuildId = 889910011113906186;
 
-    private string _token = null!;
+    private string token = null!;
 
-    private DiscordSocketClient _client = null!;
+    private DiscordSocketClient client = null!;
 
-    public Terminal Terminal { get; }
-    private VoiceRecorder _voiceRecorder = null!;
-
-    public Bot(Terminal terminal) {
-        Terminal = terminal;
-        _voiceRecorder = new VoiceRecorder(terminal);
-    }
+    public Terminal Terminal { get; } = terminal;
+    private VoiceRecorder voiceRecorder = new VoiceRecorder(terminal);
 
     public async Task StartBot() {
         var config = new DiscordSocketConfig {
@@ -26,30 +21,30 @@ public class Bot {
                 | GatewayIntents.GuildMessages,
         };
 
-        _client = new DiscordSocketClient(config);
-        _client.Log += OnLog;
-        _client.MessageUpdated += OnMessageUpdated;
-        _client.MessageReceived += OnMessageReceived;
-        _client.Ready += OnReady;
-        _client.UserIsTyping += OnUserIsTyping;
-        _client.SlashCommandExecuted += OnSlashCommandExecuted;
+        client = new DiscordSocketClient(config);
+        client.Log += OnLog;
+        client.MessageUpdated += OnMessageUpdated;
+        client.MessageReceived += OnMessageReceived;
+        client.Ready += OnReady;
+        client.UserIsTyping += OnUserIsTyping;
+        client.SlashCommandExecuted += OnSlashCommandExecuted;
 
         await InitBot();
-        await _client.LoginAsync(TokenType.Bot, _token);
-        await _client.StartAsync();
+        await client.LoginAsync(TokenType.Bot, token);
+        await client.StartAsync();
     }
 
     private async Task InitBot() {
         await Log("Reading discord key from file...");
         var content = await File.ReadAllTextAsync("discord.key");
-        _token = content.Trim();
+        token = content.Trim();
     }
 
 
 
-    private async Task OnUserIsTyping(Cacheable<IUser, ulong> _user, Cacheable<IMessageChannel, ulong> _channel) {
-        var user = await _user.GetOrDownloadAsync();
-        var channel = await _channel.GetOrDownloadAsync();
+    private async Task OnUserIsTyping(Cacheable<IUser, ulong> cachedUser, Cacheable<IMessageChannel, ulong> cachedChannel) {
+        var user = await cachedUser.GetOrDownloadAsync();
+        var channel = await cachedChannel.GetOrDownloadAsync();
         await Log($"{user} is typing in {channel}...");
     }
 
@@ -84,7 +79,7 @@ public class Bot {
     public async Task AddCommandsIfNotExist() {
         await Log("Registering slash commands");
 
-        var guild = _client.GetGuild(_uhstrayGuildId);
+        var guild = client.GetGuild(uhstrayGuildId);
         var existingGuildCommands = await guild.GetApplicationCommandsAsync();
 
         // Uhstray guild commands
@@ -153,14 +148,14 @@ public class Bot {
 
 
         // Global commands
-        var existingGlobalCommands = await _client.GetGlobalApplicationCommandsAsync();
+        var existingGlobalCommands = await client.GetGlobalApplicationCommandsAsync();
         // if (!existingGlobalCommands.Any(cmd => cmd.Name == "eatdeeznuts")) {
         //     var command = new SlashCommandBuilder()
         //         .WithName("eatdeeznuts")
         //         .WithDescription("Ask the bot if it wants to eat deez nuts.")
         //         .Build();
 
-        //     await _client.CreateGlobalApplicationCommandAsync(command);
+        //     await client.CreateGlobalApplicationCommandAsync(command);
         //     await Log($"Registered global slash command: /{command.Name}");
         // }
 
@@ -176,7 +171,7 @@ public class Bot {
                 )
                 .Build();
 
-            await _client.CreateGlobalApplicationCommandAsync(command);
+            await client.CreateGlobalApplicationCommandAsync(command);
             await Log($"Registered global slash command: /{command.Name}");
         }
     }
@@ -270,7 +265,7 @@ public class Bot {
             // Do the long-running work in the background
             _ = Task.Run(async () => {
                 try {
-                    var result = await _voiceRecorder.JoinAndRecordUser(user);
+                    var result = await voiceRecorder.JoinAndRecordUser(user);
 
                     await Log($"Finished recording for {user.Username}. Result: {result}");
                     await command.FollowupAsync(result);
@@ -287,7 +282,7 @@ public class Bot {
             // Run the long-running stop/save operation in the background
             _ = Task.Run(async () => {
                 try {
-                    var result = await _voiceRecorder.StopRecordingAndSave(command.Channel, sendFiles: sendFile, mergeAudio: mergeAudio);
+                    var result = await voiceRecorder.StopRecordingAndSave(command.Channel, sendFiles: sendFile, mergeAudio: mergeAudio);
                     await Log($"Finished processing audio files. Saved {result.Count} file(s).");
 
                     if (result.Count > 0) {
@@ -321,7 +316,7 @@ public class Bot {
         try {
             // Remove global commands
             await Log("Removing global commands");
-            var globalCommands = await _client.GetGlobalApplicationCommandsAsync();
+            var globalCommands = await client.GetGlobalApplicationCommandsAsync();
             foreach (var command in globalCommands) {
                 await command.DeleteAsync();
                 await Log($"  Deleted global command: {command.Name}");
@@ -329,8 +324,8 @@ public class Bot {
             }
 
             // Remove guild-specific commands for the configured guild
-            await Log($"Removing guild commands for guild {_uhstrayGuildId}");
-            var guild = _client.GetGuild(_uhstrayGuildId);
+            await Log($"Removing guild commands for guild {uhstrayGuildId}");
+            var guild = client.GetGuild(uhstrayGuildId);
             if (guild != null) {
                 var guildCommands = await guild.GetApplicationCommandsAsync();
                 foreach (var command in guildCommands) {
@@ -342,7 +337,7 @@ public class Bot {
 
             // Optionally: Remove commands from all guilds the bot is in
             await Log("Removing commands from all guilds");
-            foreach (var g in _client.Guilds) {
+            foreach (var g in client.Guilds) {
                 var commands = await g.GetApplicationCommandsAsync();
                 foreach (var command in commands) {
                     await command.DeleteAsync();
@@ -364,7 +359,7 @@ public class Bot {
         const ulong testGuildId = 889910011113906186;
         const ulong testChannelId = 889910012019867672;
 
-        var guild = _client.GetGuild(testGuildId);
+        var guild = client.GetGuild(testGuildId);
         if (guild == null) {
             await Log("❌ TestRecord: Could not find guild");
             return;
@@ -377,14 +372,14 @@ public class Bot {
         }
 
         await Log($"🎙️ TestRecord: Joining {channel.Name} in {guild.Name}...");
-        var joinResult = await _voiceRecorder.JoinAndRecordChannel(channel);
+        var joinResult = await voiceRecorder.JoinAndRecordChannel(channel);
         await Log($"🎙️ TestRecord: {joinResult}");
 
         await Log("🎙️ TestRecord: Recording for 15 seconds...");
         await Task.Delay(TimeSpan.FromSeconds(15));
 
         await Log("🎙️ TestRecord: Stopping recording...");
-        var files = await _voiceRecorder.StopRecordingAndSave();
+        var files = await voiceRecorder.StopRecordingAndSave();
 
         if (files.Count > 0) {
             await Log($"🎙️ TestRecord: Complete! Saved {files.Count} file(s):");
