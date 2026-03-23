@@ -12,13 +12,15 @@ public class Bot(Terminal terminal) {
 
     public Terminal Terminal { get; } = terminal;
     private VoiceRecorder voiceRecorder = new VoiceRecorder(terminal);
+    private WelcomeHandler welcomeHandler = new WelcomeHandler(terminal);
 
     public async Task StartBot() {
         var config = new DiscordSocketConfig {
             GatewayIntents =
                 GatewayIntents.AllUnprivileged
                 | GatewayIntents.MessageContent
-                | GatewayIntents.GuildMessages,
+                | GatewayIntents.GuildMessages
+                | GatewayIntents.GuildMembers,
         };
 
         client = new DiscordSocketClient(config);
@@ -26,6 +28,7 @@ public class Bot(Terminal terminal) {
         client.MessageUpdated += OnMessageUpdated;
         client.MessageReceived += OnMessageReceived;
         client.Ready += OnReady;
+        client.UserJoined += welcomeHandler.OnUserJoined;
         client.UserIsTyping += OnUserIsTyping;
         client.SlashCommandExecuted += OnSlashCommandExecuted;
 
@@ -73,6 +76,7 @@ public class Bot(Terminal terminal) {
     private async Task OnReady() {
         await Log("Bot is Ready!!!");
 
+        await Database.Initialize();
         await AddCommandsIfNotExist();
     }
 
