@@ -13,6 +13,7 @@ public class Bot(Terminal terminal) {
     public Terminal Terminal { get; } = terminal;
     private VoiceRecorder voiceRecorder = new VoiceRecorder(terminal);
     private WelcomeHandler welcomeHandler = new WelcomeHandler(terminal);
+    private ReminderService? reminderService;
 
     public async Task StartBot() {
         var config = new DiscordSocketConfig {
@@ -24,6 +25,7 @@ public class Bot(Terminal terminal) {
         };
 
         client = new DiscordSocketClient(config);
+        reminderService = new ReminderService(terminal, client);
         client.Log += OnLog;
         client.MessageUpdated += OnMessageUpdated;
         client.MessageReceived += OnMessageReceived;
@@ -77,6 +79,7 @@ public class Bot(Terminal terminal) {
         await Log("Bot is Ready!!!");
 
         await Database.Initialize();
+        await reminderService!.Start();
         await AddCommandsIfNotExist();
     }
 
@@ -87,36 +90,6 @@ public class Bot(Terminal terminal) {
         var existingGuildCommands = await guild.GetApplicationCommandsAsync();
 
         // Uhstray guild commands
-        // if (!existingGuildCommands.Any(cmd => cmd.Name == "eatmehnuts")) {
-        //     var command = new SlashCommandBuilder()
-        //         .WithName("eatmehnuts")
-        //         .WithDescription("Ask the bot if it wants to eat deez nuts.")
-        //         .Build();
-
-        //     await guild.CreateApplicationCommandAsync(command);
-        //     await Log($"Registered guild slash command: /{command.Name} in '{guild.Name}'");
-        // }
-
-
-        // if (!existingGuildCommands.Any(cmd => cmd.Name == "favoritecolor")) {
-        //     var command = new SlashCommandBuilder()
-        //         .WithName("favoritecolor")
-        //         .WithDescription("Set your favorite color")
-        //         .AddOption(new SlashCommandOptionBuilder()
-        //             .WithName("color")
-        //             .WithDescription("Choose a color")
-        //             .WithRequired(true)
-        //             .WithType(ApplicationCommandOptionType.String)
-        //             .AddChoice("Red", "red")
-        //             .AddChoice("Blue", "blue")
-        //             .AddChoice("Green", "green")
-        //             .AddChoice("Yellow", "yellow")
-        //         )
-        //         .Build();
-
-        //     await guild.CreateApplicationCommandAsync(command);
-        //     await Log($"Registered guild slash command: /{command.Name} in '{guild.Name}'");
-        // }
 
         if (!existingGuildCommands.Any(cmd => cmd.Name == "recording")) {
             var command = new SlashCommandBuilder()
@@ -150,6 +123,28 @@ public class Bot(Terminal terminal) {
 
 
 
+
+        if (!existingGuildCommands.Any(cmd => cmd.Name == "remind")) {
+            var command = new SlashCommandBuilder()
+                .WithName("remind")
+                .WithDescription("Set a reminder — bot will DM you when time is up")
+                .AddOption(new SlashCommandOptionBuilder()
+                    .WithName("when")
+                    .WithDescription("How long from now, e.g. 30m, 2h, 1d, 1h30m")
+                    .WithRequired(true)
+                    .WithType(ApplicationCommandOptionType.String)
+                )
+                .AddOption(new SlashCommandOptionBuilder()
+                    .WithName("message")
+                    .WithDescription("What to remind you about")
+                    .WithRequired(true)
+                    .WithType(ApplicationCommandOptionType.String)
+                )
+                .Build();
+
+            await guild.CreateApplicationCommandAsync(command);
+            await Log($"Registered guild slash command: /{command.Name} in '{guild.Name}'");
+        }
 
         // Global commands
         var existingGlobalCommands = await client.GetGlobalApplicationCommandsAsync();
@@ -187,34 +182,26 @@ public class Bot(Terminal terminal) {
         await Log($"Command options: {string.Join(", ", command.Data.Options.Select(opt => $"{opt.Name}={opt.Value}"))}");
 
 
-        // if (command.CommandName == "eatdeeznuts") {
-        //     if (Random.Shared.NextDouble() < 0.1) {
-        //         await command.RespondAsync("Sure, I could go for some nuts.");
-        //         return;
-        //     }
-        //     await command.RespondAsync("No thanks, I'm good.");
-        //     return;
-        // }
+        if (command.CommandName == "remind") {
+            var whenOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "when");
+            var messageOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "message");
 
-        // if (command.CommandName == "eatmehnuts") {
-        //     if (Random.Shared.NextDouble() < 0.1) {
-        //         await command.RespondAsync("Aye Aye Captain!");
-        //         return;
-        //     }
-        //     await command.RespondAsync("No thanks, I'm good. Maybe next time :)");
-        //     return;
-        // }
+            var whenStr = (string)whenOption!.Value;
+            var message = (string)messageOption!.Value;
 
-        // if (command.CommandName == "favoritecolor") {
-        //     var colorOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "color");
-        //     if (colorOption != null) {
-        //         var colorValue = (string)colorOption.Value!;
-        //         await command.RespondAsync($"Your favorite color is set to {colorValue}! jk i dont really care!");
-        //     } else {
-        //         await command.RespondAsync("You didn't provide a color!");
-        //     }
-        //     return;
-        // }
+            if (!ReminderService.TryParseDuration(whenStr, out var duration)) {
+                await command.RespondAsync("Couldn't parse that time. Try formats like `30m`, `2h`, `1d`, or `1h30m` (max 30 days).");
+                return;
+            }
+
+            await reminderService!.AddReminder(command.User.Id, command.Channel.Id, message, duration);
+
+            var remindAt = DateTime.UtcNow.Add(duration);
+            var formatted = ReminderService.FormatDuration(duration);
+            await command.RespondAsync($"Got it! I'll remind you in **{formatted}** (at {remindAt:HH:mm} UTC).",
+                ephemeral: true);
+            return;
+        }
 
         if (command.CommandName == "wisllm") {
             await command.RespondAsync("Nothing to see here yet!");

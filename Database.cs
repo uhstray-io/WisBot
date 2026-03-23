@@ -17,6 +17,14 @@ public static class Database {
                 user_id  INTEGER NOT NULL,
                 PRIMARY KEY (guild_id, user_id)
             );
+
+            CREATE TABLE IF NOT EXISTS reminders (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id    INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                message    TEXT    NOT NULL,
+                remind_at  TEXT    NOT NULL
+            );
             """;
         await cmd.ExecuteNonQueryAsync();
     }
