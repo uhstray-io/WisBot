@@ -193,50 +193,12 @@ public class Bot(Terminal terminal) {
 
 
         if (command.CommandName == "remind") {
-            var whenOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "when");
-            var messageOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "message");
-
-            var whenStr = (string)whenOption!.Value;
-            var message = (string)messageOption!.Value;
-
-            if (!ReminderService.TryParseDuration(whenStr, out var duration)) {
-                await command.RespondAsync("Couldn't parse that time. Try formats like `30m`, `2h`, `1d`, or `1h30m` (max 30 days).");
-                return;
-            }
-
-            await reminderService!.AddReminder(command.User.Id, command.Channel.Id, message, duration);
-
-            var remindAt = DateTime.UtcNow.Add(duration);
-            var formatted = ReminderService.FormatDuration(duration);
-            await command.RespondAsync($"Got it! I'll remind you in **{formatted}** (at {remindAt:HH:mm} UTC).",
-                ephemeral: true);
+            await reminderService!.HandleRemindCommand(command);
             return;
         }
 
         if (command.CommandName == "notify") {
-            var userOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "user");
-            var target = userOption!.Value as SocketGuildUser;
-
-            if (target == null) {
-                await command.RespondAsync("Couldn't resolve that user.", ephemeral: true);
-                return;
-            }
-
-            if (target.Id == command.User.Id) {
-                await command.RespondAsync("You can't set a notification for yourself.", ephemeral: true);
-                return;
-            }
-
-            if (target.IsBot) {
-                await command.RespondAsync("Bots don't count.", ephemeral: true);
-                return;
-            }
-
-            ulong guildId = (command.Channel as SocketGuildChannel)!.Guild.Id;
-            await voiceNotifyHandler!.AddNotification(command.User.Id, target.Id, guildId);
-            await command.RespondAsync(
-                $"Got it! I'll DM you the next time **{target.DisplayName}** joins a voice channel.",
-                ephemeral: true);
+            await voiceNotifyHandler!.HandleNotifyCommand(command);
             return;
         }
 
@@ -249,92 +211,8 @@ public class Bot(Terminal terminal) {
         }
 
         if (command.CommandName == "recording") {
-            var actionOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "action");
-            var sendFileOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "sendfile");
-            var mergeAudioOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "mergeaudio");
-
-            if (actionOption == null) {
-                await command.RespondAsync("Action parameter is required!");
-                return;
-            }
-
-            var action = (string)actionOption.Value!;
-            var sendFile = sendFileOption != null && (bool)sendFileOption.Value!;
-            var mergeAudio = mergeAudioOption != null && (bool)mergeAudioOption.Value!;
-
-            _ = Log($"Recording command received with action: {action}, sendfile: {sendFile}, mergeaudio: {mergeAudio}");
-
-            if (action == "start") {
-                await StartRecordingInVoiceChannel(command);
-                return;
-            }
-
-            if (action == "stop") {
-                await StopRecordingAndProcess(command, sendFile, mergeAudio);
-                return;
-            }
-
-            await command.RespondAsync("Invalid action. Use 'start' or 'stop'.");
+            await voiceRecorder.HandleRecordingCommand(command);
             return;
-        }
-
-        async Task StartRecordingInVoiceChannel(SocketSlashCommand command) {
-            // Get the user who executed the command
-            var user = command.User as SocketGuildUser;
-
-            if (user?.VoiceChannel == null) {
-                await command.RespondAsync("You must be in a voice channel to use this command!");
-                return;
-            }
-
-            // Respond immediately to avoid 3-second timeout
-            await command.RespondAsync("Joining voice channel and starting recording...");
-
-            // Do the long-running work in the background
-            _ = Task.Run(async () => {
-                try {
-                    var result = await voiceRecorder.JoinAndRecordUser(user);
-
-                    await Log($"Finished recording for {user.Username}. Result: {result}");
-                    await command.FollowupAsync(result);
-                } catch (Exception ex) {
-                    await Log($"Error in recording task: {ex.Message}");
-                    await command.FollowupAsync($"Error starting recording: {ex.Message}");
-                }
-            });
-        }
-
-        async Task StopRecordingAndProcess(SocketSlashCommand command, bool sendFile, bool mergeAudio) {
-            await command.RespondAsync("Stopping recording and processing audio files...");
-
-            // Run the long-running stop/save operation in the background
-            _ = Task.Run(async () => {
-                try {
-                    var result = await voiceRecorder.StopRecordingAndSave(command.Channel, sendFiles: sendFile, mergeAudio: mergeAudio);
-                    await Log($"Finished processing audio files. Saved {result.Count} file(s).");
-
-                    if (result.Count > 0) {
-                        if (sendFile) {
-                            if (mergeAudio) {
-                                await command.FollowupAsync($"✅ Recording saved and sent! Merged {result.Count} user(s) into 1 file.");
-                            } else {
-                                await command.FollowupAsync($"✅ Recording saved and sent! Processed {result.Count} user(s).");
-                            }
-                        } else {
-                            if (mergeAudio) {
-                                await command.FollowupAsync($"✅ Recording saved locally! Merged {result.Count} user(s) into 1 file. Use a file link service to share (coming soon).");
-                            } else {
-                                await command.FollowupAsync($"✅ Recording saved locally! Processed {result.Count} user(s). Use a file link service to share (coming soon).");
-                            }
-                        }
-                    } else {
-                        await command.FollowupAsync("⚠️ No audio was captured during the recording session.");
-                    }
-                } catch (Exception ex) {
-                    await Log($"Error processing recording: {ex.Message}");
-                    await command.FollowupAsync($"❌ Error processing recording: {ex.Message}");
-                }
-            });
         }
     }
 

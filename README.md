@@ -26,6 +26,7 @@ dotnet run
 | `/recording start` | Join your current voice channel and begin recording all users |
 | `/recording stop [sendfile] [mergeaudio]` | Stop recording and save WAV files; optionally send files to Discord or merge all users into one file |
 | `/remind when:<duration> message:<text>` | Set a one-shot reminder; bot DMs you when time is up (e.g. `30m`, `2h`, `1d`, `1h30m`) |
+| `/notify user:<@someone>` | DM you once the next time that user joins a voice channel; includes a link to join them |
 | `/wisllm <prompt>` | Placeholder for future LLM integration |
 
 ## Terminal Commands

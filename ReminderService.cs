@@ -84,6 +84,28 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
             : $"Could not deliver reminder {reminder.Id} — dropped");
     }
 
+    // ── Command Handler ──────────────────────────────────────────────────
+
+    public async Task HandleRemindCommand(SocketSlashCommand command) {
+        var whenOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "when");
+        var messageOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "message");
+
+        var whenStr = (string)whenOption!.Value;
+        var message = (string)messageOption!.Value;
+
+        if (!TryParseDuration(whenStr, out var duration)) {
+            await command.RespondAsync("Couldn't parse that time. Try formats like `30m`, `2h`, `1d`, or `1h30m` (max 30 days).");
+            return;
+        }
+
+        await AddReminder(command.User.Id, command.Channel.Id, message, duration);
+
+        var remindAt = DateTime.UtcNow.Add(duration);
+        var formatted = FormatDuration(duration);
+        await command.RespondAsync($"Got it! I'll remind you in **{formatted}** (at {remindAt:HH:mm} UTC).",
+            ephemeral: true);
+    }
+
     // ── Public API ───────────────────────────────────────────────────────
 
     public async Task AddReminder(ulong userId, ulong channelId, string message, TimeSpan delay) {

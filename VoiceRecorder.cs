@@ -60,6 +60,74 @@ public class VoiceRecorder(Terminal terminal) {
 
 
 
+    // ── Command Handler ──────────────────────────────────────────────────
+
+    public async Task HandleRecordingCommand(SocketSlashCommand command) {
+        var actionOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "action");
+        var sendFileOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "sendfile");
+        var mergeAudioOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "mergeaudio");
+
+        if (actionOption == null) {
+            await command.RespondAsync("Action parameter is required!");
+            return;
+        }
+
+        var action = (string)actionOption.Value!;
+        var sendFile = sendFileOption != null && (bool)sendFileOption.Value!;
+        var mergeAudio = mergeAudioOption != null && (bool)mergeAudioOption.Value!;
+
+        _ = Log($"Recording command received with action: {action}, sendfile: {sendFile}, mergeaudio: {mergeAudio}");
+
+        if (action == "start") {
+            var user = command.User as SocketGuildUser;
+            if (user?.VoiceChannel == null) {
+                await command.RespondAsync("You must be in a voice channel to use this command!");
+                return;
+            }
+            await command.RespondAsync("Joining voice channel and starting recording...");
+            _ = Task.Run(async () => {
+                try {
+                    var result = await JoinAndRecordUser(user);
+                    await Log($"Finished recording for {user.Username}. Result: {result}");
+                    await command.FollowupAsync(result);
+                } catch (Exception ex) {
+                    await Log($"Error in recording task: {ex.Message}");
+                    await command.FollowupAsync($"Error starting recording: {ex.Message}");
+                }
+            });
+            return;
+        }
+
+        if (action == "stop") {
+            await command.RespondAsync("Stopping recording and processing audio files...");
+            _ = Task.Run(async () => {
+                try {
+                    var result = await StopRecordingAndSave(command.Channel, sendFiles: sendFile, mergeAudio: mergeAudio);
+                    await Log($"Finished processing audio files. Saved {result.Count} file(s).");
+                    if (result.Count > 0) {
+                        if (sendFile) {
+                            await command.FollowupAsync(mergeAudio
+                                ? $"✅ Recording saved and sent! Merged {result.Count} user(s) into 1 file."
+                                : $"✅ Recording saved and sent! Processed {result.Count} user(s).");
+                        } else {
+                            await command.FollowupAsync(mergeAudio
+                                ? $"✅ Recording saved locally! Merged {result.Count} user(s) into 1 file. Use a file link service to share (coming soon)."
+                                : $"✅ Recording saved locally! Processed {result.Count} user(s). Use a file link service to share (coming soon).");
+                        }
+                    } else {
+                        await command.FollowupAsync("⚠️ No audio was captured during the recording session.");
+                    }
+                } catch (Exception ex) {
+                    await Log($"Error processing recording: {ex.Message}");
+                    await command.FollowupAsync($"❌ Error processing recording: {ex.Message}");
+                }
+            });
+            return;
+        }
+
+        await command.RespondAsync("Invalid action. Use 'start' or 'stop'.");
+    }
+
     /// Joins the specified voice channel and starts recording all users in it.
     /// Used by slash command - requires SocketGuildUser get voice channel
     public async Task<string> JoinAndRecordUser(SocketGuildUser user) {

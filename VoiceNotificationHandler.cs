@@ -1,4 +1,5 @@
 using Discord.WebSocket;
+using Discord;
 using Microsoft.Data.Sqlite;
 
 /// One-shot voice presence notifications.
@@ -44,6 +45,34 @@ public class VoiceNotificationHandler(Terminal terminal, DiscordSocketClient cli
         } catch (Exception ex) {
             await Log($"Failed to notify watcher {watcherId}: {ex.Message}");
         }
+    }
+
+    // ── Command Handler ──────────────────────────────────────────────────
+
+    public async Task HandleNotifyCommand(SocketSlashCommand command) {
+        var userOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "user");
+        var target = userOption!.Value as SocketGuildUser;
+
+        if (target == null) {
+            await command.RespondAsync("Couldn't resolve that user.", ephemeral: true);
+            return;
+        }
+
+        if (target.Id == command.User.Id) {
+            await command.RespondAsync("You can't set a notification for yourself.", ephemeral: true);
+            return;
+        }
+
+        if (target.IsBot) {
+            await command.RespondAsync("Bots don't count.", ephemeral: true);
+            return;
+        }
+
+        ulong guildId = (command.Channel as SocketGuildChannel)!.Guild.Id;
+        await AddNotification(command.User.Id, target.Id, guildId);
+        await command.RespondAsync(
+            $"Got it! I'll DM you the next time **{target.DisplayName}** joins a voice channel.",
+            ephemeral: true);
     }
 
     // ── Public API ───────────────────────────────────────────────────────
