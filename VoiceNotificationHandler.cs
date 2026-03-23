@@ -82,10 +82,10 @@ public class VoiceNotificationHandler(Terminal terminal, DiscordSocketClient cli
         await conn.OpenAsync();
 
         var cmd = conn.CreateCommand();
-        // INSERT OR REPLACE: enforced by UNIQUE(watcher_id, target_id, guild_id)
         cmd.CommandText = """
-            INSERT OR REPLACE INTO voice_notifications (watcher_id, target_id, guild_id)
-            VALUES ($watcher, $target, $guild)
+            INSERT INTO voice_notifications (watcher_id, target_id, guild_id, is_active)
+            VALUES ($watcher, $target, $guild, 1)
+            ON CONFLICT (watcher_id, target_id, guild_id) DO UPDATE SET is_active = 1
             """;
         cmd.Parameters.AddWithValue("$watcher", (long)watcherId);
         cmd.Parameters.AddWithValue("$target", (long)targetId);
@@ -96,15 +96,17 @@ public class VoiceNotificationHandler(Terminal terminal, DiscordSocketClient cli
 
     // ── DB Queries ───────────────────────────────────────────────────────
 
-    /// Atomically claims and removes all watchers for a target joining in a guild.
+    /// Atomically claims all active watchers for a target joining in a guild
+    /// by flipping is_active to 0, preventing double-delivery on restart.
     private async Task<List<ulong>> ClaimWatchers(ulong targetId, ulong guildId) {
         using var conn = new SqliteConnection(Database.ConnectionString);
         await conn.OpenAsync();
 
         var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            DELETE FROM voice_notifications
-            WHERE target_id = $target AND guild_id = $guild
+            UPDATE voice_notifications
+            SET is_active = 0
+            WHERE target_id = $target AND guild_id = $guild AND is_active = 1
             RETURNING watcher_id
             """;
         cmd.Parameters.AddWithValue("$target", (long)targetId);

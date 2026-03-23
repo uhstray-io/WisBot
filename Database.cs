@@ -31,7 +31,20 @@ public static class Database {
                 watcher_id INTEGER NOT NULL,
                 target_id  INTEGER NOT NULL,
                 guild_id   INTEGER NOT NULL,
+                is_active  INTEGER NOT NULL DEFAULT 1,
                 UNIQUE (watcher_id, target_id, guild_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS voice_activity (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id      INTEGER NOT NULL,
+                username     TEXT    NOT NULL,
+                guild_id     INTEGER NOT NULL,
+                guild_name   TEXT    NOT NULL,
+                channel_id   INTEGER NOT NULL,
+                channel_name TEXT    NOT NULL,
+                action       TEXT    NOT NULL,
+                timestamp    TEXT    NOT NULL
             );
             """;
         await cmd.ExecuteNonQueryAsync();

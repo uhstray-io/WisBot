@@ -13,6 +13,7 @@ public class Bot(Terminal terminal) {
     public Terminal Terminal { get; } = terminal;
     private VoiceRecorder voiceRecorder = new VoiceRecorder(terminal);
     private WelcomeHandler welcomeHandler = new WelcomeHandler(terminal);
+    private UserVoiceActivityTracker voiceActivityTracker = new UserVoiceActivityTracker(terminal);
     private ReminderService? reminderService;
     private VoiceNotificationHandler? voiceNotifyHandler;
 
@@ -34,6 +35,7 @@ public class Bot(Terminal terminal) {
         client.Ready += OnReady;
         client.UserJoined += welcomeHandler.OnUserJoined;
         client.UserVoiceStateUpdated += voiceNotifyHandler.OnVoiceStateUpdated;
+        client.UserVoiceStateUpdated += voiceActivityTracker.OnVoiceStateUpdated;
         client.UserIsTyping += OnUserIsTyping;
         client.SlashCommandExecuted += OnSlashCommandExecuted;
 
