@@ -110,3 +110,11 @@ You are an expert .NET 10 developer. Follow these "Modern & Simple" rules:
 * **PascalCase:** Classes, Methods, Properties, Public Fields.
 * **camelCase:** Local variables, method arguments.
 * **No Underscores:** Avoid `_` prefixes for private fields (since we use the `field` keyword or `this.` prefix if absolutely necessary).
+
+
+## For Claude
+
+Each time we complete the changes, we need to use 'dotnet build' to test and validate the changes worked.
+When making changes, please ensure that the code is well-structured, follows best practices, and includes appropriate error handling. 
+If new information is needed to complete the task, please ask for clarification before proceeding.
+After completing the changes, please consider making changes to CLAUDE.md and or README.md to reflect the changes made and to provide clear documentation for future reference.

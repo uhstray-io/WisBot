@@ -25,6 +25,14 @@ public static class Database {
                 message    TEXT    NOT NULL,
                 remind_at  TEXT    NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS voice_notifications (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                watcher_id INTEGER NOT NULL,
+                target_id  INTEGER NOT NULL,
+                guild_id   INTEGER NOT NULL,
+                UNIQUE (watcher_id, target_id, guild_id)
+            );
             """;
         await cmd.ExecuteNonQueryAsync();
     }

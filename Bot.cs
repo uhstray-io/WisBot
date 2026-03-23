@@ -14,6 +14,7 @@ public class Bot(Terminal terminal) {
     private VoiceRecorder voiceRecorder = new VoiceRecorder(terminal);
     private WelcomeHandler welcomeHandler = new WelcomeHandler(terminal);
     private ReminderService? reminderService;
+    private VoiceNotificationHandler? voiceNotifyHandler;
 
     public async Task StartBot() {
         var config = new DiscordSocketConfig {
@@ -26,11 +27,13 @@ public class Bot(Terminal terminal) {
 
         client = new DiscordSocketClient(config);
         reminderService = new ReminderService(terminal, client);
+        voiceNotifyHandler = new VoiceNotificationHandler(terminal, client);
         client.Log += OnLog;
         client.MessageUpdated += OnMessageUpdated;
         client.MessageReceived += OnMessageReceived;
         client.Ready += OnReady;
         client.UserJoined += welcomeHandler.OnUserJoined;
+        client.UserVoiceStateUpdated += voiceNotifyHandler.OnVoiceStateUpdated;
         client.UserIsTyping += OnUserIsTyping;
         client.SlashCommandExecuted += OnSlashCommandExecuted;
 
@@ -146,17 +149,24 @@ public class Bot(Terminal terminal) {
             await Log($"Registered guild slash command: /{command.Name} in '{guild.Name}'");
         }
 
+        if (!existingGuildCommands.Any(cmd => cmd.Name == "notify")) {
+            var command = new SlashCommandBuilder()
+                .WithName("notify")
+                .WithDescription("DM me once when a user joins a voice channel")
+                .AddOption(new SlashCommandOptionBuilder()
+                    .WithName("user")
+                    .WithDescription("The user to watch for")
+                    .WithRequired(true)
+                    .WithType(ApplicationCommandOptionType.User)
+                )
+                .Build();
+
+            await guild.CreateApplicationCommandAsync(command);
+            await Log($"Registered guild slash command: /{command.Name} in '{guild.Name}'");
+        }
+
         // Global commands
         var existingGlobalCommands = await client.GetGlobalApplicationCommandsAsync();
-        // if (!existingGlobalCommands.Any(cmd => cmd.Name == "eatdeeznuts")) {
-        //     var command = new SlashCommandBuilder()
-        //         .WithName("eatdeeznuts")
-        //         .WithDescription("Ask the bot if it wants to eat deez nuts.")
-        //         .Build();
-
-        //     await client.CreateGlobalApplicationCommandAsync(command);
-        //     await Log($"Registered global slash command: /{command.Name}");
-        // }
 
         if (!existingGlobalCommands.Any(cmd => cmd.Name == "wisllm")) {
             var command = new SlashCommandBuilder()
@@ -203,6 +213,33 @@ public class Bot(Terminal terminal) {
             return;
         }
 
+        if (command.CommandName == "notify") {
+            var userOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "user");
+            var target = userOption!.Value as SocketGuildUser;
+
+            if (target == null) {
+                await command.RespondAsync("Couldn't resolve that user.", ephemeral: true);
+                return;
+            }
+
+            if (target.Id == command.User.Id) {
+                await command.RespondAsync("You can't set a notification for yourself.", ephemeral: true);
+                return;
+            }
+
+            if (target.IsBot) {
+                await command.RespondAsync("Bots don't count.", ephemeral: true);
+                return;
+            }
+
+            ulong guildId = (command.Channel as SocketGuildChannel)!.Guild.Id;
+            await voiceNotifyHandler!.AddNotification(command.User.Id, target.Id, guildId);
+            await command.RespondAsync(
+                $"Got it! I'll DM you the next time **{target.DisplayName}** joins a voice channel.",
+                ephemeral: true);
+            return;
+        }
+
         if (command.CommandName == "wisllm") {
             await command.RespondAsync("Nothing to see here yet!");
             command.Data.Options.ToList().ForEach(async opt => {
@@ -217,7 +254,7 @@ public class Bot(Terminal terminal) {
             var mergeAudioOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "mergeaudio");
 
             if (actionOption == null) {
-                await command.RespondAsync("❌ Action parameter is required!");
+                await command.RespondAsync("Action parameter is required!");
                 return;
             }
 
@@ -237,7 +274,7 @@ public class Bot(Terminal terminal) {
                 return;
             }
 
-            await command.RespondAsync("❌ Invalid action. Use 'start' or 'stop'.");
+            await command.RespondAsync("Invalid action. Use 'start' or 'stop'.");
             return;
         }
 
