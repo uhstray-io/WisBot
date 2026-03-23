@@ -13,6 +13,10 @@ dotnet build -c Release  # Release build
 
 No test framework or linter is configured.
 
+## Deployment
+
+Production runs via Docker on a self-hosted GitHub Actions runner (see `.github/workflows/deployment_prod.yml`). The Discord token is injected via a `DISCORD_TOKEN_WISBOT` secret appended to `.env` before `docker build`. Deployment is manually triggered (`workflow_dispatch`), not on push.
+
 ## Architecture
 
 C# .NET 10.0 console application — a Discord bot that records voice channel audio and saves it as WAV files.
@@ -37,10 +41,10 @@ Program.cs → new Terminal() + new Bot(terminal)
 ### Audio Recording Pipeline
 
 1. `/recording start` → `JoinAndRecordChannel()` connects to voice channel via `IAudioClient`
-2. `StreamCreated`/`StreamDestroyed` events track users joining/leaving
-3. `ReadStream()` loop reads 3840-byte frames (20ms at 48kHz/16-bit/stereo), creates timestamped `AudioChunk` per frame
-4. `/recording stop` → cancels recording tasks, calls `SaveAllUsersAsWav()` which reconstructs sparse chunks into continuous PCM (filling gaps with silence) and writes WAV files to `./recordings/`
-5. Optional: `MergeAudioFiles()` sums all user WAVs into one file
+2. `StreamCreated`/`StreamDestroyed` events track users joining/leaving mid-session
+3. `ReadStream()` loop reads 3840-byte frames (20ms at 48kHz/16-bit/stereo), creates timestamped `AudioChunk` per frame; a 5-second read timeout detects broken streams and nulls them for re-subscription
+4. `/recording stop` → cancels recording tasks (10s timeout), unsubscribes events, disconnects; calls `SaveAllUsersAsWav()` which reconstructs sparse chunks into continuous PCM (filling gaps with silence) and writes WAV files to `./recordings/`
+5. Optional: `MergeAudioFiles()` sums all user WAVs into one file by mixing 16-bit samples with clamping
 
 ## Conventions
 
@@ -50,16 +54,17 @@ Program.cs → new Terminal() + new Bot(terminal)
 - **Audio constants** — 48kHz sample rate, 16-bit depth, 2 channels (stereo), 3840 bytes per 20ms frame
 - **Config** — Discord token read from `discord.key` at repo root (gitignored). Guild/user IDs are hardcoded constants in `Bot.cs`
 - **Recording output** — WAV files saved to `./recordings/` with pattern `{username}_{timestamp}.wav`
+- **Command registration** — Slash commands are registered idempotently on `OnReady` (checks existing before creating); use `/removeallcommands` terminal command to force-clear all registered commands
 
 ## Key Dependencies
 
-- **Discord.Net 3.19.0-beta.1** — Beta version required for voice audio stream features
+- **Discord.Net 3.19.0-beta.1** — Beta version required for voice audio stream features (`IAudioClient.GetStreams()`)
 - **NAudio 2.2.1** — WAV file writing and audio format handling
 - **OpusDotNet.opus.win-x64 + libsodium** — Native libraries for Discord voice codec and encryption
+- **Concentus.Oggfile** — Included but not currently used
 
 ## Documentation
 
-All documentation is in this folder as markdown files:
 - `architecture/VOICE_RECORDING_README.md` — Voice recording implementation details and troubleshooting
 - `architecture/FUTURE_FEATURES.md` — Planned features and roadmap
 - `architecture/AUDIO_STORAGE_ARCHITECTURES.md` — Storage design decisions
