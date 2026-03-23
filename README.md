@@ -1,13 +1,13 @@
 # WisBot
 
-A Discord bot that records voice channel audio and saves it as WAV files. Built with C# .NET 10 and Discord.Net.
+A Discord bot with voice channel recording, welcome messages, and reminders. Built with C# .NET 10 and Discord.Net.
 
 ## Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - A Discord bot token
 - The bot must have the following permissions: **Connect**, **Speak**, **Read Messages/View Channels**, **Send Messages**, **Attach Files**
-- Gateway intents required: **Server Members**, **Message Content**
+- Gateway intents required: **Server Members Intent**, **Message Content Intent** — both must be enabled under your bot's settings in the [Discord Developer Portal](https://discord.com/developers/applications)
 
 ## Setup
 
@@ -25,6 +25,7 @@ dotnet run
 |---|---|
 | `/recording start` | Join your current voice channel and begin recording all users |
 | `/recording stop [sendfile] [mergeaudio]` | Stop recording and save WAV files; optionally send files to Discord or merge all users into one file |
+| `/remind when:<duration> message:<text>` | Set a one-shot reminder; bot DMs you when time is up (e.g. `30m`, `2h`, `1d`, `1h30m`) |
 | `/wisllm <prompt>` | Placeholder for future LLM integration |
 
 ## Terminal Commands
@@ -39,10 +40,10 @@ While the bot is running, type these in the console:
 | `/clear` | Clear the terminal output |
 | `?` or `/help` | Show available commands |
 
-## Output
+## Data
 
-WAV files are saved to `./recordings/` using the pattern `{username}_{timestamp}.wav`.
-Audio is captured per-user at 48kHz, 16-bit stereo. Gaps in speech are filled with silence to maintain synchronization across users.
+- **Recordings** — WAV files saved to `./recordings/` as `{username}_{timestamp}.wav`. Captured per-user at 48kHz, 16-bit stereo; gaps in speech are filled with silence to keep users time-synchronized.
+- **Database** — `wisbot.db` (SQLite) is created automatically at the app root on first run. Stores welcomed users and pending reminders; survives restarts.
 
 ## Deployment
 

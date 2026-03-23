@@ -19,14 +19,17 @@ Production runs via Docker on a self-hosted GitHub Actions runner (see `.github/
 
 ## Architecture
 
-C# .NET 10.0 console application — a Discord bot that records voice channel audio and saves it as WAV files.
+C# .NET 10.0 console application — a Discord bot with voice recording, welcome messages, and reminders.
 
 ### Source Files (all at repo root)
 
 - **Program.cs** — Entry point. Creates `Terminal` and `Bot` with bidirectional references, runs both concurrently via fire-and-forget tasks, blocks with `Task.Delay(-1)`.
-- **Bot.cs** — Discord client lifecycle, event subscriptions, slash command registration and execution. Manages `DiscordSocketClient` connection. Registers guild-specific commands (`/recording start|stop`) and global commands (`/wisllm`).
+- **Bot.cs** — Discord client lifecycle, event subscriptions, slash command registration and execution. Manages `DiscordSocketClient` connection. Owns feature service instances and wires events.
 - **Terminal.cs** — Async console I/O with a `ConcurrentQueue<string>` log buffer (max 1000 lines). Dispatches terminal commands (`/testrecord`, `/removeallcommands`, `/gc`, `/clear`) that call into Bot.
 - **VoiceRecorder.cs** — Voice channel audio capture. Stores per-user audio as timestamped sparse `AudioChunk` objects in a `ConcurrentDictionary<ulong, UserAudio>`. Reconstructs sparse chunks into continuous PCM, writes WAV files via NAudio `WaveFileWriter`. Optionally merges multi-user recordings into a single file.
+- **WelcomeHandler.cs** — Handles `UserJoined` events. Sends a randomized welcome message the first time a user joins a guild; tracks welcomed users in the `welcomed_users` DB table to suppress re-welcomes on rejoin.
+- **ReminderService.cs** — One-shot reminder scheduler. Persists reminders to the `reminders` DB table. Background loop fires every 30s, claiming due reminders atomically via `DELETE ... RETURNING`. Delivers via DM with channel mention fallback. Also owns `TryParseDuration` / `FormatDuration` static helpers.
+- **Database.cs** — Static helper. Owns the SQLite connection string (`wisbot.db`) and runs `CREATE TABLE IF NOT EXISTS` for all feature tables on startup.
 
 ### Startup Flow
 
@@ -48,18 +51,22 @@ Program.cs → new Terminal() + new Bot(terminal)
 
 ## Conventions
 
-- **Manual constructor DI** — `Terminal` is injected into `Bot` and `VoiceRecorder` (no DI container)
+- **Manual constructor DI** — `Terminal` is injected into `Bot`, `VoiceRecorder`, `WelcomeHandler`, and `ReminderService` (no DI container); `DiscordSocketClient` is injected into services that need to call Discord APIs after startup
+- **Feature file pattern** — Each feature lives in its own file (`WelcomeHandler.cs`, `ReminderService.cs`). `Bot.cs` owns instances, wires events, and handles slash command routing. `Database.cs` owns schema for all features.
 - **Discord timeout pattern** — Long operations use `Task.Run()` fire-and-forget after immediate `RespondAsync()`, then `FollowupAsync()` for results (avoids 3-second Discord interaction timeout)
-- **Thread safety** — `ConcurrentDictionary` and `ConcurrentQueue` throughout; no explicit locks
+- **Thread safety** — `ConcurrentDictionary` and `ConcurrentQueue` throughout; background service lists use `lock` where needed
 - **Audio constants** — 48kHz sample rate, 16-bit depth, 2 channels (stereo), 3840 bytes per 20ms frame
 - **Config** — Discord token read from `discord.key` at repo root (gitignored). Guild/user IDs are hardcoded constants in `Bot.cs`
 - **Recording output** — WAV files saved to `./recordings/` with pattern `{username}_{timestamp}.wav`
 - **Command registration** — Slash commands are registered idempotently on `OnReady` (checks existing before creating); use `/removeallcommands` terminal command to force-clear all registered commands
+- **Database** — SQLite via `Microsoft.Data.Sqlite`. Single file `wisbot.db` at app root. All tables declared in `Database.Initialize()`. Discord `ulong` IDs are stored as `long` (SQLite INTEGER) and cast at the boundary. ISO 8601 strings (`"O"` format) used for `DateTime` storage.
+- **Atomic reminder claiming** — `DELETE ... RETURNING` used to atomically consume due reminders, preventing double-delivery on restart
 
 ## Key Dependencies
 
-- **Discord.Net 3.19.0-beta.1** — Beta version required for voice audio stream features (`IAudioClient.GetStreams()`)
+- **Discord.Net 3.19.0-beta.1** — Beta version required for voice audio stream features (`IAudioClient.GetStreams()`). `GuildMembers` privileged intent required for `UserJoined` events (must be enabled in Discord Developer Portal).
 - **NAudio 2.2.1** — WAV file writing and audio format handling
+- **Microsoft.Data.Sqlite 10.0.5** — Embedded SQLite database, no server required
 - **OpusDotNet.opus.win-x64 + libsodium** — Native libraries for Discord voice codec and encryption
 - **Concentus.Oggfile** — Included but not currently used
 
