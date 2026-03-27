@@ -17,6 +17,7 @@ public class Bot(Terminal terminal) {
     private VoiceStatsHandler voiceStatsHandler = new VoiceStatsHandler(terminal);
     private ReminderService? reminderService;
     private VoiceNotificationHandler? voiceNotifyHandler;
+    private StatusHandler? statusHandler;
 
     public async Task StartBot() {
         var config = new DiscordSocketConfig {
@@ -30,6 +31,7 @@ public class Bot(Terminal terminal) {
         client = new DiscordSocketClient(config);
         reminderService = new ReminderService(terminal, client);
         voiceNotifyHandler = new VoiceNotificationHandler(terminal, client);
+        statusHandler = new StatusHandler(terminal, client);
         client.Log += OnLog;
         client.MessageUpdated += OnMessageUpdated;
         client.MessageReceived += OnMessageReceived;
@@ -152,6 +154,16 @@ public class Bot(Terminal terminal) {
             await Log($"Registered guild slash command: /{command.Name} in '{guild.Name}'");
         }
 
+        if (!existingGuildCommands.Any(cmd => cmd.Name == "status")) {
+            var command = new SlashCommandBuilder()
+                .WithName("status")
+                .WithDescription("Show bot health: uptime, latency, memory, CPU, and more")
+                .Build();
+
+            await guild.CreateApplicationCommandAsync(command);
+            await Log($"Registered guild slash command: /{command.Name} in '{guild.Name}'");
+        }
+
         if (!existingGuildCommands.Any(cmd => cmd.Name == "voicestats")) {
             var command = new SlashCommandBuilder()
                 .WithName("voicestats")
@@ -213,6 +225,11 @@ public class Bot(Terminal terminal) {
 
         if (command.CommandName == "remind") {
             await reminderService!.HandleRemindCommand(command);
+            return;
+        }
+
+        if (command.CommandName == "status") {
+            await statusHandler!.HandleCommand(command);
             return;
         }
 
