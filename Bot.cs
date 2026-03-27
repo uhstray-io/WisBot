@@ -14,6 +14,7 @@ public class Bot(Terminal terminal) {
     private VoiceRecorder voiceRecorder = new VoiceRecorder(terminal);
     private WelcomeHandler welcomeHandler = new WelcomeHandler(terminal);
     private UserVoiceActivityTracker voiceActivityTracker = new UserVoiceActivityTracker(terminal);
+    private VoiceStatsHandler voiceStatsHandler = new VoiceStatsHandler(terminal);
     private ReminderService? reminderService;
     private VoiceNotificationHandler? voiceNotifyHandler;
 
@@ -151,6 +152,22 @@ public class Bot(Terminal terminal) {
             await Log($"Registered guild slash command: /{command.Name} in '{guild.Name}'");
         }
 
+        if (!existingGuildCommands.Any(cmd => cmd.Name == "voicestats")) {
+            var command = new SlashCommandBuilder()
+                .WithName("voicestats")
+                .WithDescription("Show voice channel stats for a user")
+                .AddOption(new SlashCommandOptionBuilder()
+                    .WithName("user")
+                    .WithDescription("The user to look up")
+                    .WithRequired(true)
+                    .WithType(ApplicationCommandOptionType.User)
+                )
+                .Build();
+
+            await guild.CreateApplicationCommandAsync(command);
+            await Log($"Registered guild slash command: /{command.Name} in '{guild.Name}'");
+        }
+
         if (!existingGuildCommands.Any(cmd => cmd.Name == "notify")) {
             var command = new SlashCommandBuilder()
                 .WithName("notify")
@@ -196,6 +213,11 @@ public class Bot(Terminal terminal) {
 
         if (command.CommandName == "remind") {
             await reminderService!.HandleRemindCommand(command);
+            return;
+        }
+
+        if (command.CommandName == "voicestats") {
+            await voiceStatsHandler.HandleCommand(command);
             return;
         }
 
