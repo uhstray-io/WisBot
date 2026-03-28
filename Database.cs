@@ -46,6 +46,27 @@ public static class Database {
                 action       TEXT    NOT NULL,
                 timestamp    TEXT    NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS wisllm_sessions (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id   INTEGER,
+                user_id    INTEGER,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS wisllm_history (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id         INTEGER NOT NULL REFERENCES wisllm_sessions(id),
+                guild_id           INTEGER,
+                user_id            INTEGER NOT NULL,
+                username           TEXT    NOT NULL,
+                channel_id         INTEGER NOT NULL,
+                model              TEXT    NOT NULL,
+                prompt             TEXT    NOT NULL,
+                response           TEXT    NOT NULL,
+                timestamp          TEXT    NOT NULL,
+                is_compact_summary INTEGER NOT NULL DEFAULT 0
+            );
             """;
         await cmd.ExecuteNonQueryAsync();
     }

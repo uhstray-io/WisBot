@@ -15,6 +15,7 @@ public class Bot(Terminal terminal) {
     private WelcomeHandler welcomeHandler = new WelcomeHandler(terminal);
     private UserVoiceActivityTracker voiceActivityTracker = new UserVoiceActivityTracker(terminal);
     private VoiceStatsHandler voiceStatsHandler = new VoiceStatsHandler(terminal);
+    private WisLlmHandler wisLlmHandler = new WisLlmHandler(terminal);
     private ReminderService? reminderService;
     private VoiceNotificationHandler? voiceNotifyHandler;
     private StatusHandler? statusHandler;
@@ -48,6 +49,7 @@ public class Bot(Terminal terminal) {
     }
 
     private async Task InitBot() {
+        Config.Load();
         await Log("Reading discord key from file...");
         var content = await File.ReadAllTextAsync("discord.key");
         token = content.Trim();
@@ -199,20 +201,41 @@ public class Bot(Terminal terminal) {
         // Global commands
         var existingGlobalCommands = await client.GetGlobalApplicationCommandsAsync();
 
-        if (!existingGlobalCommands.Any(cmd => cmd.Name == "wisllm")) {
+        // Replace old single-option wisllm with subcommand version if needed
+        var existingWisllm = existingGlobalCommands.FirstOrDefault(cmd => cmd.Name == "wisllm");
+        bool wisllmNeedsUpdate = existingWisllm == null ||
+            !existingWisllm.Options.Any(o => o.Type == ApplicationCommandOptionType.SubCommand);
+
+        if (wisllmNeedsUpdate) {
+            if (existingWisllm != null) {
+                await existingWisllm.DeleteAsync();
+                await Log("Deleted outdated /wisllm global command — replacing with subcommand version");
+            }
+
             var command = new SlashCommandBuilder()
                 .WithName("wisllm")
-                .WithDescription("Replies with Nothing atm.")
+                .WithDescription("WisLLM — AI assistant provided by Uhstray.io")
                 .AddOption(new SlashCommandOptionBuilder()
-                    .WithName("prompt")
-                    .WithDescription("The prompt to send to the LLM")
-                    .WithRequired(true)
-                    .WithType(ApplicationCommandOptionType.String)
+                    .WithName("ask")
+                    .WithDescription("Ask WisLLM a question")
+                    .WithType(ApplicationCommandOptionType.SubCommand)
+                    .AddOption("prompt", ApplicationCommandOptionType.String, "Your question", isRequired: true)
+                    .AddOption("model",  ApplicationCommandOptionType.String, "Model to use (default from config)", isRequired: false)
+                )
+                .AddOption(new SlashCommandOptionBuilder()
+                    .WithName("clear")
+                    .WithDescription("Start a fresh conversation session")
+                    .WithType(ApplicationCommandOptionType.SubCommand)
+                )
+                .AddOption(new SlashCommandOptionBuilder()
+                    .WithName("compact")
+                    .WithDescription("Summarise the current session into a single context and continue from it")
+                    .WithType(ApplicationCommandOptionType.SubCommand)
                 )
                 .Build();
 
             await client.CreateGlobalApplicationCommandAsync(command);
-            await Log($"Registered global slash command: /{command.Name}");
+            await Log($"Registered global slash command: /{command.Name} (ask / clear / compact)");
         }
     }
 
@@ -244,10 +267,12 @@ public class Bot(Terminal terminal) {
         }
 
         if (command.CommandName == "wisllm") {
-            await command.RespondAsync("Nothing to see here yet!");
-            command.Data.Options.ToList().ForEach(async opt => {
-                await Log($"Option: {opt.Name} = {opt.Value}");
-            });
+            var sub = command.Data.Options.First().Name;
+            switch (sub) {
+                case "ask":     await wisLlmHandler.HandleAskCommand(command);     break;
+                case "clear":   await wisLlmHandler.HandleClearCommand(command);   break;
+                case "compact": await wisLlmHandler.HandleCompactCommand(command); break;
+            }
             return;
         }
 
