@@ -2,15 +2,11 @@ using Discord;
 using Discord.WebSocket;
 
 public class Bot(Terminal terminal) {
-    private readonly string wiswardId = "265656652664012800";
-    private readonly string wisbotId = "WisBot#2348";
-    private readonly ulong uhstrayGuildId = 889910011113906186;
+    private const ulong uhstrayGuildId = 889910011113906186;
 
     private string token = null!;
 
     private DiscordSocketClient client = null!;
-
-    public Terminal Terminal { get; } = terminal;
     private VoiceRecorder voiceRecorder = new VoiceRecorder(terminal);
     private WelcomeHandler welcomeHandler = new WelcomeHandler(terminal);
     private UserVoiceActivityTracker voiceActivityTracker = new UserVoiceActivityTracker(terminal);
@@ -374,6 +370,6 @@ public class Bot(Terminal terminal) {
     }
 
     private async Task Log(string msg) {
-        await Terminal.AddLine($"[Discord] {msg}");
+        await terminal.AddLine($"[Discord] {msg}");
     }
 }

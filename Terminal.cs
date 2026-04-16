@@ -4,10 +4,6 @@ using System.Collections.Concurrent;
 // The terminal maintains and orchistrates actions between different parts of the program
 public class Terminal {
     ConcurrentQueue<string> lines = new ConcurrentQueue<string>();
-    private readonly int maxLines = 1_000;
-
-    private int terminalWidth = 80;
-    private int terminalHeight = 25;
 
     public Bot? Bot { get; set; }
 
@@ -21,28 +17,6 @@ public class Terminal {
             // Move cursor up one line and clear it to erase the raw input
             Console.Write("\x1b[1A\x1b[2K");
             await ProcessInput(element);
-        }
-    }
-
-    private void GetTerminalSize() {
-        try {
-            terminalWidth = Console.WindowWidth;
-            terminalHeight = Console.WindowHeight;
-        } catch (Exception) {
-            terminalWidth = 80;
-            terminalHeight = 25;
-        }
-    }
-
-    private async Task AllWriteLines() {
-        // \x1b[2J clears the screen, \x1b[H moves cursor to top-left, \x1b[3J clears the scrollback buffer
-        Console.Write("\x1b[2J\x1b[H\x1b[3J");
-        GetTerminalSize();
-
-        lines = new ConcurrentQueue<string>(lines.TakeLast(maxLines));
-
-        foreach (var line in lines) {
-            await Console.Out.WriteLineAsync($"{line}");
         }
     }
 
@@ -80,10 +54,11 @@ public class Terminal {
         await task;
     }
 
-    private async Task ClearTerminal() {
+    private Task ClearTerminal() {
         // \x1b[2J clears the screen, \x1b[H moves cursor to top-left, \x1b[3J clears the scrollback buffer
         Console.Write("\x1b[2J\x1b[H\x1b[3J");
         lines.Clear();
+        return Task.CompletedTask;
     }
 
     private async Task Log(string message) {

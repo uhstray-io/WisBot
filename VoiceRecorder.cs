@@ -5,20 +5,18 @@ using NAudio.Wave;
 using System.Collections.Concurrent;
 
 
-/// Represents a chunk of audio data with its timestamp relative to recording start
-public class AudioChunk {
-
+/// Represents a chunk of audio data with its timestamp relative to recording start.
+/// Immutable after construction — use init-only properties with object initializer syntax.
+public record AudioChunk {
     /// Timestamp in milliseconds from recording start
-    public long TimestampMs { get; set; }
+    public required long TimestampMs { get; init; }
 
     /// Raw PCM audio data (48kHz, 16-bit, stereo)
     /// Variable length - typically one or more 20ms frames (3840 bytes each)
-    public byte[] Data { get; set; } = [];
-
+    public required byte[] Data { get; init; }
 
     /// Number of 20ms frames this chunk contains
     public int FrameCount => Data.Length / 3840;
-
 
     /// Duration of this chunk in milliseconds
     public double DurationMs => FrameCount * 20.0;
@@ -28,7 +26,7 @@ public class AudioChunk {
 public class UserAudio(ulong userId, string username) {
     public ulong UserId { get; } = userId;
     public string Username { get; set; } = username;
-    public List<AudioChunk> Chunks { get; } = new();
+    public List<AudioChunk> Chunks { get; } = [];
     public AudioInStream? Stream { get; set; }
     public Task? RecordingTask { get; set; }
 }
@@ -43,7 +41,10 @@ public class UserAudio(ulong userId, string username) {
 
 public class VoiceRecorder(Terminal terminal) {
     private IAudioClient? audioClient;
-    private bool isRecording = false;
+    // 0 = idle, 1 = recording. Use Interlocked for thread-safe check-and-set —
+    // a plain bool would allow two concurrent /recording start calls to both pass
+    // the "already recording?" check before either sets the flag.
+    private int isRecordingFlag = 0;
     private CancellationTokenSource? recordingCancellationToken;
 
     // All per-user state in one dictionary: UserID -> UserAudio
@@ -141,13 +142,12 @@ public class VoiceRecorder(Terminal terminal) {
     /// Joins a voice channel by ID and starts recording all users in it.
     /// Also used by terminal test commands.
     public async Task<string> JoinAndRecordChannel(IVoiceChannel voiceChannel) {
-        if (isRecording) {
+        // Atomically set flag from 0 → 1. If it was already 1, bail immediately.
+        if (Interlocked.CompareExchange(ref isRecordingFlag, 1, 0) == 1)
             return "Already recording in a voice channel!";
-        }
 
         try {
             audioClient = await voiceChannel.ConnectAsync();
-            isRecording = true;
             recordingCancellationToken = new CancellationTokenSource();
             recordingStartTime = DateTime.UtcNow;
             recordingVoiceChannel = voiceChannel;
@@ -209,7 +209,7 @@ public class VoiceRecorder(Terminal terminal) {
         const int frameSize = 3840; // 20ms at 48kHz, 16-bit, stereo
         byte[] readBuffer = new byte[frameSize];
 
-        while (!cancellationToken.IsCancellationRequested && isRecording) {
+        while (!cancellationToken.IsCancellationRequested && isRecordingFlag == 1) {
             var stream = userAudio.Stream;
             if (stream == null) {
                 await Task.Delay(200, cancellationToken);
@@ -245,7 +245,7 @@ public class VoiceRecorder(Terminal terminal) {
     // ── IAudioClient Event Handlers ──────────────────────────────────────
 
     private Task OnStreamCreated(ulong userId, AudioInStream stream) {
-        if (!isRecording || recordingCancellationToken == null) return Task.CompletedTask;
+        if (isRecordingFlag == 0 || recordingCancellationToken == null) return Task.CompletedTask;
 
         // Existing user — just update their stream reference (ReadStream picks it up)
         if (users.TryGetValue(userId, out var existing)) {
@@ -296,7 +296,7 @@ public class VoiceRecorder(Terminal terminal) {
     private async Task<long> StopRecording() {
         var sessionDurationMs = (long)(DateTime.UtcNow - recordingStartTime).TotalMilliseconds;
 
-        isRecording = false;
+        Interlocked.Exchange(ref isRecordingFlag, 0);
         recordingCancellationToken?.Cancel();
 
         try {
@@ -354,7 +354,7 @@ public class VoiceRecorder(Terminal terminal) {
         Directory.CreateDirectory(outputDir);
 
         List<string> filePaths = [];
-        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
 
         foreach (var (userId, user) in users) {
             var chunks = user.Chunks;
@@ -386,7 +386,7 @@ public class VoiceRecorder(Terminal terminal) {
 
     /// Mixes multiple WAV files into one by summing samples with clamping.
     private async Task MergeAudioFiles(List<string> filePaths, string outputDir) {
-        var mergedPath = Path.Combine(outputDir, $"merged_{DateTime.Now:yyyyMMdd_HHmmss}.wav");
+        var mergedPath = Path.Combine(outputDir, $"merged_{DateTime.UtcNow:yyyyMMdd_HHmmss}.wav");
         List<WaveFileReader> readers = [];
 
         try {
@@ -431,11 +431,11 @@ public class VoiceRecorder(Terminal terminal) {
 
     // ── Public API ───────────────────────────────────────────────────────
 
-    public bool IsRecording => isRecording;
+    public bool IsRecording => isRecordingFlag == 1;
 
     /// Stops recording, saves WAV files, optionally merges and sends to Discord channel.
     public async Task<List<string>> StopRecordingAndSave(ISocketMessageChannel channel, bool sendFiles = false, bool mergeAudio = false) {
-        if (!isRecording || audioClient == null) {
+        if (isRecordingFlag == 0 || audioClient == null) {
             await channel.SendMessageAsync("Not currently recording!");
             return [];
         }
@@ -458,7 +458,7 @@ public class VoiceRecorder(Terminal terminal) {
 
     /// Stops recording and saves WAV files locally (no Discord channel needed).
     public async Task<List<string>> StopRecordingAndSave() {
-        if (!isRecording || audioClient == null) {
+        if (isRecordingFlag == 0 || audioClient == null) {
             await Log("Not currently recording!");
             return [];
         }

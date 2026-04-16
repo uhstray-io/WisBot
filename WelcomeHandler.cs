@@ -29,12 +29,13 @@ public class WelcomeHandler(Terminal terminal) {
     public async Task OnUserJoined(SocketGuildUser user) {
         await Log($"User joined: {user.Username} ({user.Id}) in {user.Guild.Name}");
 
-        if (!await IsFirstJoin(user.Guild.Id, user.Id)) {
+        // Atomically insert and check — if 0 rows affected, user was already welcomed.
+        // Two-step check-then-insert would be a TOCTOU race: two concurrent events could
+        // both pass the check before either writes, causing a double welcome message.
+        if (!await RecordFirstJoin(user.Guild.Id, user.Id)) {
             await Log($"{user.Username} has joined before — skipping welcome.");
             return;
         }
-
-        await RecordJoin(user.Guild.Id, user.Id);
 
         var channel = (ISocketMessageChannel?)user.Guild.SystemChannel
             ?? user.Guild.TextChannels.OrderBy(c => c.Position).FirstOrDefault();
@@ -56,23 +57,9 @@ public class WelcomeHandler(Terminal terminal) {
 
     // ── DB Queries ───────────────────────────────────────────────────────
 
-    private async Task<bool> IsFirstJoin(ulong guildId, ulong userId) {
-        using var conn = new SqliteConnection(Database.ConnectionString);
-        await conn.OpenAsync();
-
-        var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            SELECT 1 FROM welcomed_users
-            WHERE guild_id = $guild AND user_id = $user
-            LIMIT 1
-            """;
-        cmd.Parameters.AddWithValue("$guild", (long)guildId);
-        cmd.Parameters.AddWithValue("$user", (long)userId);
-
-        return await cmd.ExecuteScalarAsync() is null;
-    }
-
-    private async Task RecordJoin(ulong guildId, ulong userId) {
+    /// Inserts the user as welcomed. Returns true if this is their first join, false if already recorded.
+    /// Atomic: INSERT OR IGNORE + check rows affected eliminates the check-then-insert race.
+    private async Task<bool> RecordFirstJoin(ulong guildId, ulong userId) {
         using var conn = new SqliteConnection(Database.ConnectionString);
         await conn.OpenAsync();
 
@@ -84,6 +71,6 @@ public class WelcomeHandler(Terminal terminal) {
         cmd.Parameters.AddWithValue("$guild", (long)guildId);
         cmd.Parameters.AddWithValue("$user", (long)userId);
 
-        await cmd.ExecuteNonQueryAsync();
+        return await cmd.ExecuteNonQueryAsync() > 0;
     }
 }

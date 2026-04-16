@@ -46,6 +46,8 @@ public static class Database {
                 action       TEXT    NOT NULL,
                 timestamp    TEXT    NOT NULL
             );
+            CREATE INDEX IF NOT EXISTS idx_voice_activity_user_guild
+                ON voice_activity (user_id, guild_id);
 
             CREATE TABLE IF NOT EXISTS wisllm_sessions (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,6 +55,8 @@ public static class Database {
                 user_id    INTEGER,
                 created_at TEXT NOT NULL
             );
+            CREATE INDEX IF NOT EXISTS idx_wisllm_sessions_guild ON wisllm_sessions (guild_id);
+            CREATE INDEX IF NOT EXISTS idx_wisllm_sessions_user  ON wisllm_sessions (user_id);
 
             CREATE TABLE IF NOT EXISTS wisllm_history (
                 id                 INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,6 +71,9 @@ public static class Database {
                 timestamp          TEXT    NOT NULL,
                 is_compact_summary INTEGER NOT NULL DEFAULT 0
             );
+
+            CREATE INDEX IF NOT EXISTS idx_wisllm_history_session
+                ON wisllm_history (session_id);
             """;
         await cmd.ExecuteNonQueryAsync();
     }
