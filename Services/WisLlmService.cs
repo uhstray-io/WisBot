@@ -4,6 +4,8 @@ using Microsoft.Data.Sqlite;
 using System.Text;
 using System.Text.Json;
 
+namespace WisBot;
+
 // ── Ollama JSON models ────────────────────────────────────────────────────────
 
 record OllamaMessage(string Role, string Content);
@@ -13,12 +15,12 @@ record OllamaShowRequest(string Name);
 record OllamaShowResponse(string? Parameters);
 record WisLlmHistoryRow(string Username, string Prompt, string Response, bool IsCompactSummary);
 
-// ── Handler ───────────────────────────────────────────────────────────────────
+// ── Service ───────────────────────────────────────────────────────────────────
 
 /// Handles all /wisllm subcommands: ask, clear, compact.
 /// Guild sessions are shared across all users in the guild.
 /// DM sessions are scoped per user.
-public class WisLlmHandler(Terminal terminal) {
+public class WisLlmService(Terminal terminal) {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(5) };
 
     // Cache model context window sizes so we only call /api/show once per model per run
@@ -36,9 +38,9 @@ public class WisLlmHandler(Terminal terminal) {
         Each user message is prefixed with [Username] so you know who asked it.
         """;
 
-    private async Task Log(string msg) => await terminal.AddLine($"[WisLLM] {msg}");
+    private async Task Log(string msg, LogLevel level = LogLevel.Info) => await terminal.AddLine($"[WisLLM] {msg}", level);
 
-    // ── Command Handlers ─────────────────────────────────────────────────
+    // ── Commands ─────────────────────────────────────────────────────────
 
     public async Task HandleAskCommand(SocketSlashCommand command) {
         var subOptions = command.Data.Options.First().Options;
@@ -64,10 +66,10 @@ public class WisLlmHandler(Terminal terminal) {
                 await MaybeWarnContextAsync(command, model, messages);
                 await Log($"{command.User.Username} asked [{model}]: {prompt[..Math.Min(60, prompt.Length)]}");
             } catch (HttpRequestException ex) {
-                await Log($"Ollama unreachable: {ex.Message}");
+                await Log($"Ollama unreachable: {ex.Message}", LogLevel.Error);
                 await command.FollowupAsync("Could not reach the Ollama endpoint. Is it running?", ephemeral: true);
             } catch (Exception ex) {
-                await Log($"Ask error: {ex.Message}");
+                await Log($"Ask error: {ex.Message}", LogLevel.Error);
                 await command.FollowupAsync("Something went wrong calling WisLLM.", ephemeral: true);
             }
         });
@@ -114,10 +116,10 @@ public class WisLlmHandler(Terminal terminal) {
 
                 await Log($"{command.User.Username} compacted session for {ContextLabel(guildId, dmUserId)}");
             } catch (HttpRequestException ex) {
-                await Log($"Ollama unreachable: {ex.Message}");
+                await Log($"Ollama unreachable: {ex.Message}", LogLevel.Error);
                 await command.FollowupAsync("Could not reach the Ollama endpoint. Is it running?", ephemeral: true);
             } catch (Exception ex) {
-                await Log($"Compact error: {ex.Message}");
+                await Log($"Compact error: {ex.Message}", LogLevel.Error);
                 await command.FollowupAsync("Something went wrong compacting the session.", ephemeral: true);
             }
         });
@@ -188,7 +190,7 @@ public class WisLlmHandler(Terminal terminal) {
             await Log($"Context warning sent to {command.User.Username}: {percent}% of {model} window used");
         } catch (Exception ex) {
             // Non-critical — don't let a warning failure surface to the user
-            await Log($"Context warning check failed: {ex.Message}");
+            await Log($"Context warning check failed: {ex.Message}", LogLevel.Warn);
         }
     }
 

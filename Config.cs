@@ -1,29 +1,37 @@
-/// Loads configuration from a .env file at startup.
+namespace WisBot;
+
+/// Loads configuration from a .env file and discord.key at startup.
 /// Falls back to safe defaults if the file or a key is missing.
 public static class Config {
-    public static string OllamaEndpoint        { get; private set; } = "http://localhost:11434";
-    public static string OllamaDefaultModel    { get; private set; } = "llama3";
-    public static int    WisLlmContextLimit    { get; private set; } = 10;
-    /// Warn the user when estimated token usage exceeds this % of the model's context window.
-    public static int    WisLlmWarnAtPercent   { get; private set; } = 75;
-    /// Hard-coded context window size in tokens. When set, skips the Ollama /api/show query.
-    /// Leave unset (0) to query Ollama dynamically.
-    public static int    WisLlmContextSize     { get; private set; } = 0;
+    public static string DiscordToken       { get; private set; } = string.Empty;
+    public static string OllamaEndpoint     { get; private set; } = "http://localhost:11434";
+    public static string OllamaDefaultModel { get; private set; } = "llama3";
+    public static int    WisLlmContextLimit { get; private set; } = 10;
+    public static int    WisLlmWarnAtPercent{ get; private set; } = 75;
+    public static int    WisLlmContextSize  { get; private set; } = 0;
 
-    public static void Load(string path = ".env") {
-        if (!File.Exists(path)) return;
+    public static void Load(string envPath = ".env", string tokenPath = "discord.key") {
+        // discord.key is the local dev path; .env is the Docker/CI path
+        if (File.Exists(tokenPath))
+            DiscordToken = File.ReadAllText(tokenPath).Trim();
 
-        foreach (var raw in File.ReadAllLines(path)) {
+        if (!File.Exists(envPath)) return;
+
+        foreach (var raw in File.ReadAllLines(envPath)) {
             var line = raw.Trim();
             if (line.StartsWith('#') || !line.Contains('=')) continue;
 
-            int idx  = line.IndexOf('=');
-            var key  = line[..idx].Trim();
+            int idx   = line.IndexOf('=');
+            var key   = line[..idx].Trim();
             var value = line[(idx + 1)..].Trim();
 
             switch (key) {
-                case "OLLAMA_ENDPOINT":       OllamaEndpoint     = value; break;
-                case "OLLAMA_DEFAULT_MODEL":  OllamaDefaultModel = value; break;
+                // Deployment workflow (deployment_prod.yml) appends DISCORD_TOKEN_WISBOT to .env
+                case "DISCORD_TOKEN_WISBOT":
+                    if (!string.IsNullOrWhiteSpace(value)) DiscordToken = value;
+                    break;
+                case "OLLAMA_ENDPOINT":        OllamaEndpoint     = value; break;
+                case "OLLAMA_DEFAULT_MODEL":   OllamaDefaultModel = value; break;
                 case "WISLLM_CONTEXT_LIMIT":
                     if (int.TryParse(value, out int limit) && limit > 0)
                         WisLlmContextLimit = limit;

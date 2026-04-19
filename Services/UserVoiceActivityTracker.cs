@@ -1,6 +1,8 @@
 using Discord.WebSocket;
 using Microsoft.Data.Sqlite;
 
+namespace WisBot;
+
 public record VoiceActivityEntry {
     public long Id { get; init; }
     public required ulong UserId { get; init; }
@@ -17,9 +19,10 @@ public record VoiceActivityEntry {
 /// Channel hops (user moves between channels) produce a "left" for the old
 /// channel and a "joined" for the new channel, preserving full history.
 public class UserVoiceActivityTracker(Terminal terminal) {
-    private async Task Log(string msg) => await terminal.AddLine($"[VoiceActivity] {msg}");
+    private async Task Log(string msg, LogLevel level = LogLevel.Info)
+        => await terminal.AddLine($"[VoiceActivity] {msg}", level);
 
-    // ── Event Handler ────────────────────────────────────────────────────
+    // ── Event ────────────────────────────────────────────────────────────
 
     public async Task OnVoiceStateUpdated(SocketUser user, SocketVoiceState before, SocketVoiceState after) {
         if (user.IsBot) return;
@@ -55,7 +58,7 @@ public class UserVoiceActivityTracker(Terminal terminal) {
             await cmd.ExecuteNonQueryAsync();
             await Log($"{user.Username} {action} #{channel.Name} in {channel.Guild.Name}");
         } catch (Exception ex) {
-            await Log($"Failed to record voice activity for {user.Username}: {ex.Message}");
+            await Log($"Failed to record voice activity for {user.Username}: {ex.Message}", LogLevel.Error);
         }
     }
 }

@@ -1,6 +1,8 @@
 using Discord;
 using Discord.WebSocket;
 
+namespace WisBot;
+
 public class Bot(Terminal terminal) {
     private const ulong uhstrayGuildId = 889910011113906186;
 
@@ -8,13 +10,14 @@ public class Bot(Terminal terminal) {
 
     private DiscordSocketClient client = null!;
     private VoiceRecorder voiceRecorder = new VoiceRecorder(terminal);
-    private WelcomeHandler welcomeHandler = new WelcomeHandler(terminal);
+    private WelcomeService welcomeService = new WelcomeService(terminal);
     private UserVoiceActivityTracker voiceActivityTracker = new UserVoiceActivityTracker(terminal);
-    private VoiceStatsHandler voiceStatsHandler = new VoiceStatsHandler(terminal);
-    private WisLlmHandler wisLlmHandler = new WisLlmHandler(terminal);
+    private VoiceStatsService voiceStatsService = new VoiceStatsService(terminal);
+    private WisLlmService wisLlmService = new WisLlmService(terminal);
     private ReminderService? reminderService;
-    private VoiceNotificationHandler? voiceNotifyHandler;
-    private StatusHandler? statusHandler;
+    private VoiceNotificationService? voiceNotifyService;
+    private StatusService? statusService;
+    private Dictionary<string, Func<SocketSlashCommand, Task>> commands = [];
 
     public async Task StartBot() {
         var config = new DiscordSocketConfig {
@@ -27,14 +30,14 @@ public class Bot(Terminal terminal) {
 
         client = new DiscordSocketClient(config);
         reminderService = new ReminderService(terminal, client);
-        voiceNotifyHandler = new VoiceNotificationHandler(terminal, client);
-        statusHandler = new StatusHandler(terminal, client);
+        voiceNotifyService = new VoiceNotificationService(terminal, client);
+        statusService = new StatusService(terminal, client);
         client.Log += OnLog;
         client.MessageUpdated += OnMessageUpdated;
         client.MessageReceived += OnMessageReceived;
         client.Ready += OnReady;
-        client.UserJoined += welcomeHandler.OnUserJoined;
-        client.UserVoiceStateUpdated += voiceNotifyHandler.OnVoiceStateUpdated;
+        client.UserJoined += welcomeService.OnUserJoined;
+        client.UserVoiceStateUpdated += voiceNotifyService.OnVoiceStateUpdated;
         client.UserVoiceStateUpdated += voiceActivityTracker.OnVoiceStateUpdated;
         client.UserIsTyping += OnUserIsTyping;
         client.SlashCommandExecuted += OnSlashCommandExecuted;
@@ -46,9 +49,11 @@ public class Bot(Terminal terminal) {
 
     private async Task InitBot() {
         Config.Load();
-        await Log("Reading discord key from file...");
-        var content = await File.ReadAllTextAsync("discord.key");
-        token = content.Trim();
+        if (string.IsNullOrWhiteSpace(Config.DiscordToken))
+            throw new InvalidOperationException(
+                "Discord token not found. Add it to discord.key or set DISCORD_TOKEN_WISBOT in .env");
+        token = Config.DiscordToken;
+        await terminal.AddLine("[Bot] Config loaded");
     }
 
 
@@ -87,6 +92,15 @@ public class Bot(Terminal terminal) {
         await Database.Initialize();
         await reminderService!.Start();
         await AddCommandsIfNotExist();
+
+        commands = new Dictionary<string, Func<SocketSlashCommand, Task>> {
+            ["remind"]     = cmd => reminderService!.HandleRemindCommand(cmd),
+            ["status"]     = cmd => statusService!.HandleCommand(cmd),
+            ["voicestats"] = cmd => voiceStatsService.HandleCommand(cmd),
+            ["notify"]     = cmd => voiceNotifyService!.HandleNotifyCommand(cmd),
+            ["recording"]  = cmd => voiceRecorder.HandleRecordingCommand(cmd),
+            ["wisllm"]     = HandleWisLlmCommand,
+        };
     }
 
     public async Task AddCommandsIfNotExist() {
@@ -236,46 +250,22 @@ public class Bot(Terminal terminal) {
     }
 
 
+    private async Task HandleWisLlmCommand(SocketSlashCommand command) {
+        var sub = command.Data.Options.First().Name;
+        switch (sub) {
+            case "ask":     await wisLlmService.HandleAskCommand(command);     break;
+            case "clear":   await wisLlmService.HandleClearCommand(command);   break;
+            case "compact": await wisLlmService.HandleCompactCommand(command); break;
+        }
+    }
+
     private async Task OnSlashCommandExecuted(SocketSlashCommand command) {
-        // Log User and command info
-        await Log($"Slash command executed: {command.CommandName} by {command.User.Username}");
-        await Log($"Command options: {string.Join(", ", command.Data.Options.Select(opt => $"{opt.Name}={opt.Value}"))}");
+        await terminal.AddLine($"[Bot] /{command.CommandName} by {command.User.Username}");
 
-
-        if (command.CommandName == "remind") {
-            await reminderService!.HandleRemindCommand(command);
-            return;
-        }
-
-        if (command.CommandName == "status") {
-            await statusHandler!.HandleCommand(command);
-            return;
-        }
-
-        if (command.CommandName == "voicestats") {
-            await voiceStatsHandler.HandleCommand(command);
-            return;
-        }
-
-        if (command.CommandName == "notify") {
-            await voiceNotifyHandler!.HandleNotifyCommand(command);
-            return;
-        }
-
-        if (command.CommandName == "wisllm") {
-            var sub = command.Data.Options.First().Name;
-            switch (sub) {
-                case "ask":     await wisLlmHandler.HandleAskCommand(command);     break;
-                case "clear":   await wisLlmHandler.HandleClearCommand(command);   break;
-                case "compact": await wisLlmHandler.HandleCompactCommand(command); break;
-            }
-            return;
-        }
-
-        if (command.CommandName == "recording") {
-            await voiceRecorder.HandleRecordingCommand(command);
-            return;
-        }
+        if (commands.TryGetValue(command.CommandName, out var handler))
+            await handler(command);
+        else
+            await terminal.AddLine($"[Bot] Unknown command: {command.CommandName}", LogLevel.Warn);
     }
 
     public async Task RemoveAllCommands() {
@@ -306,8 +296,8 @@ public class Bot(Terminal terminal) {
             // Optionally: Remove commands from all guilds the bot is in
             await Log("Removing commands from all guilds");
             foreach (var g in client.Guilds) {
-                var commands = await g.GetApplicationCommandsAsync();
-                foreach (var command in commands) {
+                var guildCmds = await g.GetApplicationCommandsAsync();
+                foreach (var command in guildCmds) {
                     await command.DeleteAsync();
                     await Log($"  Deleted command '{command.Name}' from guild {g.Name}");
                     await Task.Delay(100);
@@ -316,7 +306,7 @@ public class Bot(Terminal terminal) {
 
             await Log("Successfully removed all commands!");
         } catch (Exception ex) {
-            await Log($"Error removing commands: {ex.Message}");
+            await Log($"Error removing commands: {ex.Message}", LogLevel.Error);
         }
     }
 
@@ -369,7 +359,6 @@ public class Bot(Terminal terminal) {
         await Log(msg.ToString());
     }
 
-    private async Task Log(string msg) {
-        await terminal.AddLine($"[Discord] {msg}");
-    }
+    private async Task Log(string msg, LogLevel level = LogLevel.Info)
+        => await terminal.AddLine($"[Discord] {msg}", level);
 }

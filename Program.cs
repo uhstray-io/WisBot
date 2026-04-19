@@ -1,25 +1,25 @@
-﻿Console.WriteLine("Starting bot...");
+﻿using WisBot;
 
-var terminal = new Terminal();
-var bot = new Bot(terminal);
+Console.WriteLine("Starting bot...");
 
-// Connect them bidirectionally
-terminal.Bot = bot;
+  var terminal = new Terminal();                                                                                                                   
+  var bot = new Bot(terminal);
+  
+  terminal.Bot = bot;
 
-// Propagate unhandled exceptions from fire-and-forget tasks so failures are visible.
-// Without this, an exception in StartBot (bad token, network failure, etc.) is silently
-// swallowed — the process stays alive but the bot never connects.
-TaskScheduler.UnobservedTaskException += (_, e) => {
-    Console.Error.WriteLine($"[FATAL] Unobserved task exception: {e.Exception}");
-    e.SetObserved(); // prevent process crash from unrelated background errors
-};
+  var botTask = bot.StartBot();
+  var terminalTask = terminal.NewTerminal();
 
-_ = terminal.NewTerminal();
-_ = bot.StartBot().ContinueWith(t => {
-    if (t.IsFaulted) {
-        Console.Error.WriteLine($"[FATAL] Bot failed to start: {t.Exception?.GetBaseException().Message}");
-        Environment.Exit(1);
-    }
-}, TaskContinuationOptions.OnlyOnFaulted);
+  // Bot failure = fatal; terminal crash = warn and continue
+  var completed = await Task.WhenAny(botTask, terminalTask);
 
-await Task.Delay(-1);
+  if (completed == botTask && botTask.IsFaulted)
+  {
+      Console.Error.WriteLine($"[FATAL] Bot failed: {botTask.Exception?.GetBaseException().Message}");
+      Environment.Exit(1);
+  }
+
+  if (terminalTask.IsFaulted)
+      Console.Error.WriteLine($"[WARN] Terminal crashed: {terminalTask.Exception?.GetBaseException().Message}");
+
+  await Task.Delay(-1);

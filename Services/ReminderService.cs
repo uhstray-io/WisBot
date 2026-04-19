@@ -1,6 +1,8 @@
 using Discord.WebSocket;
 using Microsoft.Data.Sqlite;
 
+namespace WisBot;
+
 public record Reminder {
     public long Id { get; init; }
     public required ulong UserId { get; init; }
@@ -14,7 +16,8 @@ public record Reminder {
 public class ReminderService(Terminal terminal, DiscordSocketClient client) {
     private CancellationTokenSource? cts;
 
-    private async Task Log(string msg) => await terminal.AddLine($"[Reminders] {msg}");
+    private async Task Log(string msg, LogLevel level = LogLevel.Info)
+        => await terminal.AddLine($"[Reminders] {msg}", level);
 
     public async Task Start() {
         int count = await GetPendingCount();
@@ -39,7 +42,7 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
             } catch (OperationCanceledException) {
                 break;
             } catch (Exception ex) {
-                await Log($"Loop error: {ex.Message}");
+                await Log($"Loop error: {ex.Message}", LogLevel.Error);
                 await Task.Delay(TimeSpan.FromSeconds(30), token);
             }
         }
@@ -64,7 +67,7 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
                 sent = true;
             }
         } catch (Exception ex) {
-            await Log($"DM failed for reminder {reminder.Id}: {ex.Message}");
+            await Log($"DM failed for reminder {reminder.Id}: {ex.Message}", LogLevel.Error);
         }
 
         // Fall back to original channel with a mention
@@ -75,16 +78,17 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
                     sent = true;
                 }
             } catch (Exception ex) {
-                await Log($"Channel fallback failed for reminder {reminder.Id}: {ex.Message}");
+                await Log($"Channel fallback failed for reminder {reminder.Id}: {ex.Message}", LogLevel.Error);
             }
         }
 
-        await Log(sent
-            ? $"Delivered reminder {reminder.Id} to user {reminder.UserId}"
-            : $"Could not deliver reminder {reminder.Id} — dropped");
+        if (sent)
+            await Log($"Delivered reminder {reminder.Id} to user {reminder.UserId}");
+        else
+            await Log($"Could not deliver reminder {reminder.Id} — dropped", LogLevel.Warn);
     }
 
-    // ── Command Handler ──────────────────────────────────────────────────
+    // ── Command ──────────────────────────────────────────────────────────
 
     public async Task HandleRemindCommand(SocketSlashCommand command) {
         var whenOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "when");

@@ -21,16 +21,23 @@ Production runs via Docker on a self-hosted GitHub Actions runner (see `.github/
 
 C# .NET 10.0 console application — a Discord bot with voice recording, welcome messages, and reminders.
 
-### Source Files (all at repo root)
+### Source Files
 
 - **Program.cs** — Entry point. Creates `Terminal` and `Bot` with bidirectional references, runs both concurrently via fire-and-forget tasks, blocks with `Task.Delay(-1)`.
-- **Bot.cs** — Discord client lifecycle, event subscriptions, slash command registration and execution. Manages `DiscordSocketClient` connection. Owns feature service instances and wires events.
+- **Bot.cs** — Discord client lifecycle, event subscriptions, slash command registration and execution. Manages `DiscordSocketClient` connection. Owns service instances and wires events.
 - **Terminal.cs** — Async console I/O with a `ConcurrentQueue<string>` log buffer (max 1000 lines). Dispatches terminal commands (`/testrecord`, `/removeallcommands`, `/gc`, `/clear`) that call into Bot.
+- **Database.cs** — Static helper. Owns the SQLite connection string (`wisbot.db`) and runs `CREATE TABLE IF NOT EXISTS` for all service tables on startup.
+
+### Services (`Services/`)
+
 - **VoiceRecorder.cs** — Voice channel audio capture. Stores per-user audio as timestamped sparse `AudioChunk` objects in a `ConcurrentDictionary<ulong, UserAudio>`. Reconstructs sparse chunks into continuous PCM, writes WAV files via NAudio `WaveFileWriter`. Optionally merges multi-user recordings into a single file.
-- **WelcomeHandler.cs** — Handles `UserJoined` events. Sends a randomized welcome message the first time a user joins a guild; tracks welcomed users in the `welcomed_users` DB table to suppress re-welcomes on rejoin.
+- **WelcomeService.cs** — Handles `UserJoined` events. Sends a randomized welcome message the first time a user joins a guild; tracks welcomed users in the `welcomed_users` DB table to suppress re-welcomes on rejoin.
 - **ReminderService.cs** — One-shot reminder scheduler. Persists reminders to the `reminders` DB table. Background loop fires every 30s, claiming due reminders atomically via `DELETE ... RETURNING`. Delivers via DM with channel mention fallback. Also owns `TryParseDuration` / `FormatDuration` static helpers.
-- **VoiceNotificationHandler.cs** — One-shot voice presence notifications. Watches `UserVoiceStateUpdated` for a user entering a channel (not hopping or leaving). Atomically claims watchers via `DELETE ... RETURNING` and DMs them with a joinable deep link (`https://discord.com/channels/{guildId}/{channelId}`).
-- **Database.cs** — Static helper. Owns the SQLite connection string (`wisbot.db`) and runs `CREATE TABLE IF NOT EXISTS` for all feature tables on startup.
+- **VoiceNotificationService.cs** — One-shot voice presence notifications. Watches `UserVoiceStateUpdated` for a user entering a channel (not hopping or leaving). Atomically claims watchers via `DELETE ... RETURNING` and DMs them with a joinable deep link (`https://discord.com/channels/{guildId}/{channelId}`).
+- **VoiceStatsService.cs** — Handles the `/voicestats` slash command. Queries the `voice_activity` table to compute per-user stats.
+- **StatusService.cs** — Handles the `/status` slash command. Returns a monitoring snapshot of the bot process.
+- **WisLlmService.cs** — Handles all `/wisllm` subcommands (ask, clear, compact). Guild sessions shared; DM sessions scoped per user.
+- **UserVoiceActivityTracker.cs** — Passively records every voice channel join/leave to the DB.
 
 ### Startup Flow
 
@@ -52,8 +59,8 @@ Program.cs → new Terminal() + new Bot(terminal)
 
 ## Conventions
 
-- **Manual constructor DI** — `Terminal` is injected into all feature classes; `DiscordSocketClient` is additionally injected into services that need to call Discord APIs after startup (`ReminderService`, `VoiceNotificationHandler`). No DI container.
-- **Feature file pattern** — Each feature lives in its own file. `Bot.cs` owns instances, wires events, and handles slash command routing. `Database.cs` owns schema for all features.
+- **Manual constructor DI** — `Terminal` is injected into all services; `DiscordSocketClient` is additionally injected into services that need to call Discord APIs after startup (`ReminderService`, `VoiceNotificationService`). No DI container.
+- **Service file pattern** — Each service lives in its own file under `Services/`. `Bot.cs` owns instances, wires events, and handles slash command routing. `Database.cs` owns schema for all services.
 - **Discord timeout pattern** — Long operations use `Task.Run()` fire-and-forget after immediate `RespondAsync()`, then `FollowupAsync()` for results (avoids 3-second Discord interaction timeout)
 - **Thread safety** — `ConcurrentDictionary` and `ConcurrentQueue` throughout; background service lists use `lock` where needed
 - **Audio constants** — 48kHz sample rate, 16-bit depth, 2 channels (stereo), 3840 bytes per 20ms frame

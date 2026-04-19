@@ -1,9 +1,11 @@
 using Discord.WebSocket;
 using Microsoft.Data.Sqlite;
 
+namespace WisBot;
+
 /// Sends a randomized welcome message the first time a user joins a guild.
 /// Tracks welcomed users in the welcomed_users table (see Database.cs).
-public class WelcomeHandler(Terminal terminal) {
+public class WelcomeService(Terminal terminal) {
     private static readonly string[] Messages = [
         "👋 Welcome to **{guild}**, {mention}! Glad to have you here.",
         "🎉 {mention} just landed in **{guild}**! Welcome aboard!",
@@ -22,9 +24,10 @@ public class WelcomeHandler(Terminal terminal) {
         "🏰 The gates of **{guild}** open wide for {mention}. Welcome!",
     ];
 
-    private async Task Log(string msg) => await terminal.AddLine($"[Welcome] {msg}");
+    private async Task Log(string msg, LogLevel level = LogLevel.Info)
+        => await terminal.AddLine($"[Welcome] {msg}", level);
 
-    // ── Event Handler ────────────────────────────────────────────────────
+    // ── Event ────────────────────────────────────────────────────────────
 
     public async Task OnUserJoined(SocketGuildUser user) {
         await Log($"User joined: {user.Username} ({user.Id}) in {user.Guild.Name}");

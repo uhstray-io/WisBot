@@ -1,5 +1,9 @@
 using System.Collections.Concurrent;
 
+namespace WisBot;
+
+public enum LogLevel { Info, Warn, Error }
+
 // Terminal class to manage terminal output and user input
 // The terminal maintains and orchistrates actions between different parts of the program
 public class Terminal {
@@ -20,20 +24,19 @@ public class Terminal {
         }
     }
 
-    private async Task WriteLine(string line) {
-        await Console.Out.WriteLineAsync(line);
-    }
-
-    public async Task AddLine(string line) {
-        lines.Enqueue(line);
-        await WriteLine(line);
+    public async Task AddLine(string line, LogLevel level = LogLevel.Info) {
+        string formatted = level switch {
+            LogLevel.Warn  => $"[WARN]  {line}",
+            LogLevel.Error => $"[ERROR] {line}",
+            _              => line,
+        };
+        lines.Enqueue(formatted);
+        await Console.Out.WriteLineAsync(formatted);
     }
 
     public async Task AddLines(List<string> newLines) {
-        foreach (var line in newLines) {
-            lines.Enqueue(line);
-            await WriteLine(line);
-        }
+        foreach (var line in newLines)
+            await AddLine(line);
     }
 
     private async Task ProcessInput(string element) {
@@ -45,11 +48,11 @@ public class Terminal {
                 "/removeallcommands - Remove all Discord bot commands",
                 "/testrecord - Join voice channel, record 15s, save and leave",
             ]),
-            "/clear" => ClearTerminal(),
+            "/clear"             => ClearTerminal(),
             "/removeallcommands" => Bot?.RemoveAllCommands() ?? Log("Bot not initialized yet"),
-            "/testrecord" => Bot?.TestRecord() ?? Log("Bot not initialized yet"),
-            "/gc" => RunGC(),
-            _ => Log($"{element}"),
+            "/testrecord"        => Bot?.TestRecord()        ?? Log("Bot not initialized yet"),
+            "/gc"                => RunGC(),
+            _                    => Log(element),
         };
         await task;
     }
@@ -61,9 +64,7 @@ public class Terminal {
         return Task.CompletedTask;
     }
 
-    private async Task Log(string message) {
-        await AddLine($"[Terminal] {message}");
-    }
+    private async Task Log(string message) => await AddLine($"[Terminal] {message}");
 
     private async Task RunGC() {
         GC.Collect();

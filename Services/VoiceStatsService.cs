@@ -2,6 +2,8 @@ using Discord;
 using Discord.WebSocket;
 using Microsoft.Data.Sqlite;
 
+namespace WisBot;
+
 public record VoiceActivityRow(ulong ChannelId, string ChannelName, string Action, DateTime Timestamp);
 
 public class VoiceStats {
@@ -18,10 +20,11 @@ public class VoiceStats {
 
 /// Handles the /voicestats slash command.
 /// Queries the voice_activity table to compute per-user stats for the current guild.
-public class VoiceStatsHandler(Terminal terminal) {
-    private async Task Log(string msg) => await terminal.AddLine($"[VoiceStats] {msg}");
+public class VoiceStatsService(Terminal terminal) {
+    private async Task Log(string msg, LogLevel level = LogLevel.Info)
+        => await terminal.AddLine($"[VoiceStats] {msg}", level);
 
-    // ── Command Handler ──────────────────────────────────────────────────
+    // ── Command ──────────────────────────────────────────────────────────
 
     public async Task HandleCommand(SocketSlashCommand command) {
         var userOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "user");
@@ -47,7 +50,7 @@ public class VoiceStatsHandler(Terminal terminal) {
                 await command.FollowupAsync(embed: embed);
                 await Log($"Delivered voice stats for {target.Username} to {command.User.Username}");
             } catch (Exception ex) {
-                await Log($"Error computing stats for {target.Username}: {ex.Message}");
+                await Log($"Error computing stats for {target.Username}: {ex.Message}", LogLevel.Error);
                 await command.FollowupAsync("Something went wrong computing those stats.", ephemeral: true);
             }
         });

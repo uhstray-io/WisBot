@@ -2,10 +2,13 @@ using Discord;
 using Discord.WebSocket;
 using System.Diagnostics;
 
+namespace WisBot;
+
 /// Handles the /status slash command.
 /// Returns a monitoring snapshot of the bot process — no DB or historical data required.
-public class StatusHandler(Terminal terminal, DiscordSocketClient client) {
-    private async Task Log(string msg) => await terminal.AddLine($"[Status] {msg}");
+public class StatusService(Terminal terminal, DiscordSocketClient client) {
+    private async Task Log(string msg, LogLevel level = LogLevel.Info)
+        => await terminal.AddLine($"[Status] {msg}", level);
 
     public async Task HandleCommand(SocketSlashCommand command) {
         var embed = BuildEmbed();

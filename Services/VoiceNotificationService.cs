@@ -2,14 +2,17 @@ using Discord.WebSocket;
 using Discord;
 using Microsoft.Data.Sqlite;
 
+namespace WisBot;
+
 /// One-shot voice presence notifications.
 /// A user runs /notify targeting someone; the next time that person joins any
 /// voice channel in the guild, the watcher gets a DM with a joinable channel link.
 /// The notification is consumed on delivery — it does not repeat.
-public class VoiceNotificationHandler(Terminal terminal, DiscordSocketClient client) {
-    private async Task Log(string msg) => await terminal.AddLine($"[VoiceNotify] {msg}");
+public class VoiceNotificationService(Terminal terminal, DiscordSocketClient client) {
+    private async Task Log(string msg, LogLevel level = LogLevel.Info)
+        => await terminal.AddLine($"[VoiceNotify] {msg}", level);
 
-    // ── Event Handler ────────────────────────────────────────────────────
+    // ── Event ────────────────────────────────────────────────────────────
 
     public async Task OnVoiceStateUpdated(SocketUser user, SocketVoiceState before, SocketVoiceState after) {
         // Only fire when someone transitions from not-in-channel → in-channel
@@ -30,7 +33,7 @@ public class VoiceNotificationHandler(Terminal terminal, DiscordSocketClient cli
         try {
             var watcher = client.GetUser(watcherId);
             if (watcher == null) {
-                await Log($"Watcher {watcherId} not in cache — could not deliver notification");
+                await Log($"Watcher {watcherId} not in cache — could not deliver notification", LogLevel.Warn);
                 return;
             }
 
@@ -43,11 +46,11 @@ public class VoiceNotificationHandler(Terminal terminal, DiscordSocketClient cli
 
             await Log($"Notified {watcher.Username} that {target.Username} joined #{channel.Name}");
         } catch (Exception ex) {
-            await Log($"Failed to notify watcher {watcherId}: {ex.Message}");
+            await Log($"Failed to notify watcher {watcherId}: {ex.Message}", LogLevel.Error);
         }
     }
 
-    // ── Command Handler ──────────────────────────────────────────────────
+    // ── Command ──────────────────────────────────────────────────────────
 
     public async Task HandleNotifyCommand(SocketSlashCommand command) {
         var userOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "user");

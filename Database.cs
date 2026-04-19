@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 
+namespace WisBot;
+
 /// Central database helper. All features share the same wisbot.db file.
 /// Call Database.Initialize() once on startup to ensure all tables exist.
 public static class Database {

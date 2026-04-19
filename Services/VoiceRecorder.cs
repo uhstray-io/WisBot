@@ -4,6 +4,7 @@ using Discord.WebSocket;
 using NAudio.Wave;
 using System.Collections.Concurrent;
 
+namespace WisBot;
 
 /// Represents a chunk of audio data with its timestamp relative to recording start.
 /// Immutable after construction — use init-only properties with object initializer syntax.
@@ -56,12 +57,12 @@ public class VoiceRecorder(Terminal terminal) {
     // Voice channel being recorded
     private IVoiceChannel? recordingVoiceChannel;
 
-    private async Task Log(string msg) =>
-        await terminal.AddLine($"[VoiceRecorder] {msg}");
+    private async Task Log(string msg, LogLevel level = LogLevel.Info) =>
+        await terminal.AddLine($"[VoiceRecorder] {msg}", level);
 
 
 
-    // ── Command Handler ──────────────────────────────────────────────────
+    // ── Command ──────────────────────────────────────────────────────────
 
     public async Task HandleRecordingCommand(SocketSlashCommand command) {
         var actionOption = command.Data.Options.FirstOrDefault(opt => opt.Name == "action");
@@ -92,7 +93,7 @@ public class VoiceRecorder(Terminal terminal) {
                     await Log($"Finished recording for {user.Username}. Result: {result}");
                     await command.FollowupAsync(result);
                 } catch (Exception ex) {
-                    await Log($"Error in recording task: {ex.Message}");
+                    await Log($"Error in recording task: {ex.Message}", LogLevel.Error);
                     await command.FollowupAsync($"Error starting recording: {ex.Message}");
                 }
             });
@@ -119,7 +120,7 @@ public class VoiceRecorder(Terminal terminal) {
                         await command.FollowupAsync("⚠️ No audio was captured during the recording session.");
                     }
                 } catch (Exception ex) {
-                    await Log($"Error processing recording: {ex.Message}");
+                    await Log($"Error processing recording: {ex.Message}", LogLevel.Error);
                     await command.FollowupAsync($"❌ Error processing recording: {ex.Message}");
                 }
             });
@@ -199,7 +200,7 @@ public class VoiceRecorder(Terminal terminal) {
         } catch (OperationCanceledException) {
             // Expected when stopping
         } catch (Exception ex) {
-            await Log($"Error recording {userAudio.Username}: {ex.Message}");
+            await Log($"Error recording {userAudio.Username}: {ex.Message}", LogLevel.Error);
         }
     }
 
@@ -242,7 +243,7 @@ public class VoiceRecorder(Terminal terminal) {
         await Log($"Recording ended for {userAudio.Username}");
     }
 
-    // ── IAudioClient Event Handlers ──────────────────────────────────────
+    // ── IAudioClient Events ──────────────────────────────────────────────
 
     private Task OnStreamCreated(ulong userId, AudioInStream stream) {
         if (isRecordingFlag == 0 || recordingCancellationToken == null) return Task.CompletedTask;
@@ -270,7 +271,7 @@ public class VoiceRecorder(Terminal terminal) {
                         ReadStream(userAudio, recordingCancellationToken!.Token));
                 }
             } catch (Exception ex) {
-                await Log($"Error handling new stream for {userId}: {ex.Message}");
+                await Log($"Error handling new stream for {userId}: {ex.Message}", LogLevel.Error);
             }
         });
 
@@ -311,7 +312,7 @@ public class VoiceRecorder(Terminal terminal) {
                     await Log("Some recording tasks did not finish within 10s — proceeding");
             }
         } catch (Exception ex) {
-            await Log($"Error waiting for tasks: {ex.Message}");
+            await Log($"Error waiting for tasks: {ex.Message}", LogLevel.Error);
         } finally {
             recordingCancellationToken?.Dispose();
             recordingCancellationToken = null;
@@ -422,7 +423,7 @@ public class VoiceRecorder(Terminal terminal) {
             filePaths.Clear();
             filePaths.Add(mergedPath);
         } catch (Exception ex) {
-            await Log($"Error merging audio: {ex.Message}");
+            await Log($"Error merging audio: {ex.Message}", LogLevel.Error);
         } finally {
             foreach (var reader in readers)
                 reader.Dispose();
