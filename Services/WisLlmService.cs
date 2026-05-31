@@ -27,7 +27,7 @@ public class WisLlmService(Terminal terminal) {
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> ModelContextCache = new();
 
     private static readonly JsonSerializerOptions JsonOptions = new() {
-        PropertyNamingPolicy        = JsonNamingPolicy.CamelCase,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
     };
 
@@ -45,7 +45,7 @@ public class WisLlmService(Terminal terminal) {
     public async Task HandleAskCommand(SocketSlashCommand command) {
         var subOptions = command.Data.Options.First().Options;
         string prompt = (string)subOptions.First(o => o.Name == "prompt").Value;
-        string model  = subOptions.FirstOrDefault(o => o.Name == "model")?.Value as string
+        string model = subOptions.FirstOrDefault(o => o.Name == "model")?.Value as string
                         ?? Config.OllamaDefaultModel;
 
         bool isEphemeral = command.Channel is IDMChannel;
@@ -55,8 +55,8 @@ public class WisLlmService(Terminal terminal) {
         _ = Task.Run(async () => {
             try {
                 long sessionId = await GetOrCreateSessionAsync(guildId, dmUserId);
-                var history    = await GetContextHistoryAsync(sessionId);
-                var messages   = BuildMessages(command.User.Username, prompt, history);
+                var history = await GetContextHistoryAsync(sessionId);
+                var messages = BuildMessages(command.User.Username, prompt, history);
                 string response = await CallOllamaAsync(model, messages);
 
                 await SaveMessageAsync(sessionId, guildId, command.User.Id, command.User.Username,
@@ -91,15 +91,15 @@ public class WisLlmService(Terminal terminal) {
         await command.DeferAsync(ephemeral: isEphemeral);
         _ = Task.Run(async () => {
             try {
-                long sessionId    = await GetOrCreateSessionAsync(guildId, dmUserId);
-                var fullHistory   = await GetFullHistoryAsync(sessionId);
+                long sessionId = await GetOrCreateSessionAsync(guildId, dmUserId);
+                var fullHistory = await GetFullHistoryAsync(sessionId);
 
                 if (fullHistory.Count == 0) {
                     await command.FollowupAsync("Nothing to compact — this session has no messages yet.", ephemeral: isEphemeral);
                     return;
                 }
 
-                string model   = Config.OllamaDefaultModel;
+                string model = Config.OllamaDefaultModel;
                 string summary = await SummarizeAsync(model, fullHistory);
 
                 long newSessionId = await CreateNewSessionAsync(guildId, dmUserId);
@@ -139,7 +139,7 @@ public class WisLlmService(Terminal terminal) {
         }
 
         for (int i = start; i < history.Count; i++) {
-            messages.Add(new("user",      $"[{history[i].Username}]: {history[i].Prompt}"));
+            messages.Add(new("user", $"[{history[i].Username}]: {history[i].Prompt}"));
             messages.Add(new("assistant", history[i].Response));
         }
 
@@ -156,7 +156,7 @@ public class WisLlmService(Terminal terminal) {
             if (row.IsCompactSummary)
                 messages.Add(new("system", $"Previous summary: {row.Response}"));
             else {
-                messages.Add(new("user",      $"[{row.Username}]: {row.Prompt}"));
+                messages.Add(new("user", $"[{row.Username}]: {row.Prompt}"));
                 messages.Add(new("assistant", row.Response));
             }
         }
@@ -175,9 +175,9 @@ public class WisLlmService(Terminal terminal) {
     /// are approaching the model's context window limit.
     private async Task MaybeWarnContextAsync(SocketSlashCommand command, string model, List<OllamaMessage> messages) {
         try {
-            int contextSize   = await GetModelContextSizeAsync(model);
+            int contextSize = await GetModelContextSizeAsync(model);
             int estimatedTokens = messages.Sum(m => m.Content.Length) / 4;
-            int percent       = (int)((double)estimatedTokens / contextSize * 100);
+            int percent = (int)((double)estimatedTokens / contextSize * 100);
 
             if (percent < Config.WisLlmWarnAtPercent) return;
 
@@ -207,13 +207,13 @@ public class WisLlmService(Terminal terminal) {
         const int fallback = 32768;
         try {
             var requestJson = JsonSerializer.Serialize(new OllamaShowRequest(model), JsonOptions);
-            using var body  = new StringContent(requestJson, Encoding.UTF8, "application/json");
+            using var body = new StringContent(requestJson, Encoding.UTF8, "application/json");
 
-            using var cts      = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var httpResponse   = await Http.PostAsync($"{Config.OllamaEndpoint}/api/show", body, cts.Token);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var httpResponse = await Http.PostAsync($"{Config.OllamaEndpoint}/api/show", body, cts.Token);
             if (!httpResponse.IsSuccessStatusCode) return ModelContextCache[model] = fallback;
 
-            var json   = await httpResponse.Content.ReadAsStringAsync();
+            var json = await httpResponse.Content.ReadAsStringAsync();
             var parsed = JsonSerializer.Deserialize<OllamaShowResponse>(json, JsonOptions);
 
             // parameters is a multi-line string: "num_ctx 8192\ntemperature 0.8\n..."
@@ -235,8 +235,8 @@ public class WisLlmService(Terminal terminal) {
     // ── Ollama API ───────────────────────────────────────────────────────
 
     private static async Task<string> CallOllamaAsync(string model, List<OllamaMessage> messages) {
-        var request  = new OllamaChatRequest(model, Stream: false, [.. messages]);
-        var json     = JsonSerializer.Serialize(request, JsonOptions);
+        var request = new OllamaChatRequest(model, Stream: false, [.. messages]);
+        var json = JsonSerializer.Serialize(request, JsonOptions);
         using var body = new StringContent(json, Encoding.UTF8, "application/json");
 
         var httpResponse = await Http.PostAsync($"{Config.OllamaEndpoint}/api/chat", body);
@@ -328,8 +328,8 @@ public class WisLlmService(Terminal terminal) {
             VALUES ($guildId, $userId, $now)
             RETURNING id
             """;
-        cmd.Parameters.AddWithValue("$guildId", guildId.HasValue  ? (object)(long)guildId.Value  : DBNull.Value);
-        cmd.Parameters.AddWithValue("$userId",  dmUserId.HasValue ? (object)(long)dmUserId.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("$guildId", guildId.HasValue ? (object)(long)guildId.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("$userId", dmUserId.HasValue ? (object)(long)dmUserId.Value : DBNull.Value);
         cmd.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O"));
 
         return (long)(await cmd.ExecuteScalarAsync())!;
@@ -357,10 +357,10 @@ public class WisLlmService(Terminal terminal) {
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
             rows.Add(new WisLlmHistoryRow(
-                Username:          reader.GetString(0),
-                Prompt:            reader.GetString(1),
-                Response:          reader.GetString(2),
-                IsCompactSummary:  reader.GetInt64(3) == 1
+                Username: reader.GetString(0),
+                Prompt: reader.GetString(1),
+                Response: reader.GetString(2),
+                IsCompactSummary: reader.GetInt64(3) == 1
             ));
 
         rows.Reverse(); // DESC fetch → reverse for chronological order
@@ -385,9 +385,9 @@ public class WisLlmService(Terminal terminal) {
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
             rows.Add(new WisLlmHistoryRow(
-                Username:         reader.GetString(0),
-                Prompt:           reader.GetString(1),
-                Response:         reader.GetString(2),
+                Username: reader.GetString(0),
+                Prompt: reader.GetString(1),
+                Response: reader.GetString(2),
                 IsCompactSummary: reader.GetInt64(3) == 1
             ));
 
@@ -407,15 +407,15 @@ public class WisLlmService(Terminal terminal) {
             VALUES
                 ($sessionId, $guildId, $userId, $username, $channelId, $model, $prompt, $response, $now, $isCompactSummary)
             """;
-        cmd.Parameters.AddWithValue("$sessionId",        sessionId);
-        cmd.Parameters.AddWithValue("$guildId",          guildId.HasValue ? (object)(long)guildId.Value : DBNull.Value);
-        cmd.Parameters.AddWithValue("$userId",           (long)userId);
-        cmd.Parameters.AddWithValue("$username",         username);
-        cmd.Parameters.AddWithValue("$channelId",        (long)channelId);
-        cmd.Parameters.AddWithValue("$model",            model);
-        cmd.Parameters.AddWithValue("$prompt",           prompt);
-        cmd.Parameters.AddWithValue("$response",         response);
-        cmd.Parameters.AddWithValue("$now",              DateTime.UtcNow.ToString("O"));
+        cmd.Parameters.AddWithValue("$sessionId", sessionId);
+        cmd.Parameters.AddWithValue("$guildId", guildId.HasValue ? (object)(long)guildId.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("$userId", (long)userId);
+        cmd.Parameters.AddWithValue("$username", username);
+        cmd.Parameters.AddWithValue("$channelId", (long)channelId);
+        cmd.Parameters.AddWithValue("$model", model);
+        cmd.Parameters.AddWithValue("$prompt", prompt);
+        cmd.Parameters.AddWithValue("$response", response);
+        cmd.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O"));
         cmd.Parameters.AddWithValue("$isCompactSummary", isCompactSummary ? 1 : 0);
 
         await cmd.ExecuteNonQueryAsync();

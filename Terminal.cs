@@ -7,7 +7,7 @@ public enum LogLevel { Info, Warn, Error }
 // Terminal class to manage terminal output and user input
 // The terminal maintains and orchistrates actions between different parts of the program
 public class Terminal {
-    ConcurrentQueue<string> lines = new ConcurrentQueue<string>();
+    ConcurrentQueue<string> lines = new();
 
     public Bot? Bot { get; set; }
 
@@ -26,9 +26,9 @@ public class Terminal {
 
     public async Task AddLine(string line, LogLevel level = LogLevel.Info) {
         string formatted = level switch {
-            LogLevel.Warn  => $"[WARN]  {line}",
+            LogLevel.Warn => $"[WARN]  {line}",
             LogLevel.Error => $"[ERROR] {line}",
-            _              => line,
+            _ => line,
         };
         lines.Enqueue(formatted);
         await Console.Out.WriteLineAsync(formatted);
@@ -48,11 +48,11 @@ public class Terminal {
                 "/removeallcommands - Remove all Discord bot commands",
                 "/testrecord - Join voice channel, record 15s, save and leave",
             ]),
-            "/clear"             => ClearTerminal(),
+            "/clear" => ClearTerminal(),
             "/removeallcommands" => Bot?.RemoveAllCommands() ?? Log("Bot not initialized yet"),
-            "/testrecord"        => Bot?.TestRecord()        ?? Log("Bot not initialized yet"),
-            "/gc"                => RunGC(),
-            _                    => Log(element),
+            "/testrecord" => Bot?.TestRecord() ?? Log("Bot not initialized yet"),
+            "/gc" => RunGC(),
+            _ => Log(element),
         };
         await task;
     }
