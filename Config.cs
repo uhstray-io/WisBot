@@ -30,8 +30,12 @@ public static class Config {
                 case "DISCORD_TOKEN_WISBOT":
                     if (!string.IsNullOrWhiteSpace(value)) DiscordToken = value;
                     break;
-                case "OLLAMA_ENDPOINT": OllamaEndpoint = value; break;
-                case "OLLAMA_DEFAULT_MODEL": OllamaDefaultModel = value; break;
+                case "OLLAMA_ENDPOINT":
+                    if (!string.IsNullOrWhiteSpace(value)) OllamaEndpoint = value;
+                    break;
+                case "OLLAMA_DEFAULT_MODEL":
+                    if (!string.IsNullOrWhiteSpace(value)) OllamaDefaultModel = value;
+                    break;
                 case "WISLLM_CONTEXT_LIMIT":
                     if (int.TryParse(value, out int limit) && limit > 0)
                         WisLlmContextLimit = limit;
