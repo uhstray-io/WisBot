@@ -1,0 +1,33 @@
+name: Docker Build
+
+# Validates that the image builds on every PR (build only — no push).
+# Publishing to GHCR is handled separately on merge to main.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "**/*.cs"
+      - "Wisbot.csproj"
+      - ".github/workflows/docker-build.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: wisbot:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

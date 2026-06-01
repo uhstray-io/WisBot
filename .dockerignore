@@ -1,0 +1,28 @@
+# Build artifacts
+bin/
+obj/
+
+# VCS / IDE / tooling
+.git/
+.github/
+.vs/
+.vscode/
+*.user
+.claude/
+
+# Secrets & local config (never bake into the image)
+.env
+*.key
+
+# Local data / outputs
+recordings/
+*.db
+*.db-shm
+*.db-wal
+
+# Docs (not needed at runtime)
+docs/
+architecture/
+
+# Windows-only dev helper
+copy-native-libs.bat
