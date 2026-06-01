@@ -48,4 +48,8 @@ While the bot is running, type these in the console:
 
 ## Deployment
 
-Production runs on a self-hosted runner via GitHub Actions. Trigger manually with `workflow_dispatch` in `.github/workflows/deployment_prod.yml`. The bot token is supplied via the `DISCORD_TOKEN_WISBOT` repository secret.
+WisBot ships as a Docker image. On merge to `main` (and on `v*` tags), `.github/workflows/build-and-publish.yml` builds the image and publishes it to `ghcr.io/uhstray-io/wisbot`. `.github/workflows/docker-build.yml` validates the image builds on every PR.
+
+The image is deployed by the **agent-cloud** platform — it pulls the published image and supplies configuration (Discord token, guild ID, endpoints) via an Ansible-templated `.env` from OpenBao + site-config, orchestrated through Semaphore. Nothing site-specific is baked into the image. See `docs/plans/2026-06-01-agent-cloud-deployment-alignment.md`.
+
+> The legacy self-hosted-runner deploy workflows have been removed in favor of this model. (`deploy-o11y.yml` remains for now; migrating observability to agent-cloud's o11y service is a tracked follow-up.)
