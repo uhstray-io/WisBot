@@ -8,6 +8,6 @@ metadata:
 
 Never add `Co-Authored-By:` trailers to commit messages.
 
-**Why:** Jacob does not want co-author attribution in commits.
+**Why:** The User does not want co-author attribution in commits.
 
 **How to apply:** Write commit messages without any Co-Authored-By lines. This applies to all commits in this repository.

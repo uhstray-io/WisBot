@@ -4,8 +4,6 @@ using Discord.WebSocket;
 namespace WisBot;
 
 public class Bot(Terminal terminal) {
-    private const ulong uhstrayGuildId = 889910011113906186;
-
     private string token = null!;
 
     private DiscordSocketClient client = null!;
@@ -52,6 +50,9 @@ public class Bot(Terminal terminal) {
         if (string.IsNullOrWhiteSpace(Config.DiscordToken))
             throw new InvalidOperationException(
                 "Discord token not found. Add it to discord.key or set DISCORD_TOKEN_WISBOT in .env");
+        if (Config.GuildId == 0)
+            throw new InvalidOperationException(
+                "WISBOT_GUILD_ID not set. Set the Discord guild the bot serves via environment or .env");
         token = Config.DiscordToken;
         await terminal.AddLine("[Bot] Config loaded");
     }
@@ -106,7 +107,10 @@ public class Bot(Terminal terminal) {
     public async Task AddCommandsIfNotExist() {
         await Log("Registering slash commands");
 
-        var guild = client.GetGuild(uhstrayGuildId);
+        var guild = client.GetGuild(Config.GuildId);
+        if (guild == null)
+            throw new InvalidOperationException(
+                $"Configured guild '{Config.GuildId}' was not found. Ensure the bot is a member of that guild.");
         var existingGuildCommands = await guild.GetApplicationCommandsAsync();
 
         // Uhstray guild commands
@@ -282,8 +286,8 @@ public class Bot(Terminal terminal) {
             }
 
             // Remove guild-specific commands for the configured guild
-            await Log($"Removing guild commands for guild {uhstrayGuildId}");
-            var guild = client.GetGuild(uhstrayGuildId);
+            await Log($"Removing guild commands for guild {Config.GuildId}");
+            var guild = client.GetGuild(Config.GuildId);
             if (guild != null) {
                 var guildCommands = await guild.GetApplicationCommandsAsync();
                 foreach (var command in guildCommands) {
@@ -314,8 +318,12 @@ public class Bot(Terminal terminal) {
 
     /// Terminal command: joins a hardcoded voice channel, records for 15 seconds, then stops and saves.
     public async Task TestRecord() {
-        const ulong testGuildId = 889910011113906186;
-        const ulong testChannelId = 889910012019867672;
+        ulong testGuildId = Config.TestGuildId;
+        ulong testChannelId = Config.TestVoiceChannelId;
+        if (testChannelId == 0) {
+            await Log("❌ TestRecord: WISBOT_TEST_VOICE_CHANNEL_ID is not set.");
+            return;
+        }
 
         var guild = client.GetGuild(testGuildId);
         if (guild == null) {

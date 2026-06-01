@@ -5,8 +5,8 @@ namespace WisBot;
 /// Central database helper. All features share the same wisbot.db file.
 /// Call Database.Initialize() once on startup to ensure all tables exist.
 public static class Database {
-    private const string DbPath = "wisbot.db";
-    public static string ConnectionString { get; } = $"Data Source={DbPath}";
+    // Resolved from Config (env-configurable) so the DB can live on a mounted volume.
+    public static string ConnectionString => $"Data Source={Config.DbPath}";
 
     public static async Task Initialize() {
         using var conn = new SqliteConnection(ConnectionString);
