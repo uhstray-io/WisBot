@@ -166,6 +166,8 @@ The agent-cloud PR is gated by `.github/workflows/lint-and-test.yml` + pre-commi
 
 ## 7. Phased Execution
 
+> **Status (2026-06-01):** Milestone A complete — Phases 1 (#9), 2 (#10), 3 (#11), 4 (#12) all merged to `main`; image published to `ghcr.io/uhstray-io/wisbot`. Remaining: Phases 5–6 (agent-cloud repo), Phase 7 (site-config, blocked on access).
+
 **Workflow per phase (mandatory):** branch from `main` → implement → `dotnet build` green → push → open PR → **wait for CodeRabbit + CI** → address findings → confirm checks pass → merge → delete branch. One phase = one branch = one PR. No phase starts until the prior phase is merged (phases are ordered to avoid conflicts). No `Co-Authored-By` trailers (per repo memory).
 
 Phases are ordered **lowest-risk / prerequisite first**, so each PR is small, independently reviewable, and leaves `main` shippable.
