@@ -15,9 +15,9 @@ No test framework or linter is configured.
 
 ## Deployment
 
-A multi-stage `Dockerfile` builds a Linux image (`dotnet/runtime:10.0` base). Voice natives: `libsodium` + SQLite ship cross-platform via NuGet; `opus` is installed in the image via `apt` (`libopus0`, symlinked to the unversioned name `DllImport("opus")` probes). Config (token, guild ID, paths) is supplied at runtime via env / an env file — never baked into the image. `docker-build.yml` validates the image builds on every PR.
+A multi-stage `Dockerfile` builds a Linux image (`dotnet/runtime:10.0` base). Voice natives: `libsodium` + SQLite ship cross-platform via NuGet; `opus` is installed in the image via `apt` (`libopus0`, symlinked to the unversioned name `DllImport("opus")` probes). Config (token, guild ID, paths) is supplied at runtime via env / an env file — never baked into the image.
 
-Deployment is being migrated to the **agent-cloud** platform (pull image → Ansible-templated `.env` → Semaphore), replacing the legacy self-hosted-runner workflows. See `docs/plans/2026-06-01-agent-cloud-deployment-alignment.md`.
+CI: `docker-build.yml` validates the image builds on every PR; `build-and-publish.yml` builds and pushes to `ghcr.io/uhstray-io/wisbot` on merge to `main` and on `v*` tags. The image is then deployed by the **agent-cloud** platform (pull image → Ansible-templated `.env` from OpenBao + site-config → Semaphore). The legacy self-hosted-runner deploy workflows have been removed; `deploy-o11y.yml` remains pending migration to agent-cloud's o11y service. See `docs/plans/2026-06-01-agent-cloud-deployment-alignment.md`.
 
 ## Architecture
 
