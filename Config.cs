@@ -23,6 +23,11 @@ public static class Config {
     public static string DbPath { get; private set; } = "wisbot.db";
     public static string RecordingsDir { get; private set; } = "recordings";
 
+    // HTTP health endpoint. Host defaults to "localhost" (dev); set "+" in the
+    // container so Docker port mapping can reach it.
+    public static string HealthHost { get; private set; } = "localhost";
+    public static int HealthPort { get; private set; } = 8080;
+
     public static void Load(string envPath = ".env", string tokenPath = "discord.key") {
         // discord.key is the local dev path; env var / .env is the Docker/CI path
         if (File.Exists(tokenPath))
@@ -72,5 +77,9 @@ public static class Config {
 
         if (Get("WISBOT_DB_PATH") is { } dbPath) DbPath = dbPath;
         if (Get("WISBOT_RECORDINGS_DIR") is { } recordingsDir) RecordingsDir = recordingsDir;
+
+        if (Get("WISBOT_HEALTH_HOST") is { } healthHost) HealthHost = healthHost;
+        if (Get("WISBOT_HEALTH_PORT") is { } healthPortStr && int.TryParse(healthPortStr, out int healthPort) && healthPort is > 0 and <= 65535)
+            HealthPort = healthPort;
     }
 }

@@ -36,6 +36,7 @@ C# .NET 10.0 console application — a Discord bot with voice recording, welcome
 - **VoiceNotificationService.cs** — One-shot voice presence notifications. Watches `UserVoiceStateUpdated` for a user entering a channel (not hopping or leaving). Atomically claims watchers via `DELETE ... RETURNING` and DMs them with a joinable deep link (`https://discord.com/channels/{guildId}/{channelId}`).
 - **VoiceStatsService.cs** — Handles the `/voicestats` slash command. Queries the `voice_activity` table to compute per-user stats.
 - **StatusService.cs** — Handles the `/status` slash command. Returns a monitoring snapshot of the bot process.
+- **HealthService.cs** — Minimal `HttpListener` HTTP endpoint (`GET /health`) for container/orchestration health checks. Returns 200 once the gateway is connected, 503 while starting. Bind host/port from `WISBOT_HEALTH_HOST`/`WISBOT_HEALTH_PORT`. Started from `Bot.StartBot`.
 - **WisLlmService.cs** — Handles all `/wisllm` subcommands (ask, clear, compact). Guild sessions shared; DM sessions scoped per user.
 - **UserVoiceActivityTracker.cs** — Passively records every voice channel join/leave to the DB.
 
