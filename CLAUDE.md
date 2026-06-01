@@ -64,10 +64,10 @@ Program.cs → new Terminal() + new Bot(terminal)
 - **Discord timeout pattern** — Long operations use `Task.Run()` fire-and-forget after immediate `RespondAsync()`, then `FollowupAsync()` for results (avoids 3-second Discord interaction timeout)
 - **Thread safety** — `ConcurrentDictionary` and `ConcurrentQueue` throughout; background service lists use `lock` where needed
 - **Audio constants** — 48kHz sample rate, 16-bit depth, 2 channels (stereo), 3840 bytes per 20ms frame
-- **Config** — Discord token read from `discord.key` at repo root (gitignored). Guild/user IDs are hardcoded constants in `Bot.cs`
+- **Config** — All settings resolve via `Config.Load()` in this order: process environment variable → local `.env` file → default. The Discord token may also come from a `discord.key` file at repo root (gitignored, local dev). Site-specific values (`WISBOT_GUILD_ID`, test IDs, `WISBOT_DB_PATH`, `WISBOT_RECORDINGS_DIR`) are env-configurable — never hardcoded. `WISBOT_GUILD_ID` is required (fail-fast in `InitBot`). See `.env.example`.
 - **Recording output** — WAV files saved to `./recordings/` with pattern `{username}_{timestamp}.wav`
 - **Command registration** — Slash commands are registered idempotently on `OnReady` (checks existing before creating); use `/removeallcommands` terminal command to force-clear all registered commands
-- **Database** — SQLite via `Microsoft.Data.Sqlite`. Single file `wisbot.db` at app root. All tables declared in `Database.Initialize()`. Discord `ulong` IDs are stored as `long` (SQLite INTEGER) and cast at the boundary. ISO 8601 strings (`"O"` format) used for `DateTime` storage.
+- **Database** — SQLite via `Microsoft.Data.Sqlite`. Single file at `Config.DbPath` (default `wisbot.db` at app root; override with `WISBOT_DB_PATH`). All tables declared in `Database.Initialize()`. Discord `ulong` IDs are stored as `long` (SQLite INTEGER) and cast at the boundary. ISO 8601 strings (`"O"` format) used for `DateTime` storage.
 - **Atomic reminder claiming** — `DELETE ... RETURNING` used to atomically consume due reminders, preventing double-delivery on restart
 
 ## Key Dependencies

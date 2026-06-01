@@ -351,7 +351,7 @@ public class VoiceRecorder(Terminal terminal) {
 
     /// Logs per-user stats, reconstructs audio, writes WAV files.
     private async Task<List<string>> SaveAllUsersAsWav(long sessionDurationMs) {
-        var outputDir = Path.Combine(Directory.GetCurrentDirectory(), "recordings");
+        var outputDir = Path.Combine(Directory.GetCurrentDirectory(), Config.RecordingsDir);
         Directory.CreateDirectory(outputDir);
 
         List<string> filePaths = [];
@@ -445,7 +445,7 @@ public class VoiceRecorder(Terminal terminal) {
         var files = await SaveAllUsersAsWav(sessionMs);
 
         if (mergeAudio && files.Count > 1) {
-            var outputDir = Path.Combine(Directory.GetCurrentDirectory(), "recordings");
+            var outputDir = Path.Combine(Directory.GetCurrentDirectory(), Config.RecordingsDir);
             await MergeAudioFiles(files, outputDir);
         }
 
