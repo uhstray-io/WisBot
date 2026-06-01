@@ -58,3 +58,4 @@ nunit-*.xml
 # Keys
 *.key
 
+.DS_Store

@@ -25,8 +25,9 @@ public class VoiceNotificationService(Terminal terminal, DiscordSocketClient cli
         await Log($"{user.Username} joined #{channel.Name} in {guild.Name}");
 
         var watchers = await ClaimWatchers(user.Id, guild.Id);
-        foreach (var watcherId in watchers)
+        foreach (var watcherId in watchers) {
             _ = Task.Run(() => Notify(watcherId, user, channel, guild));
+        }
     }
 
     private async Task Notify(ulong watcherId, SocketUser target, SocketVoiceChannel channel, SocketGuild guild) {

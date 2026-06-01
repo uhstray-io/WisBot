@@ -2,24 +2,23 @@
 
 Console.WriteLine("Starting bot...");
 
-  var terminal = new Terminal();                                                                                                                   
-  var bot = new Bot(terminal);
-  
-  terminal.Bot = bot;
+var terminal = new Terminal();
+var bot = new Bot(terminal);
 
-  var botTask = bot.StartBot();
-  var terminalTask = terminal.NewTerminal();
+terminal.Bot = bot;
 
-  // Bot failure = fatal; terminal crash = warn and continue
-  var completed = await Task.WhenAny(botTask, terminalTask);
+var botTask = bot.StartBot();
+var terminalTask = terminal.NewTerminal();
 
-  if (completed == botTask && botTask.IsFaulted)
-  {
-      Console.Error.WriteLine($"[FATAL] Bot failed: {botTask.Exception?.GetBaseException().Message}");
-      Environment.Exit(1);
-  }
+// Bot failure = fatal; terminal crash = warn and continue
+var completed = await Task.WhenAny(botTask, terminalTask);
 
-  if (terminalTask.IsFaulted)
-      Console.Error.WriteLine($"[WARN] Terminal crashed: {terminalTask.Exception?.GetBaseException().Message}");
+if (completed == botTask && botTask.IsFaulted) {
+    Console.Error.WriteLine($"[FATAL] Bot failed: {botTask.Exception?.GetBaseException().Message}");
+    Environment.Exit(1);
+}
 
-  await Task.Delay(-1);
+if (terminalTask.IsFaulted)
+    Console.Error.WriteLine($"[WARN] Terminal crashed: {terminalTask.Exception?.GetBaseException().Message}");
+
+await Task.Delay(-1);

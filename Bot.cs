@@ -9,11 +9,11 @@ public class Bot(Terminal terminal) {
     private string token = null!;
 
     private DiscordSocketClient client = null!;
-    private VoiceRecorder voiceRecorder = new VoiceRecorder(terminal);
-    private WelcomeService welcomeService = new WelcomeService(terminal);
-    private UserVoiceActivityTracker voiceActivityTracker = new UserVoiceActivityTracker(terminal);
-    private VoiceStatsService voiceStatsService = new VoiceStatsService(terminal);
-    private WisLlmService wisLlmService = new WisLlmService(terminal);
+    private VoiceRecorder voiceRecorder = new(terminal);
+    private WelcomeService welcomeService = new(terminal);
+    private UserVoiceActivityTracker voiceActivityTracker = new(terminal);
+    private VoiceStatsService voiceStatsService = new(terminal);
+    private WisLlmService wisLlmService = new(terminal);
     private ReminderService? reminderService;
     private VoiceNotificationService? voiceNotifyService;
     private StatusService? statusService;
@@ -94,12 +94,12 @@ public class Bot(Terminal terminal) {
         await AddCommandsIfNotExist();
 
         commands = new Dictionary<string, Func<SocketSlashCommand, Task>> {
-            ["remind"]     = cmd => reminderService!.HandleRemindCommand(cmd),
-            ["status"]     = cmd => statusService!.HandleCommand(cmd),
+            ["remind"] = cmd => reminderService!.HandleRemindCommand(cmd),
+            ["status"] = cmd => statusService!.HandleCommand(cmd),
             ["voicestats"] = cmd => voiceStatsService.HandleCommand(cmd),
-            ["notify"]     = cmd => voiceNotifyService!.HandleNotifyCommand(cmd),
-            ["recording"]  = cmd => voiceRecorder.HandleRecordingCommand(cmd),
-            ["wisllm"]     = HandleWisLlmCommand,
+            ["notify"] = cmd => voiceNotifyService!.HandleNotifyCommand(cmd),
+            ["recording"] = cmd => voiceRecorder.HandleRecordingCommand(cmd),
+            ["wisllm"] = HandleWisLlmCommand,
         };
     }
 
@@ -230,7 +230,7 @@ public class Bot(Terminal terminal) {
                     .WithDescription("Ask WisLLM a question")
                     .WithType(ApplicationCommandOptionType.SubCommand)
                     .AddOption("prompt", ApplicationCommandOptionType.String, "Your question", isRequired: true)
-                    .AddOption("model",  ApplicationCommandOptionType.String, "Model to use (default from config)", isRequired: false)
+                    .AddOption("model", ApplicationCommandOptionType.String, "Model to use (default from config)", isRequired: false)
                 )
                 .AddOption(new SlashCommandOptionBuilder()
                     .WithName("clear")
@@ -253,8 +253,8 @@ public class Bot(Terminal terminal) {
     private async Task HandleWisLlmCommand(SocketSlashCommand command) {
         var sub = command.Data.Options.First().Name;
         switch (sub) {
-            case "ask":     await wisLlmService.HandleAskCommand(command);     break;
-            case "clear":   await wisLlmService.HandleClearCommand(command);   break;
+            case "ask": await wisLlmService.HandleAskCommand(command); break;
+            case "clear": await wisLlmService.HandleClearCommand(command); break;
             case "compact": await wisLlmService.HandleCompactCommand(command); break;
         }
     }
