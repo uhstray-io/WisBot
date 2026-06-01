@@ -11,8 +11,11 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.5" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="Concentus.Oggfile" Version="1.0.6" />
-    <!-- Native libraries for Discord voice support -->
-    <PackageReference Include="OpusDotNet.opus.win-x64" Version="1.3.1" />
+    <!-- Native libraries for Discord voice support.
+         libsodium ships cross-platform natives (linux/osx/win-x64) via NuGet.
+         opus is Windows-only here; the Linux container installs libopus0 via apt
+         (see Dockerfile), so this package is scoped to Windows builds. -->
+    <PackageReference Include="OpusDotNet.opus.win-x64" Version="1.3.1" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
     <PackageReference Include="libsodium" Version="1.0.20" />
     <!-- <PackageReference Include="System.Linq.Async" Version="7.0.0" ExcludeAssets="all" /> -->
     <!-- This is required for any thing Discord.Net 3.18 and below -->

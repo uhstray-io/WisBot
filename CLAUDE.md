@@ -15,7 +15,9 @@ No test framework or linter is configured.
 
 ## Deployment
 
-Production runs via Docker on a self-hosted GitHub Actions runner (see `.github/workflows/deployment_prod.yml`). The Discord token is injected via a `DISCORD_TOKEN_WISBOT` secret appended to `.env` before `docker build`. Deployment is manually triggered (`workflow_dispatch`), not on push.
+A multi-stage `Dockerfile` builds a Linux image (`dotnet/runtime:10.0` base). Voice natives: `libsodium` + SQLite ship cross-platform via NuGet; `opus` is installed in the image via `apt` (`libopus0`, symlinked to the unversioned name `DllImport("opus")` probes). Config (token, guild ID, paths) is supplied at runtime via env / an env file — never baked into the image. `docker-build.yml` validates the image builds on every PR.
+
+Deployment is being migrated to the **agent-cloud** platform (pull image → Ansible-templated `.env` → Semaphore), replacing the legacy self-hosted-runner workflows. See `docs/plans/2026-06-01-agent-cloud-deployment-alignment.md`.
 
 ## Architecture
 
@@ -76,7 +78,8 @@ Program.cs → new Terminal() + new Bot(terminal)
 - **Discord.Net 3.19.0-beta.1** — Beta version required for voice audio stream features (`IAudioClient.GetStreams()`). `GuildMembers` privileged intent required for `UserJoined` events (must be enabled in Discord Developer Portal).
 - **NAudio 2.2.1** — WAV file writing and audio format handling
 - **Microsoft.Data.Sqlite 10.0.5** — Embedded SQLite database, no server required
-- **OpusDotNet.opus.win-x64 + libsodium** — Native libraries for Discord voice codec and encryption
+- **libsodium 1.0.20** — Discord voice encryption; ships cross-platform natives (linux/osx/win-x64) via NuGet
+- **OpusDotNet.opus.win-x64** — Opus codec native, **Windows-only** (csproj-scoped to Windows builds). On Linux the container installs `libopus0` via `apt` (see Dockerfile)
 - **Concentus.Oggfile** — Included but not currently used
 
 ## Documentation
