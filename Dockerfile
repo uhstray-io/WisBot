@@ -14,12 +14,12 @@ RUN dotnet publish Wisbot.csproj -c Release -r linux-x64 --no-self-contained -o 
 # ── Runtime ───────────────────────────────────────────────────────────────────
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
 
-# Native libs for Discord voice. libsodium.so + libe_sqlite3.so ship via NuGet and
-# land in /app; opus must come from the OS. Discord.Net's DllImport("opus") probes
-# the unversioned name, so symlink it to the versioned .so that libopus0 installs.
-# curl is used by the compose/orchestration health check.
+# Native libs for Discord voice. libsodium.so + libe_sqlite3.so ship via NuGet
+# (version-matched) and land in /app, so no apt libsodium is needed. opus is NOT
+# NuGet-provided for Linux, so install libopus0 and symlink the unversioned name
+# Discord.Net's DllImport("opus") probes. curl is for the orchestration health check.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libopus0 libsodium23 curl \
+    && apt-get install -y --no-install-recommends libopus0 curl \
     && ln -sf /usr/lib/x86_64-linux-gnu/libopus.so.0 /usr/lib/x86_64-linux-gnu/libopus.so \
     && rm -rf /var/lib/apt/lists/*
 
