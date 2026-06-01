@@ -108,6 +108,9 @@ public class Bot(Terminal terminal) {
         await Log("Registering slash commands");
 
         var guild = client.GetGuild(Config.GuildId);
+        if (guild == null)
+            throw new InvalidOperationException(
+                $"Configured guild '{Config.GuildId}' was not found. Ensure the bot is a member of that guild.");
         var existingGuildCommands = await guild.GetApplicationCommandsAsync();
 
         // Uhstray guild commands
@@ -317,6 +320,10 @@ public class Bot(Terminal terminal) {
     public async Task TestRecord() {
         ulong testGuildId = Config.TestGuildId;
         ulong testChannelId = Config.TestVoiceChannelId;
+        if (testChannelId == 0) {
+            await Log("❌ TestRecord: WISBOT_TEST_VOICE_CHANNEL_ID is not set.");
+            return;
+        }
 
         var guild = client.GetGuild(testGuildId);
         if (guild == null) {

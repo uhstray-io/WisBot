@@ -10,7 +10,7 @@ WisBot deploys through the **agent-cloud** monorepo (`uhstray-io/agent-cloud`, p
 
 - WisBot **publishes a Docker image** (planned: `ghcr.io/uhstray-io/wisbot`); agent-cloud **pulls** it — no build-on-VM.
 - Config arrives via an Ansible-templated `.env` (OpenBao secrets + site-config values). Container only *reads* env.
-- Discord token lives in OpenBao `secret/services/discord` — never committed. Real guild IDs / IPs live in the private **site-config** repo (`/Users/stray/Documents/GitHub/site-config/`), never in this repo.
+- Discord token lives in OpenBao `secret/services/discord` — never committed. Real guild IDs / IPs live in the private **site-config** repository, never in this repo.
 - Deploys run **only via Semaphore** (`deploy-wisbot.yml`); health verified over HTTP.
 
 **Why:** agent-cloud is the org's single source of truth for deployments; public repos must contain zero secrets/IPs/real-IDs.

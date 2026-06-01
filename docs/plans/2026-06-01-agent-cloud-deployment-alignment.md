@@ -26,7 +26,7 @@ The reserved OpenBao path `secret/services/discord` (Discord bot token) and WisB
 | **compose.yml** | **Missing** (CI calls `docker compose` with no file) | Lives in agent-cloud `agents/wisbot/deployment/` |
 | **Voice native libs** | `OpusDotNet.opus.win-x64` + `copy-native-libs.bat` (Windows-only `.dll`s) | Linux-native opus + libsodium installed in the image |
 | **Discord token** | `discord.key` file (gitignored) or `DISCORD_TOKEN_WISBOT` env; CI appends it and `cat`s `.env` (**leaks to logs**) | From OpenBao → Ansible → `.env`; never printed; never committed |
-| **Guild/channel IDs** | Hardcoded in `Bot.cs`: `uhstrayGuildId=889910011113906186` (3 uses), `testGuildId`, `testChannelId=889910012019867672` | Env-configurable; real values in site-config |
+| **Guild/channel IDs** | Hardcoded `ulong` constants in `Bot.cs` (`uhstrayGuildId` ×3 uses, `testGuildId`, `testChannelId`) | Env-configurable; real values in site-config |
 | **Ollama endpoint** | Env-configurable (`OLLAMA_ENDPOINT`), good. `.env.example` uses placeholder IP | Keep as config; prod value (WisAI/Open WebUI) set in deployment |
 | **DB path** | Hardcoded relative `wisbot.db` (`Database.cs`) | Env-configurable + mounted volume |
 | **Recordings path** | Hardcoded `GetCurrentDirectory()/recordings` (`VoiceRecorder.cs`) | Env-configurable + mounted volume (MinIO later) |
@@ -138,7 +138,7 @@ The agent-cloud PR is gated by `.github/workflows/lint-and-test.yml` + pre-commi
         service_url: "http://<ip>:8080"
         health_path: "/health"
         container_engine: podman
-        wisbot_guild_id: "889910011113906186"
+        wisbot_guild_id: "<wisbot-guild-id>"
         wisbot_ollama_endpoint: "http://<wisai-ip>:11434"
   ```
 - [ ] Seed the Discord token into OpenBao `secret/services/discord` (one-time).
