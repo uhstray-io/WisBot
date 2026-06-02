@@ -18,8 +18,15 @@ Tracking the phased migration in [[project-agent-cloud-deployment]]. Full plan: 
 - Phase 5 (agent-cloud #43) — **MERGED.** `agents/wisbot/` deploy dir (compose pulls the image, deploy.sh container-only, `wisbot.env.j2`) + `platform/tests/test_service_wisbot.bats`. *(AI-agent tier — agents live under `agents/`, NOT `platform/services/`.)*
 - Phase 6 (agent-cloud #45) — **MERGED.** `deploy-wisbot.yml` (clone + manage-secrets → deploy.sh → verify-health), `clean-deploy-wisbot.yml`, Semaphore templates, `validate-all` block. Added a backward-compatible `_templates_src` override to `manage-secrets.yml` so `agents/` services can template env files. *(The composable task files in the AUTOMATION-COMPOSABILITY doc — sparse-checkout/run-deploy/verify-health — don't exist yet; real playbooks inline git+shell+uri, which deploy-wisbot mirrors.)*
 
-**Remaining:**
-- Phase 7 — site-config inventory entry + seed `secret/services/wisbot` in OpenBao + go-live. **BLOCKED on site-config access + the real guild ID / WisAI Ollama endpoint.**
-- Phase 8 — **File relay service** (new, planned): `/upload` → unguessable link → web upload (≤500MB) → same link downloads; bypasses Discord's ~8MB limit; 30-day retention. Decisions: **MinIO + DB metadata** for storage, **built into WisBot via ASP.NET Core/Kestrel** (Docker base `runtime`→`aspnet`), **trust-the-link** access, **public Caddy route + subdomain**. See the plan doc's Phase 8 section.
+**Milestone D — file relay (`/upload`): code-complete (merged to WisBot main):**
+- Phase 8a-1 (#14) — health server migrated to ASP.NET Core/Kestrel (Docker base `runtime`→`aspnet`).
+- Phase 8a-2 (#15) — `/upload` command + `uploads` DB table + unguessable-link minting.
+- Phase 8a-3 (#16) — MinIO 7.0 storage + streamed `GET/POST /u/{id}` + `/u/{id}/file` (one-file-per-link atomic claim, 413 cap, forced-attachment download); gated on `UploadEnabled`.
+- Phase 8b (#17) — hourly retention loop deletes expired uploads (object + row).
 
-**How to apply:** Phases 5–6 live in the local agent-cloud clone; build Phase-6-style work in an isolated git worktree to avoid colliding with concurrent work, and stage specific files (never `git add -A`). Watch the shared CodeRabbit rate limit — space PRs out. No runtime OpenBao AppRole needed for WisBot (deploy-time token only). The bot's `/health` is internal (no Caddy), but Phase 8's upload site needs a public Caddy route.
+**Remaining (need infra values + operator/Semaphore actions — I can't provision/seed/deploy):**
+- Phase 7 (go-live) + Phase 8c (file-relay deploy) — make the site-config edits (VM, inventory `wisbot_svc`, `vm-specs`, Caddy `wisbot.uhstray.io`), seed `secret/services/wisbot` (token + MinIO creds), provision the VM, run Semaphore "Deploy WisBot". **Pending the VM IP/VMID/node (TBD).** Tracked in **site-config `plan/NEXT-STEPS.md`** (site-config PR #1).
+
+**Decisions locked:** secrets under a new `secret/services/wisbot` (not reusing `discord`); upload subdomain **`wisbot.uhstray.io`**; guild ID comes from inventory `wisbot_guild_id`.
+
+**How to apply:** WisBot-repo work = normal branch/PR. agent-cloud + site-config work = **isolated worktree off `main`** + stage specific files (never `git add -A`). For **site-config**, follow [[reference-site-config-repo]] (private; additive-only; never leak its contents). Per [[feedback-coderabbit-pr-workflow]], merge non-major resolved findings after fix + green CI.
