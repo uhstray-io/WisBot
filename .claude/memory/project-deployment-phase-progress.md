@@ -16,7 +16,7 @@ Tracking the phased migration in [[project-agent-cloud-deployment]]. Full plan: 
 
 **Milestone B — agent-cloud repo:**
 - Phase 5 (agent-cloud #43) — **MERGED.** `agents/wisbot/` deploy dir (compose pulls the image, deploy.sh container-only, `wisbot.env.j2`) + `platform/tests/test_service_wisbot.bats`. *(AI-agent tier — agents live under `agents/`, NOT `platform/services/`.)*
-- Phase 6 (agent-cloud #45) — **in review.** `deploy-wisbot.yml` (clone + manage-secrets → deploy.sh → verify-health), `clean-deploy-wisbot.yml`, Semaphore templates, `validate-all` block. Added a backward-compatible `_templates_src` override to `manage-secrets.yml` so `agents/` services can template env files. *(The composable task files in the AUTOMATION-COMPOSABILITY doc — sparse-checkout/run-deploy/verify-health — don't exist yet; real playbooks inline git+shell+uri, which deploy-wisbot mirrors.)*
+- Phase 6 (agent-cloud #45) — **MERGED.** `deploy-wisbot.yml` (clone + manage-secrets → deploy.sh → verify-health), `clean-deploy-wisbot.yml`, Semaphore templates, `validate-all` block. Added a backward-compatible `_templates_src` override to `manage-secrets.yml` so `agents/` services can template env files. *(The composable task files in the AUTOMATION-COMPOSABILITY doc — sparse-checkout/run-deploy/verify-health — don't exist yet; real playbooks inline git+shell+uri, which deploy-wisbot mirrors.)*
 
 **Remaining:**
 - Phase 7 — site-config inventory entry + seed `secret/services/wisbot` in OpenBao + go-live. **BLOCKED on site-config access + the real guild ID / WisAI Ollama endpoint.**
