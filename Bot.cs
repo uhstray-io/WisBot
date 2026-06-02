@@ -15,7 +15,7 @@ public class Bot(Terminal terminal) {
     private ReminderService? reminderService;
     private VoiceNotificationService? voiceNotifyService;
     private StatusService? statusService;
-    private HealthService? healthService;
+    private WebService? webService;
     private Dictionary<string, Func<SocketSlashCommand, Task>> commands = [];
 
     public async Task StartBot() {
@@ -31,7 +31,7 @@ public class Bot(Terminal terminal) {
         reminderService = new ReminderService(terminal, client);
         voiceNotifyService = new VoiceNotificationService(terminal, client);
         statusService = new StatusService(terminal, client);
-        healthService = new HealthService(terminal, client);
+        webService = new WebService(terminal, client);
         client.Log += OnLog;
         client.MessageUpdated += OnMessageUpdated;
         client.MessageReceived += OnMessageReceived;
@@ -43,7 +43,7 @@ public class Bot(Terminal terminal) {
         client.SlashCommandExecuted += OnSlashCommandExecuted;
 
         await InitBot();
-        healthService.Start(); // up immediately (503 until connected), so orchestration can poll
+        await webService.Start(); // up immediately (503 until connected), so orchestration can poll
         await client.LoginAsync(TokenType.Bot, token);
         await client.StartAsync();
     }

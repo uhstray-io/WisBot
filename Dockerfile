@@ -12,7 +12,7 @@ COPY . .
 RUN dotnet publish Wisbot.csproj -c Release -r linux-x64 --no-self-contained -o /app
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
 # Native libs for Discord voice. libsodium.so + libe_sqlite3.so ship via NuGet
 # (version-matched) and land in /app, so no apt libsodium is needed. opus is NOT
