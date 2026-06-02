@@ -76,6 +76,20 @@ public static class Database {
 
             CREATE INDEX IF NOT EXISTS idx_wisllm_history_session
                 ON wisllm_history (session_id);
+
+            CREATE TABLE IF NOT EXISTS uploads (
+                id             TEXT    PRIMARY KEY,
+                owner_user_id  INTEGER NOT NULL,
+                owner_username TEXT    NOT NULL,
+                filename       TEXT,
+                content_type   TEXT,
+                size_bytes     INTEGER,
+                status         TEXT    NOT NULL DEFAULT 'pending',
+                created_at     TEXT    NOT NULL,
+                uploaded_at    TEXT,
+                expires_at     TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_uploads_expires ON uploads (expires_at);
             """;
         await cmd.ExecuteNonQueryAsync();
     }

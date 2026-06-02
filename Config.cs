@@ -28,6 +28,12 @@ public static class Config {
     public static string HealthHost { get; private set; } = "localhost";
     public static int HealthPort { get; private set; } = 8080;
 
+    // File relay (Phase 8) — public base URL used to build upload/download links,
+    // plus the per-file size cap and retention window.
+    public static string PublicBaseUrl { get; private set; } = "http://localhost:8080";
+    public static long UploadMaxBytes { get; private set; } = 500L * 1024 * 1024;
+    public static int UploadRetentionDays { get; private set; } = 30;
+
     public static void Load(string envPath = ".env", string tokenPath = "discord.key") {
         // discord.key is the local dev path; env var / .env is the Docker/CI path
         if (File.Exists(tokenPath))
@@ -81,5 +87,17 @@ public static class Config {
         if (Get("WISBOT_HEALTH_HOST") is { } healthHost) HealthHost = healthHost;
         if (Get("WISBOT_HEALTH_PORT") is { } healthPortStr && int.TryParse(healthPortStr, out int healthPort) && healthPort is > 0 and <= 65535)
             HealthPort = healthPort;
+
+        if (Get("WISBOT_PUBLIC_BASE_URL") is { } baseUrl) {
+            if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out Uri? parsed) ||
+                (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+                throw new InvalidOperationException(
+                    "WISBOT_PUBLIC_BASE_URL must be an absolute http(s) URL (e.g. https://up.example.io).");
+            PublicBaseUrl = baseUrl.TrimEnd('/');
+        }
+        if (Get("WISBOT_UPLOAD_MAX_BYTES") is { } maxStr && long.TryParse(maxStr, out long maxBytes) && maxBytes > 0)
+            UploadMaxBytes = maxBytes;
+        if (Get("WISBOT_UPLOAD_RETENTION_DAYS") is { } retStr && int.TryParse(retStr, out int retDays) && retDays > 0)
+            UploadRetentionDays = retDays;
     }
 }

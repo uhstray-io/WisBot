@@ -12,6 +12,7 @@ public class Bot(Terminal terminal) {
     private UserVoiceActivityTracker voiceActivityTracker = new(terminal);
     private VoiceStatsService voiceStatsService = new(terminal);
     private WisLlmService wisLlmService = new(terminal);
+    private UploadService uploadService = new(terminal);
     private ReminderService? reminderService;
     private VoiceNotificationService? voiceNotifyService;
     private StatusService? statusService;
@@ -103,6 +104,7 @@ public class Bot(Terminal terminal) {
             ["voicestats"] = cmd => voiceStatsService.HandleCommand(cmd),
             ["notify"] = cmd => voiceNotifyService!.HandleNotifyCommand(cmd),
             ["recording"] = cmd => voiceRecorder.HandleRecordingCommand(cmd),
+            ["upload"] = cmd => uploadService.HandleUploadCommand(cmd),
             ["wisllm"] = HandleWisLlmCommand,
         };
     }
@@ -209,6 +211,16 @@ public class Bot(Terminal terminal) {
                     .WithRequired(true)
                     .WithType(ApplicationCommandOptionType.User)
                 )
+                .Build();
+
+            await guild.CreateApplicationCommandAsync(command);
+            await Log($"Registered guild slash command: /{command.Name} in '{guild.Name}'");
+        }
+
+        if (!existingGuildCommands.Any(cmd => cmd.Name == "upload")) {
+            var command = new SlashCommandBuilder()
+                .WithName("upload")
+                .WithDescription("Get a private link to upload a large file (bypasses Discord's size limit)")
                 .Build();
 
             await guild.CreateApplicationCommandAsync(command);
