@@ -20,6 +20,11 @@ public class UploadService(Terminal terminal) {
     // ── Command ──────────────────────────────────────────────────────────
 
     public async Task HandleUploadCommand(SocketSlashCommand command) {
+        if (!Config.UploadEnabled) {
+            await command.RespondAsync("File uploads aren't configured on this bot right now.", ephemeral: true);
+            return;
+        }
+
         string id = GenerateId();
         await CreateUpload(id, command.User.Id, command.User.Username);
 
@@ -62,19 +67,30 @@ public class UploadService(Terminal terminal) {
     }
 
     /// Streams the uploaded file into MinIO (object key = id) and marks the row ready.
-    public async Task StoreAsync(string id, Stream content, string filename, string contentType, long size) {
-        await EnsureBucketAsync();
-        string type = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType;
+    /// Atomically claims the link (pending → uploading) first so a single-use link
+    /// can't be filled twice by concurrent POSTs. Returns false if it wasn't claimable
+    /// (already used or in progress).
+    public async Task<bool> StoreAsync(string id, Stream content, string filename, string contentType, long size) {
+        if (!await ClaimForUploadAsync(id)) return false;
 
-        await Minio().PutObjectAsync(new PutObjectArgs()
-            .WithBucket(Config.MinioBucket)
-            .WithObject(id)
-            .WithStreamData(content)
-            .WithObjectSize(size)
-            .WithContentType(type));
+        try {
+            await EnsureBucketAsync();
+            string type = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType;
 
-        await MarkReadyAsync(id, filename, type, size);
-        await Log($"Stored upload {id[..Math.Min(6, id.Length)]}… ({size / 1024} KB)");
+            await Minio().PutObjectAsync(new PutObjectArgs()
+                .WithBucket(Config.MinioBucket)
+                .WithObject(id)
+                .WithStreamData(content)
+                .WithObjectSize(size)
+                .WithContentType(type));
+
+            await MarkReadyAsync(id, filename, type, size);
+            await Log($"Stored an upload ({size / 1024} KB)");
+            return true;
+        } catch {
+            await RevertToPendingAsync(id); // let the user retry the link
+            throw;
+        }
     }
 
     /// Streams the stored object to the response output stream.
@@ -110,6 +126,28 @@ public class UploadService(Terminal terminal) {
             SizeBytes: reader.IsDBNull(3) ? null : reader.GetInt64(3));
     }
 
+    /// Atomic claim: flips pending → uploading. Returns true only for the caller
+    /// that won the race (rows affected > 0).
+    private static async Task<bool> ClaimForUploadAsync(string id) {
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE uploads SET status = 'uploading' WHERE id = $id AND status = 'pending'";
+        cmd.Parameters.AddWithValue("$id", id);
+        return await cmd.ExecuteNonQueryAsync() > 0;
+    }
+
+    private static async Task RevertToPendingAsync(string id) {
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE uploads SET status = 'pending' WHERE id = $id AND status = 'uploading'";
+        cmd.Parameters.AddWithValue("$id", id);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     private static async Task MarkReadyAsync(string id, string filename, string contentType, long size) {
         using var conn = new SqliteConnection(Database.ConnectionString);
         await conn.OpenAsync();
@@ -120,7 +158,7 @@ public class UploadService(Terminal terminal) {
             UPDATE uploads
             SET status = 'ready', filename = $f, content_type = $ct, size_bytes = $sz,
                 uploaded_at = $now, expires_at = $exp
-            WHERE id = $id
+            WHERE id = $id AND status = 'uploading'
             """;
         cmd.Parameters.AddWithValue("$f", filename);
         cmd.Parameters.AddWithValue("$ct", contentType);

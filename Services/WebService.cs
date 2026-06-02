@@ -70,6 +70,9 @@ public class WebService(Terminal terminal, DiscordSocketClient client, UploadSer
             return Results.Json(payload, statusCode: connected ? 200 : 503);
         });
 
+        // File relay routes are only exposed when MinIO is configured.
+        if (!Config.UploadEnabled) return;
+
         // Upload form (pending) or download landing (ready).
         webApp.MapGet("/u/{id}", async (string id) => {
             var rec = await uploadService.GetUploadAsync(id);
@@ -92,7 +95,8 @@ public class WebService(Terminal terminal, DiscordSocketClient client, UploadSer
                 if (file is null || file.Length == 0) return Results.BadRequest("No file provided.");
 
                 await using var stream = file.OpenReadStream();
-                await uploadService.StoreAsync(id, stream, file.FileName, file.ContentType, file.Length);
+                bool stored = await uploadService.StoreAsync(id, stream, file.FileName, file.ContentType, file.Length);
+                if (!stored) return Results.Conflict("This link already has a file.");
                 return Results.Redirect($"/u/{id}");
             } catch (Exception ex) when (ex is InvalidDataException or BadHttpRequestException) {
                 // MultipartBodyLengthLimit / MaxRequestBodySize exceeded.
