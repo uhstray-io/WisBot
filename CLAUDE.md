@@ -39,6 +39,7 @@ C# .NET 10.0 console application — a Discord bot with voice recording, welcome
 - **VoiceStatsService.cs** — Handles the `/voicestats` slash command. Queries the `voice_activity` table to compute per-user stats.
 - **StatusService.cs** — Handles the `/status` slash command. Returns a monitoring snapshot of the bot process.
 - **WebService.cs** — ASP.NET Core / Kestrel web host. Serves `GET /health` for container/orchestration checks (200 once the gateway is connected, 503 while starting). Bound to `WISBOT_HEALTH_HOST`/`WISBOT_HEALTH_PORT` (`+`/`*` → all interfaces). Started from `Bot.StartBot`. Will host the Phase 8 file-relay upload/download endpoints.
+- **UploadService.cs** — Handles the `/upload` slash command (Phase 8 file relay). Mints an unguessable (128-bit base64url) link backed by a `pending` row in the `uploads` table; replies ephemerally with `WISBOT_PUBLIC_BASE_URL/u/{id}`. The web endpoints (WebService) make the link functional.
 - **WisLlmService.cs** — Handles all `/wisllm` subcommands (ask, clear, compact). Guild sessions shared; DM sessions scoped per user.
 - **UserVoiceActivityTracker.cs** — Passively records every voice channel join/leave to the DB.
 
