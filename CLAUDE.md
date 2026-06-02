@@ -15,7 +15,7 @@ No test framework or linter is configured.
 
 ## Deployment
 
-A multi-stage `Dockerfile` builds a Linux image (`dotnet/runtime:10.0` base). Voice natives: `libsodium` + SQLite ship cross-platform via NuGet; `opus` is installed in the image via `apt` (`libopus0`, symlinked to the unversioned name `DllImport("opus")` probes). Config (token, guild ID, paths) is supplied at runtime via env / an env file — never baked into the image.
+A multi-stage `Dockerfile` builds a Linux image (`dotnet/aspnet:10.0` base — the web layer uses Kestrel). Voice natives: `libsodium` + SQLite ship cross-platform via NuGet; `opus` is installed in the image via `apt` (`libopus0`, symlinked to the unversioned name `DllImport("opus")` probes). Config (token, guild ID, paths) is supplied at runtime via env / an env file — never baked into the image.
 
 CI: `docker-build.yml` validates the image builds on every PR; `build-and-publish.yml` builds and pushes to `ghcr.io/uhstray-io/wisbot` on merge to `main` and on `v*` tags. The image is then deployed by the **agent-cloud** platform (pull image → Ansible-templated `.env` from OpenBao + site-config → Semaphore). The legacy self-hosted-runner deploy workflows have been removed; `deploy-o11y.yml` remains pending migration to agent-cloud's o11y service. See `docs/plans/2026-06-01-agent-cloud-deployment-alignment.md`.
 
@@ -38,7 +38,7 @@ C# .NET 10.0 console application — a Discord bot with voice recording, welcome
 - **VoiceNotificationService.cs** — One-shot voice presence notifications. Watches `UserVoiceStateUpdated` for a user entering a channel (not hopping or leaving). Atomically claims watchers via `DELETE ... RETURNING` and DMs them with a joinable deep link (`https://discord.com/channels/{guildId}/{channelId}`).
 - **VoiceStatsService.cs** — Handles the `/voicestats` slash command. Queries the `voice_activity` table to compute per-user stats.
 - **StatusService.cs** — Handles the `/status` slash command. Returns a monitoring snapshot of the bot process.
-- **HealthService.cs** — Minimal `HttpListener` HTTP endpoint (`GET /health`) for container/orchestration health checks. Returns 200 once the gateway is connected, 503 while starting. Bind host/port from `WISBOT_HEALTH_HOST`/`WISBOT_HEALTH_PORT`. Started from `Bot.StartBot`.
+- **WebService.cs** — ASP.NET Core / Kestrel web host. Serves `GET /health` for container/orchestration checks (200 once the gateway is connected, 503 while starting). Bound to `WISBOT_HEALTH_HOST`/`WISBOT_HEALTH_PORT` (`+`/`*` → all interfaces). Started from `Bot.StartBot`. Will host the Phase 8 file-relay upload/download endpoints.
 - **WisLlmService.cs** — Handles all `/wisllm` subcommands (ask, clear, compact). Guild sessions shared; DM sessions scoped per user.
 - **UserVoiceActivityTracker.cs** — Passively records every voice channel join/leave to the DB.
 
