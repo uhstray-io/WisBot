@@ -17,6 +17,79 @@ public class UploadService(Terminal terminal) {
     private async Task Log(string msg, LogLevel level = LogLevel.Info)
         => await terminal.AddLine($"[Upload] {msg}", level);
 
+    // ── Retention loop ───────────────────────────────────────────────────
+
+    private CancellationTokenSource? retentionCts;
+
+    /// Starts the hourly retention sweep (deletes expired uploads + their objects).
+    public void StartRetention() {
+        if (!Config.UploadEnabled) return;
+        retentionCts = new CancellationTokenSource();
+        _ = Task.Run(() => RunRetentionLoop(retentionCts.Token));
+    }
+
+    public void StopRetention() {
+        retentionCts?.Cancel();
+        retentionCts?.Dispose();
+        retentionCts = null;
+    }
+
+    private async Task RunRetentionLoop(CancellationToken token) {
+        while (!token.IsCancellationRequested) {
+            try {
+                int removed = await CleanupExpiredAsync();
+                if (removed > 0) await Log($"Retention: removed {removed} expired upload(s)");
+                await Task.Delay(TimeSpan.FromHours(1), token);
+            } catch (OperationCanceledException) {
+                break;
+            } catch (Exception ex) {
+                await Log($"Retention loop error: {ex.Message}", LogLevel.Error);
+                await Task.Delay(TimeSpan.FromHours(1), token);
+            }
+        }
+    }
+
+    /// Removes the MinIO object (if any) and DB row for every expired upload.
+    private async Task<int> CleanupExpiredAsync() {
+        List<(string Id, string Status)> expired = [];
+
+        using (var conn = new SqliteConnection(Database.ConnectionString)) {
+            await conn.OpenAsync();
+            var sel = conn.CreateCommand();
+            sel.CommandText = "SELECT id, status FROM uploads WHERE expires_at IS NOT NULL AND expires_at <= $now";
+            sel.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O"));
+            using var reader = await sel.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                expired.Add((reader.GetString(0), reader.GetString(1)));
+        }
+
+        foreach (var (id, status) in expired) {
+            if (status is "ready" or "uploading")
+                await TryRemoveObjectAsync(id);
+            await DeleteRowAsync(id);
+        }
+        return expired.Count;
+    }
+
+    private async Task TryRemoveObjectAsync(string id) {
+        try {
+            await Minio().RemoveObjectAsync(new RemoveObjectArgs()
+                .WithBucket(Config.MinioBucket).WithObject(id));
+        } catch (Exception ex) {
+            // Don't log the id (bearer credential); best-effort cleanup.
+            await Log($"Retention: could not remove an expired object: {ex.Message}", LogLevel.Warn);
+        }
+    }
+
+    private static async Task DeleteRowAsync(string id) {
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM uploads WHERE id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     // ── Command ──────────────────────────────────────────────────────────
 
     public async Task HandleUploadCommand(SocketSlashCommand command) {
