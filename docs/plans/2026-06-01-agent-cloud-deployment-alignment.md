@@ -166,6 +166,8 @@ The agent-cloud PR is gated by `.github/workflows/lint-and-test.yml` + pre-commi
 
 ## 7. Phased Execution
 
+> **Status (2026-06-01):** Milestone A complete — Phases 1 (#9), 2 (#10), 3 (#11), 4 (#12) all merged to `main`; image published to `ghcr.io/uhstray-io/wisbot`. Remaining: Phases 5–6 (agent-cloud repo), Phase 7 (site-config, blocked on access).
+
 **Workflow per phase (mandatory):** branch from `main` → implement → `dotnet build` green → push → open PR → **wait for CodeRabbit + CI** → address findings → confirm checks pass → merge → delete branch. One phase = one branch = one PR. No phase starts until the prior phase is merged (phases are ordered to avoid conflicts). No `Co-Authored-By` trailers (per repo memory).
 
 Phases are ordered **lowest-risk / prerequisite first**, so each PR is small, independently reviewable, and leaves `main` shippable.
@@ -192,11 +194,55 @@ Phases are ordered **lowest-risk / prerequisite first**, so each PR is small, in
 |---|-------|--------|-----------|-------|---------------|
 | **7** | Inventory + OpenBao seed + go-live | `feat/wisbot-inventory` (site-config) | WS6 | Inventory entry; seed `secret/services/wisbot`; provision/allocate VM; Semaphore branch deploy → validate → merge → redeploy from `main`. | `validate-all.yml` + `validate-secrets.yml` pass; container healthy; no secrets/IPs in public diffs |
 
-**Cross-phase dependencies:** P2 is independent of P1 but ordered after for clean review; P3 depends on P1+P2 (Dockerfile bakes in env config + health); P4 depends on P3 (needs the Dockerfile); P5–P6 depend on P4 (image must be published to pull); P7 depends on P6.
+### File relay service (Milestone D)
+
+| # | Phase | Branch(es) | Scope | Exit / verify |
+|---|-------|-----------|-------|---------------|
+| **8** | File relay (Discord upload-limit bypass) | `feat/file-relay-*` (multi) | `/upload` → unguessable link → web upload (≤500MB) → same link downloads, 30-day retention. **Full spec in §9.** | upload + download round-trip works through the public URL; >500MB rejected; expired files purged |
+
+**Cross-phase dependencies:** P2 is independent of P1 but ordered after for clean review; P3 depends on P1+P2 (Dockerfile bakes in env config + health); P4 depends on P3 (needs the Dockerfile); P5–P6 depend on P4 (image must be published to pull); P7 depends on P6. **P8 depends on A–C (a deployed bot + image pipeline) and on the platform MinIO + a public Caddy route.**
 
 ## 8. Per-phase verification gate
 
 Every phase must, before merge: (1) build/lint green locally, (2) pass **all** CI + CodeRabbit checks on the PR, (3) have findings addressed and re-confirmed. Mirrors the loop already used on PR #8. Plan doc updates ride along with the phase that needs them (don't batch into a separate PR).
+
+---
+
+## 9. Phase 8 — File relay service (Discord upload-limit bypass)
+
+**Goal:** Let users share files larger than Discord's ~8 MB limit. `/upload` in Discord returns an unguessable link; the user opens it in a browser and uploads one file (≤500 MB); the **same link** then serves that file for download to anyone who has it (so they can pass it to friends). Files are retained **30 days**, then auto-deleted.
+
+### Decisions (locked 2026-06-02)
+1. **Storage:** **MinIO object store + DB metadata** — file bytes live in a MinIO bucket (`wisbot-uploads/`), the DB holds only metadata. (Not blobs-in-DB — 500 MB blobs are an anti-pattern for SQLite/Postgres.)
+2. **Service shape:** **built into WisBot** via **ASP.NET Core / Kestrel** — the bot owns the `/upload` command and the web pages. This replaces the Phase 2 `HttpListener` health server with Kestrel and flips the Docker base `dotnet/runtime` → `dotnet/aspnet`.
+3. **Access:** **trust-the-link** — the unguessable ID is the credential; no login. The file is labeled with the Discord user who ran `/upload`.
+4. **Exposure:** **public** via a **Caddy route + subdomain** (e.g. `up.uhstray.io`) with TLS — unlike the bot's internal `/health`.
+
+### Flow / design
+- `/upload` → generate a cryptographically-random, URL-safe ID (≥128-bit); insert a `pending` row `{id, owner_user_id, owner_username, created_at}`; reply with `https://<subdomain>/u/<id>`.
+- `GET /u/{id}` → if `pending`: render the upload form; if `ready`: render a download landing page (filename, size, download button).
+- `POST /u/{id}` (multipart, streamed) → **stream** to MinIO `wisbot-uploads/{id}` enforcing the **500 MB cap on the stream** (reject larger without buffering); store `{filename, content_type, size_bytes, uploaded_at, expires_at = uploaded_at + 30d}`, set `status=ready`. One file per ID (reject re-upload once ready).
+- `GET /u/{id}/download` → stream from MinIO with **`Content-Disposition: attachment`** + stored content-type (never inline — avoids XSS from user files).
+- **Retention loop** (background, like `ReminderService`): periodically delete MinIO objects + rows where `expires_at <= now`, and stale `pending` links never uploaded (e.g. >48 h).
+
+### DB schema (new `uploads` table)
+`id TEXT PK · owner_user_id · owner_username · filename · content_type · size_bytes · status (pending|ready) · created_at · uploaded_at · expires_at`. SQLite works for metadata; revisit Postgres with the broader prod-HA migration.
+
+### Config (env, via the same Ansible-templated `.env`)
+MinIO endpoint + access/secret keys (from OpenBao), bucket name, public base URL/subdomain, max size (default 500 MB), retention days (default 30), and the web listen port.
+
+### Security / limits
+Unguessable ID; `Content-Disposition: attachment`; server-side stream size enforcement; one file per ID; light rate-limit on `/upload`; consider a per-user active-link cap to bound storage abuse (30-day retention bounds total growth).
+
+### Sub-phases (each its own branch/PR)
+- **8a (WisBot repo):** swap health server to ASP.NET Core/Kestrel; add `/upload` command, upload/download endpoints, `uploads` DB schema, MinIO client, streamed 500 MB enforcement. Docker base → `aspnet`.
+- **8b (WisBot repo):** 30-day retention cleanup loop (+ stale-pending purge).
+- **8c (agent-cloud + site-config):** provision MinIO bucket + creds (OpenBao `secret/services/wisbot`), add the **Caddy route + subdomain**, extend `wisbot.env.j2` with MinIO/upload vars, publish a new image, redeploy.
+
+### Open items to confirm before 8a
+- Subdomain/hostname for the public URL (needs DNS + Caddy).
+- Whether MinIO creds live under `secret/services/wisbot` or a dedicated path; bucket lifecycle (MinIO-side 30-day expiry as a backstop to the app's cleanup?).
+- Per-user link/quota caps (abuse bounding).
 
 ---
 
@@ -206,4 +252,6 @@ Every phase must, before merge: (1) build/lint green locally, (2) pass **all** C
 
 **agent-cloud repo:** `agents/wisbot/deployment/{compose.yml,deploy.sh,update.sh,validate.sh,templates/wisbot.env.j2,CLAUDE.md,README.md,.env.example}`, `agents/wisbot/context/{architecture,prompts,skills,use-cases}/.gitkeep`, `platform/playbooks/deploy-wisbot.yml`, `platform/playbooks/clean-deploy-wisbot.yml`, `platform/tests/test_service_wisbot.bats`, edits to `validate-all.yml`/`validate-secrets.yml`/`semaphore/templates.yml`, root `README.md`/`CLAUDE.md` updates. *(No `apply-policy-wisbot.yml` — no runtime AppRole.)*
 
-**site-config repo:** `inventory/production.yml` entry; OpenBao `secret/services/discord` seed.
+**site-config repo:** `inventory/production.yml` entry; OpenBao `secret/services/wisbot` seed (`discord_token`).
+
+**Phase 8 (file relay) adds:** WisBot repo — ASP.NET Core/Kestrel web (upload/download endpoints), `/upload` command, `uploads` DB schema, MinIO client, retention loop, Docker base → `aspnet`. agent-cloud — MinIO bucket + creds, Caddy route + subdomain, `wisbot.env.j2` MinIO/upload vars.
