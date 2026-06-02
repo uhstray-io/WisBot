@@ -96,6 +96,7 @@ public class Bot(Terminal terminal) {
 
         await Database.Initialize();
         await reminderService!.Start();
+        uploadService.StartRetention();
         await AddCommandsIfNotExist();
 
         commands = new Dictionary<string, Func<SocketSlashCommand, Task>> {
