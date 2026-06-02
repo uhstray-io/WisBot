@@ -41,8 +41,11 @@ public class WebService(Terminal terminal, DiscordSocketClient client) {
             await app.StartAsync();
             await Log($"Web endpoint listening on {url} (/health)");
         } catch (Exception ex) {
-            await Log($"Could not start web endpoint on {url}: {ex.Message}", LogLevel.Warn);
+            // The web endpoint is essential (health checks now, file relay later),
+            // so a bind failure is fatal — fail loudly rather than run half-up.
+            await Log($"Could not start web endpoint on {url}: {ex.Message}", LogLevel.Error);
             app = null;
+            throw;
         }
     }
 
