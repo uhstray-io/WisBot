@@ -19,13 +19,14 @@ public class UploadService(Terminal terminal) {
         await CreateUpload(id, command.User.Id, command.User.Username);
 
         long maxMb = Config.UploadMaxBytes / (1024 * 1024);
-        var link = $"{Config.PublicBaseUrl.TrimEnd('/')}/u/{id}";
+        var link = $"{Config.PublicBaseUrl}/u/{id}";
         await command.RespondAsync(
             $"📤 Your upload link (one file, up to {maxMb} MB, kept {Config.UploadRetentionDays} days):\n{link}\n" +
             "Open it to upload your file — then share the same link so anyone can download it.",
             ephemeral: true);
 
-        await Log($"{command.User.Username} minted upload link {id}");
+        // Do not log the id — it is the bearer credential for the link.
+        await Log($"{command.User.Username} minted an upload link");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────
@@ -43,15 +44,19 @@ public class UploadService(Terminal terminal) {
         using var conn = new SqliteConnection(Database.ConnectionString);
         await conn.OpenAsync();
 
+        DateTime now = DateTime.UtcNow;
+
         var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO uploads (id, owner_user_id, owner_username, status, created_at)
-            VALUES ($id, $owner, $name, 'pending', $now)
+            INSERT INTO uploads (id, owner_user_id, owner_username, status, created_at, expires_at)
+            VALUES ($id, $owner, $name, 'pending', $now, $expires)
             """;
         cmd.Parameters.AddWithValue("$id", id);
         cmd.Parameters.AddWithValue("$owner", (long)ownerId);
         cmd.Parameters.AddWithValue("$name", ownerName);
-        cmd.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O"));
+        cmd.Parameters.AddWithValue("$now", now.ToString("O"));
+        // Set expiry at mint so unused links age out; refreshed on upload (8a-3).
+        cmd.Parameters.AddWithValue("$expires", now.AddDays(Config.UploadRetentionDays).ToString("O"));
 
         await cmd.ExecuteNonQueryAsync();
     }

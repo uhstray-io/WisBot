@@ -88,7 +88,13 @@ public static class Config {
         if (Get("WISBOT_HEALTH_PORT") is { } healthPortStr && int.TryParse(healthPortStr, out int healthPort) && healthPort is > 0 and <= 65535)
             HealthPort = healthPort;
 
-        if (Get("WISBOT_PUBLIC_BASE_URL") is { } baseUrl) PublicBaseUrl = baseUrl;
+        if (Get("WISBOT_PUBLIC_BASE_URL") is { } baseUrl) {
+            if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out Uri? parsed) ||
+                (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+                throw new InvalidOperationException(
+                    "WISBOT_PUBLIC_BASE_URL must be an absolute http(s) URL (e.g. https://up.example.io).");
+            PublicBaseUrl = baseUrl.TrimEnd('/');
+        }
         if (Get("WISBOT_UPLOAD_MAX_BYTES") is { } maxStr && long.TryParse(maxStr, out long maxBytes) && maxBytes > 0)
             UploadMaxBytes = maxBytes;
         if (Get("WISBOT_UPLOAD_RETENTION_DAYS") is { } retStr && int.TryParse(retStr, out int retDays) && retDays > 0)
