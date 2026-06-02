@@ -34,6 +34,14 @@ public static class Config {
     public static long UploadMaxBytes { get; private set; } = 500L * 1024 * 1024;
     public static int UploadRetentionDays { get; private set; } = 30;
 
+    // MinIO object storage for the file relay. An empty endpoint disables uploads.
+    public static string MinioEndpoint { get; private set; } = "";
+    public static string MinioAccessKey { get; private set; } = "";
+    public static string MinioSecretKey { get; private set; } = "";
+    public static string MinioBucket { get; private set; } = "wisbot-uploads";
+    public static bool MinioUseSsl { get; private set; } = false;
+    public static bool UploadEnabled => !string.IsNullOrWhiteSpace(MinioEndpoint);
+
     public static void Load(string envPath = ".env", string tokenPath = "discord.key") {
         // discord.key is the local dev path; env var / .env is the Docker/CI path
         if (File.Exists(tokenPath))
@@ -99,5 +107,11 @@ public static class Config {
             UploadMaxBytes = maxBytes;
         if (Get("WISBOT_UPLOAD_RETENTION_DAYS") is { } retStr && int.TryParse(retStr, out int retDays) && retDays > 0)
             UploadRetentionDays = retDays;
+
+        if (Get("WISBOT_MINIO_ENDPOINT") is { } mEndpoint) MinioEndpoint = mEndpoint;
+        if (Get("WISBOT_MINIO_ACCESS_KEY") is { } mAccess) MinioAccessKey = mAccess;
+        if (Get("WISBOT_MINIO_SECRET_KEY") is { } mSecret) MinioSecretKey = mSecret;
+        if (Get("WISBOT_MINIO_BUCKET") is { } mBucket) MinioBucket = mBucket;
+        if (Get("WISBOT_MINIO_USE_SSL") is { } mSslStr && bool.TryParse(mSslStr, out bool mSsl)) MinioUseSsl = mSsl;
     }
 }

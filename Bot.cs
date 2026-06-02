@@ -32,7 +32,7 @@ public class Bot(Terminal terminal) {
         reminderService = new ReminderService(terminal, client);
         voiceNotifyService = new VoiceNotificationService(terminal, client);
         statusService = new StatusService(terminal, client);
-        webService = new WebService(terminal, client);
+        webService = new WebService(terminal, client, uploadService);
         client.Log += OnLog;
         client.MessageUpdated += OnMessageUpdated;
         client.MessageReceived += OnMessageReceived;
@@ -217,7 +217,7 @@ public class Bot(Terminal terminal) {
             await Log($"Registered guild slash command: /{command.Name} in '{guild.Name}'");
         }
 
-        if (!existingGuildCommands.Any(cmd => cmd.Name == "upload")) {
+        if (Config.UploadEnabled && !existingGuildCommands.Any(cmd => cmd.Name == "upload")) {
             var command = new SlashCommandBuilder()
                 .WithName("upload")
                 .WithDescription("Get a private link to upload a large file (bypasses Discord's size limit)")

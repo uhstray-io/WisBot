@@ -1,8 +1,13 @@
 using Discord.WebSocket;
 using Microsoft.Data.Sqlite;
+using Minio;
+using Minio.DataModel.Args;
 using System.Security.Cryptography;
 
 namespace WisBot;
+
+/// One upload row's metadata (status + file info once ready).
+public record UploadRecord(string Id, string Status, string? Filename, string? ContentType, long? SizeBytes);
 
 /// Handles the /upload slash command — mints an unguessable upload link backed by
 /// a `pending` row in the `uploads` table. The web layer (WebService) turns the
@@ -15,6 +20,11 @@ public class UploadService(Terminal terminal) {
     // ── Command ──────────────────────────────────────────────────────────
 
     public async Task HandleUploadCommand(SocketSlashCommand command) {
+        if (!Config.UploadEnabled) {
+            await command.RespondAsync("File uploads aren't configured on this bot right now.", ephemeral: true);
+            return;
+        }
+
         string id = GenerateId();
         await CreateUpload(id, command.User.Id, command.User.Username);
 
@@ -38,7 +48,128 @@ public class UploadService(Terminal terminal) {
         return Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
     }
 
+    // ── Storage (MinIO) ──────────────────────────────────────────────────
+
+    private IMinioClient? minio;
+
+    private IMinioClient Minio() => minio ??= new MinioClient()
+        .WithEndpoint(Config.MinioEndpoint)
+        .WithCredentials(Config.MinioAccessKey, Config.MinioSecretKey)
+        .WithSSL(Config.MinioUseSsl)
+        .Build();
+
+    private async Task EnsureBucketAsync() {
+        var client = Minio();
+        bool exists = await client.BucketExistsAsync(
+            new BucketExistsArgs().WithBucket(Config.MinioBucket));
+        if (!exists)
+            await client.MakeBucketAsync(new MakeBucketArgs().WithBucket(Config.MinioBucket));
+    }
+
+    /// Streams the uploaded file into MinIO (object key = id) and marks the row ready.
+    /// Atomically claims the link (pending → uploading) first so a single-use link
+    /// can't be filled twice by concurrent POSTs. Returns false if it wasn't claimable
+    /// (already used or in progress).
+    public async Task<bool> StoreAsync(string id, Stream content, string filename, string contentType, long size) {
+        if (!await ClaimForUploadAsync(id)) return false;
+
+        try {
+            await EnsureBucketAsync();
+            string type = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType;
+
+            await Minio().PutObjectAsync(new PutObjectArgs()
+                .WithBucket(Config.MinioBucket)
+                .WithObject(id)
+                .WithStreamData(content)
+                .WithObjectSize(size)
+                .WithContentType(type));
+
+            await MarkReadyAsync(id, filename, type, size);
+            await Log($"Stored an upload ({size / 1024} KB)");
+            return true;
+        } catch {
+            await RevertToPendingAsync(id); // let the user retry the link
+            throw;
+        }
+    }
+
+    /// Streams the stored object to the response output stream.
+    public async Task DownloadToAsync(string id, Stream output, CancellationToken cancellationToken = default) {
+        await Minio().GetObjectAsync(new GetObjectArgs()
+            .WithBucket(Config.MinioBucket)
+            .WithObject(id)
+            .WithCallbackStream(async (stream, token) => await stream.CopyToAsync(output, token)),
+            cancellationToken);
+    }
+
     // ── DB ───────────────────────────────────────────────────────────────
+
+    public async Task<UploadRecord?> GetUploadAsync(string id) {
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT status, filename, content_type, size_bytes
+            FROM uploads WHERE id = $id
+            """;
+        cmd.Parameters.AddWithValue("$id", id);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync()) return null;
+
+        return new UploadRecord(
+            Id: id,
+            Status: reader.GetString(0),
+            Filename: reader.IsDBNull(1) ? null : reader.GetString(1),
+            ContentType: reader.IsDBNull(2) ? null : reader.GetString(2),
+            SizeBytes: reader.IsDBNull(3) ? null : reader.GetInt64(3));
+    }
+
+    /// Atomic claim: flips pending → uploading. Returns true only for the caller
+    /// that won the race (rows affected > 0).
+    private static async Task<bool> ClaimForUploadAsync(string id) {
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE uploads SET status = 'uploading' WHERE id = $id AND status = 'pending'";
+        cmd.Parameters.AddWithValue("$id", id);
+        return await cmd.ExecuteNonQueryAsync() > 0;
+    }
+
+    private static async Task RevertToPendingAsync(string id) {
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE uploads SET status = 'pending' WHERE id = $id AND status = 'uploading'";
+        cmd.Parameters.AddWithValue("$id", id);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    private static async Task MarkReadyAsync(string id, string filename, string contentType, long size) {
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        DateTime now = DateTime.UtcNow;
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            UPDATE uploads
+            SET status = 'ready', filename = $f, content_type = $ct, size_bytes = $sz,
+                uploaded_at = $now, expires_at = $exp
+            WHERE id = $id AND status = 'uploading'
+            """;
+        cmd.Parameters.AddWithValue("$f", filename);
+        cmd.Parameters.AddWithValue("$ct", contentType);
+        cmd.Parameters.AddWithValue("$sz", size);
+        cmd.Parameters.AddWithValue("$now", now.ToString("O"));
+        // Retention counts from upload, as advertised to the user.
+        cmd.Parameters.AddWithValue("$exp", now.AddDays(Config.UploadRetentionDays).ToString("O"));
+        cmd.Parameters.AddWithValue("$id", id);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
 
     private static async Task CreateUpload(string id, ulong ownerId, string ownerName) {
         using var conn = new SqliteConnection(Database.ConnectionString);
