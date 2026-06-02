@@ -32,7 +32,7 @@ public class Bot(Terminal terminal) {
         reminderService = new ReminderService(terminal, client);
         voiceNotifyService = new VoiceNotificationService(terminal, client);
         statusService = new StatusService(terminal, client);
-        webService = new WebService(terminal, client);
+        webService = new WebService(terminal, client, uploadService);
         client.Log += OnLog;
         client.MessageUpdated += OnMessageUpdated;
         client.MessageReceived += OnMessageReceived;
