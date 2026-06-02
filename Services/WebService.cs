@@ -3,6 +3,7 @@ using Discord.WebSocket;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -28,6 +29,10 @@ public class WebService(Terminal terminal, DiscordSocketClient client) {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls(url);
         builder.Logging.ClearProviders(); // the bot's Terminal is the log surface
+        // Disable ConsoleLifetime: this web host is embedded in the bot process,
+        // so it must not register its own SIGINT/SIGTERM handlers or drive process
+        // shutdown — the bot (Program.cs) owns the process lifetime.
+        builder.Services.AddSingleton<IHostLifetime, NoOpHostLifetime>();
 
         app = builder.Build();
         MapEndpoints(app);
@@ -56,5 +61,12 @@ public class WebService(Terminal terminal, DiscordSocketClient client) {
             };
             return Results.Json(payload, statusCode: connected ? 200 : 503);
         });
+    }
+
+    /// No-op host lifetime so the embedded web host doesn't register signal
+    /// handlers or drive process shutdown — the bot owns the process lifetime.
+    private sealed class NoOpHostLifetime : IHostLifetime {
+        public Task WaitForStartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }
