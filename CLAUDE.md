@@ -13,6 +13,17 @@ dotnet build -c Release  # Release build
 
 No test framework or linter is configured.
 
+### Local development (OS-agnostic)
+
+`dotnet build` succeeds on macOS/Windows/Linux identically — the Windows-only `opus` NuGet
+is csproj-conditioned out elsewhere. For the full local stack (WisBot + a MinIO so `/upload`
+works), use the root `docker-compose.yml`: `docker compose up --build`. It is pinned to
+`platform: linux/amd64` so it builds under emulation on Apple Silicon. This is the **local**
+compose (builds the checkout) — distinct from agent-cloud's deployment compose, which pulls
+the published GHCR image. Voice *recording* needs `libopus` present at runtime (NuGet on
+Windows, `brew install opus` on macOS, `libopus0` on Linux); the bot otherwise runs without it.
+See README "Local Development".
+
 ## Deployment
 
 A multi-stage `Dockerfile` builds a Linux image (`dotnet/aspnet:10.0` base — the web layer uses Kestrel). Voice natives: `libsodium` + SQLite ship cross-platform via NuGet; `opus` is installed in the image via `apt` (`libopus0`, symlinked to the unversioned name `DllImport("opus")` probes). Config (token, guild ID, paths) is supplied at runtime via env / an env file — never baked into the image.
