@@ -52,19 +52,40 @@ Voice **recording** additionally needs the `libopus` native at runtime:
 The bot **starts and runs every non-voice feature without it** — opus only loads when you
 join a voice channel — so you can develop most features on any machine without extra setup.
 
-### 3. Run the full stack in Docker (any OS, incl. Apple Silicon)
+### 3. Run the file relay (`/upload`) locally
 
-Brings up WisBot **and** a MinIO so the `/upload` file relay works end-to-end:
+The relay needs a MinIO. **Podman** is the primary local runtime (open source, daemonless);
+its commands below also work under Docker. On macOS/Windows, start the VM once:
+`podman machine init && podman machine start` (Linux skips this).
+
+**Apple Silicon Macs — native bot + MinIO container (recommended):**
+
+Building the WisBot *image* on Apple Silicon currently fails (see the caveat below), so run
+the bot natively and put only MinIO in a container:
 
 ```bash
-cp .env.example .env     # then set DISCORD_TOKEN_WISBOT + WISBOT_GUILD_ID
-docker compose up --build
+podman compose up -d minio          # MinIO only (multi-arch, runs native)
+# in .env: WISBOT_MINIO_ENDPOINT=localhost:9000  (+ access/secret = minioadmin)
+dotnet run
+```
+
+**Linux / Windows / Intel Mac — full stack in one command:**
+
+`compose.yaml` builds this checkout and brings up WisBot **and** MinIO together:
+
+```bash
+cp .env.example .env                 # set DISCORD_TOKEN_WISBOT + WISBOT_GUILD_ID
+podman compose up --build            # or: docker compose up --build
 ```
 
 - Health: `http://localhost:8080/health` · Upload links: `http://localhost:8080/u/...`
 - MinIO console: `http://localhost:9001` (login `minioadmin` / `minioadmin`)
-- The compose file pins `platform: linux/amd64`, so it builds and runs under emulation on
-  Apple Silicon instead of failing on the x86_64 opus path.
+
+> **Apple Silicon caveat:** the all-in-container build is blocked by .NET 10.0.300 toolchain
+> bugs in the Podman VM — the arm64 SDK hits an illegal instruction (SIGILL), and the
+> `linux/amd64` image (pinned for the x86_64 `libopus`) fails under qemu emulation with an
+> MSBuild error. This is environment-specific, **not** a code issue: the same image builds
+> cleanly on native amd64 (CI publishes it on every merge). Use the native+MinIO path above.
 
 > This is the **local** compose (builds your checkout). It is separate from the deployment
 > path below, which runs a pulled image with its own config.

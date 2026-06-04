@@ -15,14 +15,24 @@ No test framework or linter is configured.
 
 ### Local development (OS-agnostic)
 
-`dotnet build` succeeds on macOS/Windows/Linux identically — the Windows-only `opus` NuGet
-is csproj-conditioned out elsewhere. For the full local stack (WisBot + a MinIO so `/upload`
-works), use the root `docker-compose.yml`: `docker compose up --build`. It is pinned to
-`platform: linux/amd64` so it builds under emulation on Apple Silicon. This is the **local**
-compose (builds the checkout) — distinct from agent-cloud's deployment compose, which pulls
-the published GHCR image. Voice *recording* needs `libopus` present at runtime (NuGet on
-Windows, `brew install opus` on macOS, `libopus0` on Linux); the bot otherwise runs without it.
-See README "Local Development".
+`dotnet build` / `dotnet run` succeed natively on macOS/Windows/Linux identically — the
+Windows-only `opus` NuGet is csproj-conditioned out elsewhere — and native run is the
+universal local loop. For the file relay (`/upload`) you also need a MinIO. **Podman** is the
+primary local runtime (open source, daemonless; `docker compose` works on the same files).
+
+- **Linux / Windows / Intel Mac:** `podman compose up --build` (root `compose.yaml`) builds
+  this checkout and runs WisBot + MinIO together. The `wisbot` service pins
+  `platform: linux/amd64` (image bundles the x86_64 `libopus`); MinIO is multi-arch (native).
+- **Apple Silicon:** the all-in-container *build* does NOT work — arm64 .NET 10.0.300 SIGILLs
+  in the podman VM and the amd64 image fails under qemu (MSBuild `MSB4184`). Environment-only;
+  native amd64 CI builds the image fine on every merge. Run MinIO alone
+  (`podman compose up -d minio`, set `WISBOT_MINIO_ENDPOINT=localhost:9000` in `.env`) and the
+  bot natively (`dotnet run`).
+
+This is the **local** compose (builds the checkout) — distinct from agent-cloud's deployment
+compose, which pulls the published GHCR image. Voice *recording* needs `libopus` at runtime
+(NuGet on Windows, `brew install opus` on macOS, `libopus0` on Linux); the bot otherwise runs
+without it. See README "Local Development".
 
 ## Deployment
 
