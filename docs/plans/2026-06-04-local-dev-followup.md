@@ -23,12 +23,15 @@ What exists now:
 - `.gitignore` ignores `.env` / `.env.local` (the bot token can live in `.env`).
 - README "Local Development" + a note in `CLAUDE.md` — Podman-first, per-OS guidance.
 
-## The three local loops
+## Local development loops
+
+Token for the running bot comes from either `DISCORD_TOKEN_WISBOT` (in `.env` or the
+environment) or a `discord.key` file at the repo root — both are supported, equally.
 
 | Loop | Command | Works on |
 |---|---|---|
 | Validate build | `dotnet build` | macOS / Windows / Linux (native) |
-| Run natively | `dotnet run` (+ `.env`/`discord.key`) | any OS (voice needs `libopus`*) |
+| Run natively | `dotnet run` (token via `.env` or `discord.key`) | any OS (voice needs `libopus`*) |
 | Full stack in container | `podman compose up --build` | Linux / Windows / **Intel** Mac |
 | File relay on Apple Silicon | `podman compose up -d minio` + `dotnet run` | Apple Silicon (native bot + MinIO container) |
 
