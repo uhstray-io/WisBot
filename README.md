@@ -11,13 +11,63 @@ A Discord bot with voice channel recording, welcome messages, and reminders. Bui
 
 ## Setup
 
-1. Create a `discord.key` file at the repo root containing your bot token (one line, no quotes).
-2. In `Bot.cs`, update `uhstrayGuildId` to your Discord server's guild ID.
+1. Provide your bot token, either:
+   - a `discord.key` file at the repo root (one line, no quotes), **or**
+   - `DISCORD_TOKEN_WISBOT` in a `.env` file (copy `.env.example` → `.env`).
+2. Set `WISBOT_GUILD_ID` (your Discord server's guild ID) in `.env` — it is **required**.
 
 ```bash
 dotnet restore
 dotnet run
 ```
+
+## Local Development
+
+The same lane works on **macOS, Windows, and Linux**. Config resolves in order:
+environment variable → local `.env` → default (see `.env.example`).
+
+### 1. Validate the build (any OS)
+
+```bash
+dotnet build
+```
+
+The Windows-only `opus` native package is conditioned out on macOS/Linux, so the build
+succeeds identically on every OS.
+
+### 2. Run natively
+
+```bash
+dotnet run        # reads discord.key / .env at the repo root
+```
+
+Voice **recording** additionally needs the `libopus` native at runtime:
+
+| OS | How |
+|---|---|
+| Windows | bundled automatically via NuGet (`OpusDotNet.opus.win-x64`) |
+| macOS | `brew install opus` |
+| Linux | `apt-get install libopus0` |
+
+The bot **starts and runs every non-voice feature without it** — opus only loads when you
+join a voice channel — so you can develop most features on any machine without extra setup.
+
+### 3. Run the full stack in Docker (any OS, incl. Apple Silicon)
+
+Brings up WisBot **and** a MinIO so the `/upload` file relay works end-to-end:
+
+```bash
+cp .env.example .env     # then set DISCORD_TOKEN_WISBOT + WISBOT_GUILD_ID
+docker compose up --build
+```
+
+- Health: `http://localhost:8080/health` · Upload links: `http://localhost:8080/u/...`
+- MinIO console: `http://localhost:9001` (login `minioadmin` / `minioadmin`)
+- The compose file pins `platform: linux/amd64`, so it builds and runs under emulation on
+  Apple Silicon instead of failing on the x86_64 opus path.
+
+> This is the **local** compose (builds your checkout). It is separate from the deployment
+> path below, which runs a pulled image with its own config.
 
 ## Discord Commands
 

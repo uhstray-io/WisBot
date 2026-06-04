@@ -1,0 +1,61 @@
+# Local development stack — builds WisBot from this checkout and runs it alongside
+# a MinIO so the /upload file relay works end-to-end on your machine.
+#
+#   docker compose up --build
+#
+# This is NOT the deployment compose: agent-cloud deploys a *pulled* GHCR image with
+# its own Ansible-templated env. This file builds your local source for iteration.
+#
+# Requirements: Docker (with the compose plugin) and a .env at the repo root
+# (copy .env.example → .env, set DISCORD_TOKEN_WISBOT + WISBOT_GUILD_ID). The MinIO
+# wiring below is injected here, so /upload works without editing .env.
+
+services:
+  wisbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Pin amd64: the Dockerfile installs the x86_64 libopus and restores the linux-x64
+    # runtime, so on Apple Silicon this builds/runs under emulation rather than failing.
+    platform: linux/amd64
+    # Discord token + guild id (and any other overrides) come from your local .env.
+    env_file:
+      - .env
+    environment:
+      # Point the file relay at the bundled MinIO so /upload works out of the box.
+      WISBOT_MINIO_ENDPOINT: minio:9000
+      WISBOT_MINIO_ACCESS_KEY: minioadmin
+      WISBOT_MINIO_SECRET_KEY: minioadmin
+      WISBOT_MINIO_BUCKET: wisbot-uploads
+      WISBOT_MINIO_USE_SSL: "false"
+      # Links the user opens in a browser resolve to the mapped host port below.
+      WISBOT_PUBLIC_BASE_URL: http://localhost:8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - wisbot-data:/app/data
+      - wisbot-recordings:/app/recordings
+    # Start order only — WisBot connects to MinIO lazily (first /upload), not at boot,
+    # so it tolerates MinIO coming up a moment later. The bucket is auto-created on use.
+    depends_on:
+      - minio
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    platform: linux/amd64
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console (http://localhost:9001, login minioadmin/minioadmin)
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+
+volumes:
+  wisbot-data:
+  wisbot-recordings:
+  minio-data:

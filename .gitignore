@@ -58,4 +58,8 @@ nunit-*.xml
 # Keys
 *.key
 
+# Local environment / secrets (never commit; .env may hold the bot token)
+.env
+.env.local
+
 .DS_Store
