@@ -65,6 +65,9 @@ public class WisLlmService(Terminal terminal) {
                 await SendChunkedAsync(command, response, isEphemeral);
                 await MaybeWarnContextAsync(command, model, messages);
                 await Log($"{command.User.Username} asked [{model}]: {prompt[..Math.Min(60, prompt.Length)]}");
+            } catch (OllamaApiException ex) when (ex.Status == System.Net.HttpStatusCode.NotFound) {
+                await Log($"Unknown model '{ex.Model}': {ex.Message}", LogLevel.Error);
+                await command.FollowupAsync($"Unknown model `{ex.Model}` — it isn't available on the Ollama server.", ephemeral: true);
             } catch (HttpRequestException ex) {
                 await Log($"Ollama unreachable: {ex.Message}", LogLevel.Error);
                 await command.FollowupAsync("Could not reach the Ollama endpoint. Is it running?", ephemeral: true);
@@ -115,6 +118,9 @@ public class WisLlmService(Terminal terminal) {
                     ephemeral: isEphemeral);
 
                 await Log($"{command.User.Username} compacted session for {ContextLabel(guildId, dmUserId)}");
+            } catch (OllamaApiException ex) when (ex.Status == System.Net.HttpStatusCode.NotFound) {
+                await Log($"Unknown model '{ex.Model}': {ex.Message}", LogLevel.Error);
+                await command.FollowupAsync($"The configured model `{ex.Model}` isn't available on the Ollama server.", ephemeral: true);
             } catch (HttpRequestException ex) {
                 await Log($"Ollama unreachable: {ex.Message}", LogLevel.Error);
                 await command.FollowupAsync("Could not reach the Ollama endpoint. Is it running?", ephemeral: true);
@@ -240,7 +246,12 @@ public class WisLlmService(Terminal terminal) {
         using var body = new StringContent(json, Encoding.UTF8, "application/json");
 
         var httpResponse = await Http.PostAsync($"{Config.OllamaEndpoint}/api/chat", body);
-        httpResponse.EnsureSuccessStatusCode();
+        if (!httpResponse.IsSuccessStatusCode) {
+            // Ollama responded, so this is NOT a connectivity problem — don't let it
+            // surface as the misleading 'is it running?' message. 404 = unknown model.
+            string error = await httpResponse.Content.ReadAsStringAsync();
+            throw new OllamaApiException(httpResponse.StatusCode, model, error);
+        }
 
         var responseJson = await httpResponse.Content.ReadAsStringAsync();
         var parsed = JsonSerializer.Deserialize<OllamaChatResponse>(responseJson, JsonOptions)
@@ -430,4 +441,12 @@ public class WisLlmService(Terminal terminal) {
 
     private static string ContextLabel(ulong? guildId, ulong? dmUserId) =>
         guildId.HasValue ? $"guild {guildId}" : $"DM user {dmUserId}";
+}
+
+/// Ollama answered with a non-success status — a server-side error, distinct from
+/// the connection failures HttpRequestException covers. 404 means unknown model.
+public class OllamaApiException(System.Net.HttpStatusCode status, string model, string body)
+    : Exception($"Ollama returned {(int)status} for model '{model}': {body}") {
+    public System.Net.HttpStatusCode Status { get; } = status;
+    public string Model { get; } = model;
 }
