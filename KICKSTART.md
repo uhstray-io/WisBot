@@ -23,7 +23,7 @@ It is a single console app: a Discord client + an embedded Kestrel web server
 
 ## Repo Map
 
-```
+```text
 Program.cs            Entry point — wires Terminal + Bot, keeps the process alive
 Bot.cs                Discord client lifecycle, slash command registration & routing
 Terminal.cs           Async console I/O + terminal commands (/testrecord, /gc, ...)
@@ -102,7 +102,7 @@ dotnet run
 
 with these in `.env`:
 
-```
+```ini
 WISBOT_MINIO_ENDPOINT=localhost:9000
 WISBOT_MINIO_ACCESS_KEY=minioadmin
 WISBOT_MINIO_SECRET_KEY=minioadmin
@@ -122,7 +122,7 @@ so the relay needs a real Discord login — a dummy token won't get there.
 > This is environment-specific, not a code issue (CI builds the same image fine on native
 > amd64). Use the native-bot + MinIO-container loop above. Details:
 > `docs/plans/2026-06-04-local-dev-followup.md`.
-
+>
 > This local compose is **separate from deployment** — deployment runs the *published*
 > image with its own config (next section).
 
@@ -131,7 +131,7 @@ so the relay needs a real Discord login — a dummy token won't get there.
 WisBot ships as an OCI image; nothing site-specific is ever baked in. A change reaches
 production like this:
 
-```
+```text
 your branch ──PR──▶ main
    │                 │
    │  docker-build.yml          build-and-publish.yml
