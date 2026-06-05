@@ -30,8 +30,11 @@ services:
     # runtime, so on Apple Silicon this builds/runs under emulation rather than failing.
     platform: linux/amd64
     # Discord token + guild id (and any other overrides) come from your local .env.
+    # Optional so `compose config` validates without one (CI) — the bot itself
+    # fails fast at startup if the token/guild id are missing.
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       # Point the file relay at the bundled MinIO so /upload works out of the box.
       WISBOT_MINIO_ENDPOINT: minio:9000
