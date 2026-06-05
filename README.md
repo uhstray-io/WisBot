@@ -2,6 +2,8 @@
 
 A Discord bot with voice channel recording, welcome messages, and reminders. Built with C# .NET 10 and Discord.Net.
 
+> **New to the project?** Start with [KICKSTART.md](KICKSTART.md) — setup, development loops, and how deployment works, all in one place.
+
 ## Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
