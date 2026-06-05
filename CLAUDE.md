@@ -106,6 +106,7 @@ Program.cs → new Terminal() + new Bot(terminal)
 
 ## Documentation
 
+- `KICKSTART.md` — Onboarding entry point: setup, development loops, deployment flow
 - `architecture/VOICE_RECORDING_README.md` — Voice recording implementation details and troubleshooting
 - `architecture/FUTURE_FEATURES.md` — Planned features and roadmap
 - `architecture/AUDIO_STORAGE_ARCHITECTURES.md` — Storage design decisions
