@@ -24,8 +24,25 @@ public class UploadService(Terminal terminal) {
     /// Starts the hourly retention sweep (deletes expired uploads + their objects).
     public void StartRetention() {
         if (!Config.UploadEnabled) return;
+        _ = Task.Run(ResetStaleUploadsAsync); // crash-mid-upload recovery (see below)
         retentionCts = new CancellationTokenSource();
         _ = Task.Run(() => RunRetentionLoop(retentionCts.Token));
+    }
+
+    /// A crash between claim and store strands rows in 'uploading', bricking the link
+    /// until expiry. No upload survives a restart, so at startup every 'uploading' row
+    /// is stale — return them to 'pending' so their links accept a retry.
+    private async Task ResetStaleUploadsAsync() {
+        try {
+            using var conn = new SqliteConnection(Database.ConnectionString);
+            await conn.OpenAsync();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE uploads SET status = 'pending' WHERE status = 'uploading'";
+            int reset = await cmd.ExecuteNonQueryAsync();
+            if (reset > 0) await Log($"Reset {reset} stale 'uploading' row(s) to pending after restart");
+        } catch (Exception ex) {
+            await Log($"Stale-upload reset failed: {ex.Message}", LogLevel.Warn);
+        }
     }
 
     public void StopRetention() {
@@ -163,6 +180,21 @@ public class UploadService(Terminal terminal) {
         } catch {
             await RevertToPendingAsync(id); // let the user retry the link
             throw;
+        }
+    }
+
+    /// Tri-state object probe: true = exists, false = gone (cleaned/expired),
+    /// null = storage unreachable. Lets the web layer pick 404 vs 503 before
+    /// committing response headers.
+    public async Task<bool?> ObjectExistsAsync(string id) {
+        try {
+            await Minio().StatObjectAsync(new StatObjectArgs()
+                .WithBucket(Config.MinioBucket).WithObject(id));
+            return true;
+        } catch (Minio.Exceptions.ObjectNotFoundException) {
+            return false;
+        } catch {
+            return null;
         }
     }
 

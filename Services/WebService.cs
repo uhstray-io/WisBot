@@ -18,7 +18,6 @@ namespace WisBot;
 /// - GET /u/{id}/file — download the stored file (forced attachment).
 /// Bound to WISBOT_HEALTH_HOST:WISBOT_HEALTH_PORT.
 public class WebService(Terminal terminal, DiscordSocketClient client, UploadService uploadService) {
-    private readonly DateTime startedAt = DateTime.UtcNow;
     private WebApplication? app;
 
     private async Task Log(string msg, LogLevel level = LogLevel.Info)
@@ -80,15 +79,12 @@ public class WebService(Terminal terminal, DiscordSocketClient client, UploadSer
             await next();
         });
 
+        // Public payload is status-only: this endpoint can be internet-reachable, and
+        // uptime/latency/guild-count are operator detail (use /status in Discord).
         webApp.MapGet("/health", () => {
             bool connected = client.ConnectionState == ConnectionState.Connected;
-            var payload = new {
-                status = connected ? "ok" : "starting",
-                uptimeSeconds = (long)(DateTime.UtcNow - startedAt).TotalSeconds,
-                latencyMs = client.Latency,
-                guilds = client.Guilds.Count,
-            };
-            return Results.Json(payload, statusCode: connected ? 200 : 503);
+            return Results.Json(new { status = connected ? "ok" : "starting" },
+                statusCode: connected ? 200 : 503);
         });
 
         // File relay routes are only exposed when MinIO is configured.
@@ -130,8 +126,22 @@ public class WebService(Terminal terminal, DiscordSocketClient client, UploadSer
             var rec = await uploadService.GetUploadAsync(id);
             if (rec is null || rec.Status != "ready") return Results.NotFound("No file at this link.");
 
+            // Probe before committing a 200 — once streaming starts the headers are
+            // sent, and a missing object would yield a truncated 'successful' download.
+            bool? exists = await uploadService.ObjectExistsAsync(id);
+            if (exists == false) return Results.NotFound("The file behind this link is no longer available.");
+            if (exists is null) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+
             return Results.Stream(
-                async output => await uploadService.DownloadToAsync(id, output),
+                async output => {
+                    try {
+                        await uploadService.DownloadToAsync(id, output);
+                    } catch (Exception ex) {
+                        // Headers are committed; surface the otherwise-silent partial download.
+                        await Log($"Download stream aborted mid-transfer: {ex.Message}", LogLevel.Error);
+                        throw;
+                    }
+                },
                 contentType: SafeContentType(rec.ContentType),
                 fileDownloadName: rec.Filename ?? id);
         });
