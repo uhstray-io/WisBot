@@ -22,8 +22,10 @@ public class UploadService(Terminal terminal) {
     private CancellationTokenSource? retentionCts;
 
     /// Starts the hourly retention sweep (deletes expired uploads + their objects).
+    /// Idempotent: OnReady re-fires on every reconnect, and re-entry must not reset
+    /// in-flight 'uploading' claims or stack duplicate retention loops.
     public void StartRetention() {
-        if (!Config.UploadEnabled) return;
+        if (!Config.UploadEnabled || retentionCts is not null) return;
         _ = Task.Run(ResetStaleUploadsAsync); // crash-mid-upload recovery (see below)
         retentionCts = new CancellationTokenSource();
         _ = Task.Run(() => RunRetentionLoop(retentionCts.Token));

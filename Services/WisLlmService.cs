@@ -245,7 +245,7 @@ public class WisLlmService(Terminal terminal) {
         var json = JsonSerializer.Serialize(request, JsonOptions);
         using var body = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var httpResponse = await Http.PostAsync($"{Config.OllamaEndpoint}/api/chat", body);
+        using var httpResponse = await Http.PostAsync($"{Config.OllamaEndpoint}/api/chat", body);
         if (!httpResponse.IsSuccessStatusCode) {
             // Ollama responded, so this is NOT a connectivity problem — don't let it
             // surface as the misleading 'is it running?' message. 404 = unknown model.
