@@ -43,6 +43,39 @@ jobs:
             type=sha,format=short
             type=semver,pattern={{version}}
 
+      # Build locally first and prove the image actually boots before anything is
+      # pushed — a builds-but-crashes regression must not become :latest.
+      - name: Build for smoke test
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          load: true
+          tags: wisbot:smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test — container boots and /health answers
+        run: |
+          docker run -d --name smoke -p 8080:8080 \
+            -e DISCORD_TOKEN_WISBOT=smoke-test-dummy \
+            -e WISBOT_GUILD_ID=1 \
+            -e WISBOT_HEALTH_HOST=+ \
+            wisbot:smoke
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health || true)
+            # 503 = Kestrel up, Discord not connected (expected with a dummy token)
+            if [ "$code" = "503" ] || [ "$code" = "200" ]; then
+              echo "Health endpoint answered ($code) — image boots"
+              docker rm -f smoke
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Health endpoint never answered — image does not boot"
+          docker logs smoke
+          docker rm -f smoke
+          exit 1
+
       - name: Build and push
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
