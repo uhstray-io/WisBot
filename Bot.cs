@@ -49,6 +49,19 @@ public class Bot(Terminal terminal) {
         await client.StartAsync();
     }
 
+    /// Graceful shutdown: stop background loops, the web host, and the Discord connection.
+    public async Task StopBot() {
+        await Log("Stopping bot...");
+        reminderService?.Stop();
+        uploadService.StopRetention();
+        if (webService is not null) await webService.Stop();
+        if (client is not null) {
+            await client.StopAsync();
+            await client.LogoutAsync();
+        }
+        await Log("Bot stopped");
+    }
+
     private async Task InitBot() {
         Config.Load();
         if (string.IsNullOrWhiteSpace(Config.DiscordToken))

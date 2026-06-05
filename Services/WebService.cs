@@ -58,7 +58,28 @@ public class WebService(Terminal terminal, DiscordSocketClient client, UploadSer
         if (app is not null) await app.StopAsync();
     }
 
+    /// Active-content types that must never be reflected as the download Content-Type —
+    /// Content-Disposition: attachment is the primary XSS defense, this is the second layer.
+    private static readonly string[] UnsafeContentTypes =
+        ["text/html", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/xml",
+         "text/javascript", "application/javascript", "application/ecmascript"];
+
+    private static string SafeContentType(string? stored) {
+        if (string.IsNullOrWhiteSpace(stored)
+            || !System.Net.Http.Headers.MediaTypeHeaderValue.TryParse(stored, out var parsed)
+            || parsed.MediaType is null
+            || UnsafeContentTypes.Contains(parsed.MediaType, StringComparer.OrdinalIgnoreCase))
+            return "application/octet-stream";
+        return parsed.MediaType; // type/subtype only — drop client-supplied parameters
+    }
+
     private void MapEndpoints(WebApplication webApp) {
+        // Defense-in-depth for user-supplied file content: never let browsers sniff types.
+        webApp.Use(async (ctx, next) => {
+            ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            await next();
+        });
+
         webApp.MapGet("/health", () => {
             bool connected = client.ConnectionState == ConnectionState.Connected;
             var payload = new {
@@ -111,7 +132,7 @@ public class WebService(Terminal terminal, DiscordSocketClient client, UploadSer
 
             return Results.Stream(
                 async output => await uploadService.DownloadToAsync(id, output),
-                contentType: rec.ContentType ?? "application/octet-stream",
+                contentType: SafeContentType(rec.ContentType),
                 fileDownloadName: rec.Filename ?? id);
         });
     }

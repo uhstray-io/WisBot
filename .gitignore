@@ -63,3 +63,6 @@ nunit-*.xml
 .env.local
 
 .DS_Store
+
+# Local SQLite database (contains real Discord user IDs + reminder text) and sidecars
+wisbot.db*

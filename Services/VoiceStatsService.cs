@@ -72,7 +72,7 @@ public class VoiceStatsService(Terminal terminal) {
 
         foreach (var ev in events) {
             if (firstActive == null || ev.Timestamp < firstActive) firstActive = ev.Timestamp;
-            if (ev.Timestamp > lastActive) lastActive = ev.Timestamp;
+            if (lastActive == null || ev.Timestamp > lastActive) lastActive = ev.Timestamp;
 
             if (ev.Action == "joined") {
                 openJoins[ev.ChannelId] = ev.Timestamp;

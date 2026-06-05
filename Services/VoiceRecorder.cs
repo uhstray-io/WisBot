@@ -334,12 +334,23 @@ public class VoiceRecorder(Terminal terminal) {
     /// Converts sparse timestamped chunks into a continuous PCM byte array.
     /// Gaps between chunks are filled with silence (zero bytes).
     private byte[] ReconstructAudio(UserAudio userAudio, long sessionDurationMs) {
-        int totalFrames = (int)(sessionDurationMs / 20);
+        // Snapshot first: if the 10s stop-drain timed out, a ReadStream task may still
+        // be appending — enumerate a stable copy, not the live list.
+        AudioChunk[] chunks = [.. userAudio.Chunks];
+
+        // sessionDurationMs is snapshotted before the stop drain, but ReadStream keeps
+        // appending chunks for up to 10s after — size the buffer to whichever ends last
+        // so drain-window audio isn't silently dropped.
+        long effectiveMs = sessionDurationMs;
+        foreach (var chunk in chunks)
+            effectiveMs = Math.Max(effectiveMs, chunk.TimestampMs + (long)Math.Ceiling(chunk.DurationMs));
+
+        int totalFrames = (int)(effectiveMs / 20);
         if (totalFrames <= 0) return [];
 
         byte[] result = new byte[totalFrames * 3840]; // pre-zeroed = silence
 
-        foreach (var chunk in userAudio.Chunks) {
+        foreach (var chunk in chunks) {
             int byteOffset = (int)(chunk.TimestampMs / 20) * 3840;
             int bytesToCopy = Math.Min(chunk.Data.Length, result.Length - byteOffset);
             if (bytesToCopy > 0 && byteOffset >= 0)
@@ -358,13 +369,13 @@ public class VoiceRecorder(Terminal terminal) {
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
 
         foreach (var (userId, user) in users) {
-            var chunks = user.Chunks;
+            var chunks = user.Chunks.ToArray(); // snapshot — tasks may still append after a drain timeout
 
             // Log stats
-            if (chunks.Count > 0) {
+            if (chunks.Length > 0) {
                 long audioMs = chunks.Sum(c => (long)c.DurationMs);
                 double dataMB = chunks.Sum(c => c.Data.Length) / (1024.0 * 1024.0);
-                await Log($"  {user.Username}: {chunks.Count} chunks, {audioMs / 1000.0:F1}s audio, {dataMB:F2} MB");
+                await Log($"  {user.Username}: {chunks.Length} chunks, {audioMs / 1000.0:F1}s audio, {dataMB:F2} MB");
             } else {
                 await Log($"  {user.Username}: no audio captured");
                 continue;
