@@ -44,6 +44,7 @@ public class Bot(Terminal terminal) {
         client.SlashCommandExecuted += OnSlashCommandExecuted;
 
         await InitBot();
+        await Database.Initialize(); // before the web host — /u/{id} routes query the uploads table
         await webService.Start(); // up immediately (503 until connected), so orchestration can poll
         await client.LoginAsync(TokenType.Bot, token);
         await client.StartAsync();
@@ -107,7 +108,6 @@ public class Bot(Terminal terminal) {
     private async Task OnReady() {
         await Log("Bot is Ready!!!");
 
-        await Database.Initialize();
         await reminderService!.Start();
         uploadService.StartRetention();
         await AddCommandsIfNotExist();

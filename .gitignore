@@ -66,3 +66,6 @@ nunit-*.xml
 
 # Local SQLite database (contains real Discord user IDs + reminder text) and sidecars
 wisbot.db*
+
+# Local recording output directory (WAVs are covered by *.wav; this covers the rest)
+recordings/

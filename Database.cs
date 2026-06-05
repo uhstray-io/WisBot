@@ -4,11 +4,23 @@ namespace WisBot;
 
 /// Central database helper. All features share the same wisbot.db file.
 /// Call Database.Initialize() once on startup to ensure all tables exist.
+///
+/// INVARIANT: every DateTime column (remind_at, expires_at, timestamp, created_at, …)
+/// stores DateTime.UtcNow.ToString("O") — fixed-width, Z-suffixed, lexicographically
+/// sortable. Due-time queries compare these as TEXT (e.g. remind_at <= $now), which is
+/// only correct while ALL writers use UTC "O" strings. Never store a Local/Unspecified
+/// DateTime; its "O" form has a different shape and breaks the ordering.
 public static class Database {
     // Resolved from Config (env-configurable) so the DB can live on a mounted volume.
     public static string ConnectionString => $"Data Source={Config.DbPath}";
 
     public static async Task Initialize() {
+        // An operator-supplied WISBOT_DB_PATH may point into a not-yet-created directory
+        // (e.g. an unmounted volume) — fail with a clear mkdir rather than an opaque
+        // 'unable to open database file'.
+        var dbDir = Path.GetDirectoryName(Path.GetFullPath(Config.DbPath));
+        if (!string.IsNullOrEmpty(dbDir)) Directory.CreateDirectory(dbDir);
+
         using var conn = new SqliteConnection(ConnectionString);
         await conn.OpenAsync();
 

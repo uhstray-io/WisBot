@@ -100,6 +100,9 @@ podman compose up --build            # or: docker compose up --build
 | `/recording stop [sendfile] [mergeaudio]` | Stop recording and save WAV files; optionally send files to Discord or merge all users into one file |
 | `/remind when:<duration> message:<text>` | Set a one-shot reminder; bot DMs you when time is up (e.g. `30m`, `2h`, `1d`, `1h30m`) |
 | `/notify user:<@someone>` | DM you once the next time that user joins a voice channel; includes a link to join them |
+| `/upload` | Mint a one-file upload link (file relay; only registered when MinIO is configured via `WISBOT_MINIO_ENDPOINT`) |
+| `/status` | Monitoring snapshot of the bot process |
+| `/voicestats [user]` | Per-user voice activity stats from the tracked join/leave history |
 | `/wisllm ask prompt:<text> [model:<name>]` | Ask WisLLM (Ollama-backed) a question; requires `OLLAMA_ENDPOINT`. Sessions are shared per guild, per-user in DMs |
 | `/wisllm clear` | Start a fresh WisLLM conversation session |
 | `/wisllm compact` | Summarize the current WisLLM session into a single context and continue from it |

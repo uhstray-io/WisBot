@@ -269,6 +269,10 @@ public class VoiceRecorder(Terminal terminal) {
                     await Log($"New user joined: {username}");
                     userAudio.RecordingTask = Task.Run(() =>
                         ReadStream(userAudio, recordingCancellationToken!.Token));
+                } else if (users.TryGetValue(userId, out var raced)) {
+                    // Lost a concurrent-create race — hand the stream to the winner
+                    // instead of leaking it unread.
+                    raced.Stream = stream;
                 }
             } catch (Exception ex) {
                 await Log($"Error handling new stream for {userId}: {ex.Message}", LogLevel.Error);
@@ -360,6 +364,13 @@ public class VoiceRecorder(Terminal terminal) {
         return result;
     }
 
+    /// Discord usernames may contain path separators or filesystem-invalid characters.
+    private static string SanitizeFileName(string name) {
+        var invalid = Path.GetInvalidFileNameChars();
+        var cleaned = new string([.. name.Select(c => invalid.Contains(c) ? '_' : c)]).Trim();
+        return cleaned.Length > 0 ? cleaned : "user";
+    }
+
     /// Logs per-user stats, reconstructs audio, writes WAV files.
     private async Task<List<string>> SaveAllUsersAsWav(long sessionDurationMs) {
         var outputDir = Path.Combine(Directory.GetCurrentDirectory(), Config.RecordingsDir);
@@ -381,16 +392,21 @@ public class VoiceRecorder(Terminal terminal) {
                 continue;
             }
 
-            // Reconstruct and write
-            byte[] pcm = ReconstructAudio(user, sessionDurationMs);
-            if (pcm.Length == 0) continue;
+            // Reconstruct and write. Per-user try/catch: one bad write must not drop
+            // the rest of the session's recordings.
+            try {
+                byte[] pcm = ReconstructAudio(user, sessionDurationMs);
+                if (pcm.Length == 0) continue;
 
-            var filePath = Path.Combine(outputDir, $"{user.Username}_{timestamp}.wav");
-            using (var writer = new WaveFileWriter(filePath, new WaveFormat(48000, 16, 2)))
-                writer.Write(pcm, 0, pcm.Length);
+                var filePath = Path.Combine(outputDir, $"{SanitizeFileName(user.Username)}_{timestamp}.wav");
+                using (var writer = new WaveFileWriter(filePath, new WaveFormat(48000, 16, 2)))
+                    writer.Write(pcm, 0, pcm.Length);
 
-            await Log($"Saved {Path.GetFileName(filePath)} ({pcm.Length / (1024.0 * 1024.0):F2} MB)");
-            filePaths.Add(filePath);
+                await Log($"Saved {Path.GetFileName(filePath)} ({pcm.Length / (1024.0 * 1024.0):F2} MB)");
+                filePaths.Add(filePath);
+            } catch (Exception ex) {
+                await Log($"Failed to save recording for {user.Username}: {ex.Message}", LogLevel.Error);
+            }
         }
 
         return filePaths;
@@ -402,8 +418,18 @@ public class VoiceRecorder(Terminal terminal) {
         List<WaveFileReader> readers = [];
 
         try {
-            foreach (var path in filePaths)
-                readers.Add(new WaveFileReader(path));
+            foreach (var path in filePaths) {
+                var reader = new WaveFileReader(path);
+                // The mixer sums raw interleaved Int16 — a differently-formatted input
+                // would be garbage. All our writers emit 48k/16/2; guard the invariant.
+                if (reader.WaveFormat.SampleRate != 48000 || reader.WaveFormat.BitsPerSample != 16
+                    || reader.WaveFormat.Channels != 2) {
+                    await Log($"Skipping {Path.GetFileName(path)} in merge — unexpected format {reader.WaveFormat}", LogLevel.Warn);
+                    reader.Dispose();
+                    continue;
+                }
+                readers.Add(reader);
+            }
 
             using var writer = new WaveFileWriter(mergedPath, new WaveFormat(48000, 16, 2));
             byte[] buffer = new byte[3840];

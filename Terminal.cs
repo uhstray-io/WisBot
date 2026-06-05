@@ -47,6 +47,7 @@ public class Terminal {
                 "/clear - Clear the terminal",
                 "/removeallcommands - Remove all Discord bot commands",
                 "/testrecord - Join voice channel, record 15s, save and leave",
+                "/gc - Force a .NET garbage collection",
             ]),
             "/clear" => ClearTerminal(),
             "/removeallcommands" => Bot?.RemoveAllCommands() ?? Log("Bot not initialized yet"),
