@@ -91,8 +91,14 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
         // claimed (deleted), so re-insert to retry on the next 30s pass — but give up
         // once the reminder is an hour overdue (user gone / channel deleted for good).
         if (DateTime.UtcNow - reminder.RemindAt < TimeSpan.FromHours(1)) {
-            await Requeue(reminder);
-            await Log($"Could not deliver reminder {reminder.Id} — re-queued for retry", LogLevel.Warn);
+            // Deliver runs fire-and-forget — a throwing requeue would otherwise vanish
+            // unobserved and the already-claimed reminder would be silently lost.
+            try {
+                await Requeue(reminder);
+                await Log($"Could not deliver reminder {reminder.Id} — re-queued for retry", LogLevel.Warn);
+            } catch (Exception ex) {
+                await Log($"Reminder {reminder.Id} LOST — delivery failed and requeue threw: {ex.Message}", LogLevel.Error);
+            }
         } else {
             await Log($"Could not deliver reminder {reminder.Id} after 1h of retries — dropped", LogLevel.Warn);
         }
