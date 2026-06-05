@@ -82,10 +82,38 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
             }
         }
 
-        if (sent)
+        if (sent) {
             await Log($"Delivered reminder {reminder.Id} to user {reminder.UserId}");
-        else
-            await Log($"Could not deliver reminder {reminder.Id} — dropped", LogLevel.Warn);
+            return;
+        }
+
+        // Both paths failed (DMs closed AND channel unavailable). The row was already
+        // claimed (deleted), so re-insert to retry on the next 30s pass — but give up
+        // once the reminder is an hour overdue (user gone / channel deleted for good).
+        if (DateTime.UtcNow - reminder.RemindAt < TimeSpan.FromHours(1)) {
+            await Requeue(reminder);
+            await Log($"Could not deliver reminder {reminder.Id} — re-queued for retry", LogLevel.Warn);
+        } else {
+            await Log($"Could not deliver reminder {reminder.Id} after 1h of retries — dropped", LogLevel.Warn);
+        }
+    }
+
+    /// Re-inserts a claimed-but-undeliverable reminder, preserving its original due
+    /// time so the one-hour retry window is measured from when it should have fired.
+    private async Task Requeue(Reminder reminder) {
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO reminders (user_id, channel_id, message, remind_at)
+            VALUES ($userId, $channelId, $message, $remindAt)
+            """;
+        cmd.Parameters.AddWithValue("$userId", (long)reminder.UserId);
+        cmd.Parameters.AddWithValue("$channelId", (long)reminder.ChannelId);
+        cmd.Parameters.AddWithValue("$message", reminder.Message);
+        cmd.Parameters.AddWithValue("$remindAt", reminder.RemindAt.ToString("O"));
+        await cmd.ExecuteNonQueryAsync();
     }
 
     // ── Command ──────────────────────────────────────────────────────────
