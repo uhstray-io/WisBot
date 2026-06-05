@@ -1,3 +1,7 @@
+# ⚠️ NON-FUNCTIONAL pending migration to agent-cloud's o11y service.
+# This workflow targets a self-hosted runner that is being decommissioned with the
+# move to agent-cloud deployment (see docs/plans/2026-06-01-agent-cloud-deployment-alignment.md).
+# A manual dispatch with no matching runner registered will queue indefinitely, not fail.
 name: Deployment Wisbot Observability Agents
 
 on:
