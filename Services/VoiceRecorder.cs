@@ -334,7 +334,14 @@ public class VoiceRecorder(Terminal terminal) {
     /// Converts sparse timestamped chunks into a continuous PCM byte array.
     /// Gaps between chunks are filled with silence (zero bytes).
     private byte[] ReconstructAudio(UserAudio userAudio, long sessionDurationMs) {
-        int totalFrames = (int)(sessionDurationMs / 20);
+        // sessionDurationMs is snapshotted before the stop drain, but ReadStream keeps
+        // appending chunks for up to 10s after — size the buffer to whichever ends last
+        // so drain-window audio isn't silently dropped.
+        long effectiveMs = sessionDurationMs;
+        foreach (var chunk in userAudio.Chunks)
+            effectiveMs = Math.Max(effectiveMs, chunk.TimestampMs + (long)Math.Ceiling(chunk.DurationMs));
+
+        int totalFrames = (int)(effectiveMs / 20);
         if (totalFrames <= 0) return [];
 
         byte[] result = new byte[totalFrames * 3840]; // pre-zeroed = silence
