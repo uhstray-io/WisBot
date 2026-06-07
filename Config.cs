@@ -37,8 +37,15 @@ public static class Config {
     // File relay (Phase 8) — public base URL used to build upload/download links,
     // plus the per-file size cap and retention window.
     public static string PublicBaseUrl { get; private set; } = "http://localhost:8080";
-    public static long UploadMaxBytes { get; private set; } = 500L * 1024 * 1024;
+    // Per-file cap (default 100 MB — well above Discord's limit, the relay's purpose;
+    // operators raise it via env). Lower default reduces the buffered-upload DoS surface.
+    public static long UploadMaxBytes { get; private set; } = 100L * 1024 * 1024;
     public static int UploadRetentionDays { get; private set; } = 30;
+    // Per-user abuse caps on /upload (storage-exhaustion guard) and a public-endpoint
+    // request rate limit (per client IP, fixed window).
+    public static int UploadMaxLinksPerUser { get; private set; } = 20;
+    public static long UploadMaxBytesPerUser { get; private set; } = 2L * 1024 * 1024 * 1024;
+    public static int UploadRateLimitPerMinute { get; private set; } = 30;
 
     // MinIO object storage for the file relay. An empty endpoint disables uploads.
     public static string MinioEndpoint { get; private set; } = "";
@@ -118,6 +125,12 @@ public static class Config {
             UploadMaxBytes = maxBytes;
         if (Get("WISBOT_UPLOAD_RETENTION_DAYS") is { } retStr && int.TryParse(retStr, out int retDays) && retDays > 0)
             UploadRetentionDays = retDays;
+        if (Get("WISBOT_UPLOAD_MAX_LINKS_PER_USER") is { } linksStr && int.TryParse(linksStr, out int maxLinks) && maxLinks > 0)
+            UploadMaxLinksPerUser = maxLinks;
+        if (Get("WISBOT_UPLOAD_MAX_BYTES_PER_USER") is { } userBytesStr && long.TryParse(userBytesStr, out long maxUserBytes) && maxUserBytes > 0)
+            UploadMaxBytesPerUser = maxUserBytes;
+        if (Get("WISBOT_UPLOAD_RATE_LIMIT_PER_MINUTE") is { } rlStr && int.TryParse(rlStr, out int rl) && rl > 0)
+            UploadRateLimitPerMinute = rl;
 
         if (Get("WISBOT_MINIO_ENDPOINT") is { } mEndpoint) MinioEndpoint = mEndpoint;
         if (Get("WISBOT_MINIO_ACCESS_KEY") is { } mAccess) MinioAccessKey = mAccess;
