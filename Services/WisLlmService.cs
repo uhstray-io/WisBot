@@ -115,7 +115,7 @@ public class WisLlmService(Terminal terminal) {
                 string preview = summary.Length > 500 ? summary[..500] + "…" : summary;
                 await command.FollowupAsync(
                     $"Session compacted. Continuing from the summary below.\n\n**Summary:**\n{preview}",
-                    ephemeral: isEphemeral);
+                    ephemeral: isEphemeral, allowedMentions: AllowedMentions.None);
 
                 await Log($"{command.User.Username} compacted session for {ContextLabel(guildId, dmUserId)}");
             } catch (OllamaApiException ex) when (ex.Status == System.Net.HttpStatusCode.NotFound) {
@@ -267,7 +267,8 @@ public class WisLlmService(Terminal terminal) {
         bool multi = chunks.Count > 1;
         for (int i = 0; i < chunks.Count; i++) {
             string msg = multi ? $"({i + 1}/{chunks.Count})\n{chunks[i]}" : chunks[i];
-            await command.FollowupAsync(msg, ephemeral: isEphemeral);
+            // Model output is attacker-controlled — never let it ping @everyone/roles/users.
+            await command.FollowupAsync(msg, ephemeral: isEphemeral, allowedMentions: AllowedMentions.None);
         }
     }
 
