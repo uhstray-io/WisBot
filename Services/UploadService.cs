@@ -117,6 +117,21 @@ public class UploadService(Terminal terminal) {
             return;
         }
 
+        // Per-user storage-exhaustion guard: cap outstanding links and total bytes.
+        var (linkCount, byteTotal) = await GetOwnerUsageAsync(command.User.Id);
+        if (linkCount >= Config.UploadMaxLinksPerUser) {
+            await command.RespondAsync(
+                $"You already have {linkCount} active upload link(s) (max {Config.UploadMaxLinksPerUser}). " +
+                "Wait for some to expire before minting more.", ephemeral: true);
+            return;
+        }
+        if (byteTotal >= Config.UploadMaxBytesPerUser) {
+            await command.RespondAsync(
+                $"You've reached your upload storage quota ({Config.UploadMaxBytesPerUser / (1024 * 1024)} MB). " +
+                "Wait for existing uploads to expire.", ephemeral: true);
+            return;
+        }
+
         string id = GenerateId();
         await CreateUpload(id, command.User.Id, command.User.Username);
 
@@ -158,13 +173,18 @@ public class UploadService(Terminal terminal) {
             await client.MakeBucketAsync(new MakeBucketArgs().WithBucket(Config.MinioBucket));
     }
 
-    /// Streams the uploaded file into MinIO (object key = id) and marks the row ready.
-    /// Atomically claims the link (pending → uploading) first so a single-use link
-    /// can't be filled twice by concurrent POSTs. Returns false if it wasn't claimable
-    /// (already used or in progress).
-    public async Task<bool> StoreAsync(string id, Stream content, string filename, string contentType, long size) {
-        if (!await ClaimForUploadAsync(id)) return false;
+    /// Atomically claims a single-use link (pending → uploading). Call this BEFORE
+    /// reading the request body so a non-claimable request (already used / in progress)
+    /// is rejected without buffering the upload. Returns false if not claimable.
+    public Task<bool> TryClaimForUploadAsync(string id) => ClaimForUploadAsync(id);
 
+    /// Releases a claim back to pending (e.g. the request turned out to carry no file),
+    /// so the link can be retried.
+    public Task ReleaseClaimAsync(string id) => RevertToPendingAsync(id);
+
+    /// Streams an already-claimed upload into MinIO (object key = id) and marks it ready.
+    /// The caller must have won TryClaimForUploadAsync first. Reverts the claim on failure.
+    public async Task StoreClaimedAsync(string id, Stream content, string filename, string contentType, long size) {
         try {
             await EnsureBucketAsync();
             string type = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType;
@@ -178,7 +198,6 @@ public class UploadService(Terminal terminal) {
 
             await MarkReadyAsync(id, filename, type, size);
             await Log($"Stored an upload ({size / 1024} KB)");
-            return true;
         } catch {
             await RevertToPendingAsync(id); // let the user retry the link
             throw;
@@ -210,6 +229,22 @@ public class UploadService(Terminal terminal) {
     }
 
     // ── DB ───────────────────────────────────────────────────────────────
+
+    /// Current usage for an owner: number of live links and total bytes stored.
+    /// Backs the per-user quota in HandleUploadCommand (expired rows are swept, so
+    /// counting all of an owner's rows reflects outstanding usage).
+    private static async Task<(int Links, long Bytes)> GetOwnerUsageAsync(ulong ownerId) {
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*), COALESCE(SUM(size_bytes), 0) FROM uploads WHERE owner_user_id = $owner";
+        cmd.Parameters.AddWithValue("$owner", (long)ownerId);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync()) return (0, 0);
+        return ((int)reader.GetInt64(0), reader.GetInt64(1));
+    }
 
     public async Task<UploadRecord?> GetUploadAsync(string id) {
         using var conn = new SqliteConnection(Database.ConnectionString);
