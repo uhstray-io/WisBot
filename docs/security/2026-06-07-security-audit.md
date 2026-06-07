@@ -24,7 +24,7 @@ The deployment model bounds blast radius: the bot serves **one configured guild*
 ### H-1 · Any guild member can covertly record everyone in a voice channel
 **CWE-862 / CWE-359** · `Services/VoiceRecorder.cs:67-101,163-171`; `Bot.cs:137-165` (registration), `Bot.cs:295-302` (routing)
 
-`/recording` has **no permission gate** — not at registration (no `WithDefaultMemberPermissions`) and not in the handler. `action=="start"` only checks the caller is in a voice channel, then records **every non-bot user** in that channel (and anyone who joins later via `OnStreamCreated`). The only notice is an **ephemeral** "Joining voice channel and starting recording…" visible to the invoker alone — recorded participants get no announcement, DM, or opt-in. `FUTURE_FEATURES.md:47-48` already lists the consent system as unbuilt.
+`/recording` has **no permission gate** — not at registration (no `WithDefaultMemberPermissions`) and not in the handler. `action=="start"` only checks the caller is in a voice channel, then records **every non-bot user** in that channel (and anyone who joins later via `OnStreamCreated`). The only notice is an **ephemeral** "Joining voice channel and starting recording…" visible to the invoker alone — recorded participants get no announcement, DM, or opt-in. `architecture/FUTURE_FEATURES.md:48` already lists the consent system as unbuilt.
 
 **Exploit:** a low-privilege member joins an active voice channel, runs `/recording start` (reply invisible to others), waits, then `/recording stop sendfile:true` — every participant's isolated mic track is captured to WAV and can be exfiltrated, with zero consent.
 
