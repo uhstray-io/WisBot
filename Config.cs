@@ -23,6 +23,12 @@ public static class Config {
     public static string DbPath { get; private set; } = "wisbot.db";
     public static string RecordingsDir { get; private set; } = "recordings";
 
+    // Voice recording safety caps. Audio is buffered in RAM during capture
+    // (~11 MB/min/user), so an uncapped session can OOM the process — capture
+    // auto-stops when EITHER the wall-clock or the aggregate-byte ceiling is hit.
+    public static int RecordingMaxMinutes { get; private set; } = 120;
+    public static long RecordingMaxBytes { get; private set; } = 2L * 1024 * 1024 * 1024;
+
     // HTTP health endpoint. Host defaults to "localhost" (dev); set "+" in the
     // container so Docker port mapping can reach it.
     public static string HealthHost { get; private set; } = "localhost";
@@ -91,6 +97,11 @@ public static class Config {
 
         if (Get("WISBOT_DB_PATH") is { } dbPath) DbPath = dbPath;
         if (Get("WISBOT_RECORDINGS_DIR") is { } recordingsDir) RecordingsDir = recordingsDir;
+
+        if (Get("WISBOT_RECORDING_MAX_MINUTES") is { } recMinStr && int.TryParse(recMinStr, out int recMin) && recMin > 0)
+            RecordingMaxMinutes = recMin;
+        if (Get("WISBOT_RECORDING_MAX_BYTES") is { } recByteStr && long.TryParse(recByteStr, out long recBytes) && recBytes > 0)
+            RecordingMaxBytes = recBytes;
 
         if (Get("WISBOT_HEALTH_HOST") is { } healthHost) HealthHost = healthHost;
         if (Get("WISBOT_HEALTH_PORT") is { } healthPortStr && int.TryParse(healthPortStr, out int healthPort) && healthPort is > 0 and <= 65535)

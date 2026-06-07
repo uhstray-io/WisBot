@@ -51,6 +51,11 @@ public class VoiceRecorder(Terminal terminal) {
     // All per-user state in one dictionary: UserID -> UserAudio
     private ConcurrentDictionary<ulong, UserAudio> users = new();
 
+    // Aggregate buffered PCM across all users this session, and a one-shot guard so
+    // the capture-limit auto-stop fires exactly once (M-3: bound in-RAM growth).
+    private long totalBufferedBytes;
+    private int captureLimitHit;
+
     // Track when recording started for synchronization
     private DateTime recordingStartTime;
 
@@ -154,6 +159,8 @@ public class VoiceRecorder(Terminal terminal) {
             recordingVoiceChannel = voiceChannel;
 
             users.Clear();
+            Interlocked.Exchange(ref totalBufferedBytes, 0);
+            Interlocked.Exchange(ref captureLimitHit, 0);
 
             // Subscribe to IAudioClient events
             audioClient.StreamCreated += OnStreamCreated;
@@ -231,8 +238,18 @@ public class VoiceRecorder(Terminal terminal) {
             }
 
             if (bytesReadSize > 0) {
+                long elapsedMs = (long)(DateTime.UtcNow - recordingStartTime).TotalMilliseconds;
+                long buffered = Interlocked.Add(ref totalBufferedBytes, bytesReadSize);
+
+                // Stop capturing (preserving what's already buffered) once either cap is
+                // hit, so an unbounded session can't exhaust memory.
+                if (elapsedMs >= Config.RecordingMaxMinutes * 60_000L || buffered >= Config.RecordingMaxBytes) {
+                    await StopCaptureForLimit(elapsedMs, buffered);
+                    break;
+                }
+
                 var chunk = new AudioChunk {
-                    TimestampMs = (long)(DateTime.UtcNow - recordingStartTime).TotalMilliseconds,
+                    TimestampMs = elapsedMs,
                     Data = new byte[bytesReadSize]
                 };
                 Buffer.BlockCopy(readBuffer, 0, chunk.Data, 0, bytesReadSize);
@@ -241,6 +258,21 @@ public class VoiceRecorder(Terminal terminal) {
         }
 
         await Log($"Recording ended for {userAudio.Username}");
+    }
+
+    /// Auto-stops capture when a session cap is reached. Stops the read loops
+    /// (isRecordingFlag → 0, token cancelled) so memory stops growing, but leaves
+    /// the buffered audio and the voice connection in place — the operator still
+    /// runs /recording stop to save and disconnect. Fires exactly once.
+    private async Task StopCaptureForLimit(long elapsedMs, long bufferedBytes) {
+        if (Interlocked.Exchange(ref captureLimitHit, 1) == 1) return;
+        Interlocked.Exchange(ref isRecordingFlag, 0);
+        recordingCancellationToken?.Cancel();
+        await Log(
+            $"Recording capture auto-stopped at {elapsedMs / 60000.0:F1} min / {bufferedBytes / (1024.0 * 1024.0):F0} MB " +
+            $"(cap: {Config.RecordingMaxMinutes} min / {Config.RecordingMaxBytes / (1024 * 1024)} MB). " +
+            "Run /recording stop to save the audio captured so far.",
+            LogLevel.Warn);
     }
 
     // ── IAudioClient Events ──────────────────────────────────────────────
