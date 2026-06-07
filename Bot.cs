@@ -89,7 +89,11 @@ public class Bot(Terminal terminal) {
             return;
         }
 
-        await Log($"[{message.Channel.Name}] {message.Author}: {message.Content}");
+        // Log metadata only — never raw message content. Content lands in stdout /
+        // the container log pipeline (persisting beyond Discord's controls) and the bot
+        // holds the privileged MessageContent intent, so this would exfiltrate all guild
+        // conversation. (security audit M-1)
+        await Log($"[{message.Channel.Name}] {message.Author}: <{message.Content.Length} chars>");
 
         if (message.Content.StartsWith("!")) {
             if (message.Content.StartsWith("!eatdeeznuts")) {
@@ -390,8 +394,8 @@ public class Bot(Terminal terminal) {
     }
 
     private async Task OnMessageUpdated(Cacheable<IMessage, ulong> before, SocketMessage after, ISocketMessageChannel channel) {
-        var message = await before.GetOrDownloadAsync();
-        await Log($"Message From {message.Author.Username} updated from '{message}' to '{after}' in channel {channel.Name}");
+        // Metadata only — see OnMessageReceived (M-1). Don't log before/after content.
+        await Log($"Message from {after.Author.Username} edited in channel {channel.Name}");
     }
 
 

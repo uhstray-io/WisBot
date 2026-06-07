@@ -1,3 +1,4 @@
+using Discord;
 using Discord.WebSocket;
 using Microsoft.Data.Sqlite;
 
@@ -74,7 +75,11 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
         if (!sent) {
             try {
                 if (client.GetChannel(reminder.ChannelId) is ISocketMessageChannel ch) {
-                    await ch.SendMessageAsync($"⏰ <@{reminder.UserId}> **Reminder:** {reminder.Message}");
+                    // reminder.Message is user-controlled; allow only the target user's
+                    // mention to resolve so it can't ping @everyone/roles.
+                    var allowed = new AllowedMentions(AllowedMentionTypes.None) { UserIds = { reminder.UserId } };
+                    await ch.SendMessageAsync($"⏰ <@{reminder.UserId}> **Reminder:** {reminder.Message}",
+                        allowedMentions: allowed);
                     sent = true;
                 }
             } catch (Exception ex) {
