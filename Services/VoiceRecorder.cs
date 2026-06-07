@@ -87,13 +87,30 @@ public class VoiceRecorder(Terminal terminal) {
 
         if (action == "start") {
             var user = command.User as SocketGuildUser;
-            if (user?.VoiceChannel == null) {
-                await command.RespondAsync("You must be in a voice channel to use this command!");
+            if (user is null) {
+                await command.RespondAsync("Recording can only be controlled from within a server.", ephemeral: true);
                 return;
             }
-            await command.RespondAsync("Joining voice channel and starting recording...");
+            // Server-side authorization recheck. DefaultMemberPermissions is a UI hint a
+            // guild admin can override, so enforce here too — recording captures other
+            // members' audio and must stay restricted to voice moderators.
+            if (!CanControlRecording(user)) {
+                await command.RespondAsync("You need the **Move Members** permission to start recording.", ephemeral: true);
+                return;
+            }
+            if (user.VoiceChannel == null) {
+                await command.RespondAsync("You must be in a voice channel to use this command!", ephemeral: true);
+                return;
+            }
+            var startChannel = user.VoiceChannel;
+            // Non-ephemeral, in-channel notice so every participant is told they are
+            // being recorded (consent/disclosure — the recorder is not the only party).
+            await command.RespondAsync(
+                $"🔴 **Recording started** by {user.Mention} in **{startChannel.Name}** — everyone in this voice channel is now being recorded.");
             _ = Task.Run(async () => {
                 try {
+                    await AnnounceToVoiceChannel(startChannel,
+                        "🔴 **Recording started** — everyone in this voice channel is being recorded.");
                     var result = await JoinAndRecordUser(user);
                     await Log($"Finished recording for {user.Username}. Result: {result}");
                     await command.FollowupAsync(result);
@@ -106,7 +123,15 @@ public class VoiceRecorder(Terminal terminal) {
         }
 
         if (action == "stop") {
+            var stopUser = command.User as SocketGuildUser;
+            if (stopUser is null || !CanControlRecording(stopUser)) {
+                await command.RespondAsync("You need the **Move Members** permission to stop recording.", ephemeral: true);
+                return;
+            }
+            var stoppedChannel = recordingVoiceChannel;
             await command.RespondAsync("Stopping recording and processing audio files...");
+            if (stoppedChannel is not null)
+                await AnnounceToVoiceChannel(stoppedChannel, "⏹️ **Recording stopped.**");
             _ = Task.Run(async () => {
                 try {
                     var result = await StopRecordingAndSave(command.Channel, sendFiles: sendFile, mergeAudio: mergeAudio);
@@ -133,6 +158,23 @@ public class VoiceRecorder(Terminal terminal) {
         }
 
         await command.RespondAsync("Invalid action. Use 'start' or 'stop'.");
+    }
+
+    /// Authorization for recording control. Move Members is the voice-moderation
+    /// permission; Administrator implies everything.
+    private static bool CanControlRecording(SocketGuildUser user) =>
+        user.GuildPermissions.Administrator || user.GuildPermissions.MoveMembers;
+
+    /// Best-effort recording-active notice in the voice channel's own text chat so
+    /// participants are informed even if they aren't watching the command's channel.
+    /// Never throws (missing Send Messages permission must not abort recording).
+    private async Task AnnounceToVoiceChannel(IVoiceChannel channel, string message) {
+        try {
+            if (channel is IMessageChannel textChannel)
+                await textChannel.SendMessageAsync(message);
+        } catch (Exception ex) {
+            await Log($"Could not post recording notice to {channel.Name}: {ex.Message}", LogLevel.Warn);
+        }
     }
 
     /// Joins the specified voice channel and starts recording all users in it.
