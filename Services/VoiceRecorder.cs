@@ -51,6 +51,15 @@ public class VoiceRecorder(Terminal terminal) {
     // All per-user state in one dictionary: UserID -> UserAudio
     private ConcurrentDictionary<ulong, UserAudio> users = new();
 
+    // Aggregate buffered PCM across all users this session (M-3: bound in-RAM growth).
+    private long totalBufferedBytes;
+    // 1 once a session cap is hit: read loops stop appending and exit, but the session
+    // stays "recording" so /recording stop can still save & disconnect.
+    private int captureStoppedFlag;
+    // Session duration frozen at cap time (0 = not capped) so reconstruction doesn't
+    // pad silence from cap-time to whenever the moderator finally stops.
+    private long cappedDurationMs;
+
     // Track when recording started for synchronization
     private DateTime recordingStartTime;
 
@@ -82,26 +91,57 @@ public class VoiceRecorder(Terminal terminal) {
 
         if (action == "start") {
             var user = command.User as SocketGuildUser;
-            if (user?.VoiceChannel == null) {
-                await command.RespondAsync("You must be in a voice channel to use this command!");
+            if (user is null) {
+                await command.RespondAsync("Recording can only be controlled from within a server.", ephemeral: true);
                 return;
             }
-            await command.RespondAsync("Joining voice channel and starting recording...");
+            // Server-side authorization recheck. DefaultMemberPermissions is a UI hint a
+            // guild admin can override, so enforce here too — recording captures other
+            // members' audio and must stay restricted to voice moderators.
+            if (!CanControlRecording(user)) {
+                await command.RespondAsync("You need the **Move Members** permission to start recording.", ephemeral: true);
+                return;
+            }
+            if (user.VoiceChannel == null) {
+                await command.RespondAsync("You must be in a voice channel to use this command!", ephemeral: true);
+                return;
+            }
+            var startChannel = user.VoiceChannel;
+            // Neutral ephemeral ack now; the definitive "recording started" disclosure is
+            // published only after the join actually succeeds (so we never tell people
+            // they're recorded when capture didn't start).
+            await command.RespondAsync($"Joining **{startChannel.Name}**…", ephemeral: true);
             _ = Task.Run(async () => {
                 try {
                     var result = await JoinAndRecordUser(user);
-                    await Log($"Finished recording for {user.Username}. Result: {result}");
-                    await command.FollowupAsync(result);
+                    await Log($"Recording start for {user.Username}: {result}");
+                    if (IsRecording && audioClient is not null && result.StartsWith("Joined")) {
+                        // Join confirmed — now disclose to all participants (non-ephemeral).
+                        await command.FollowupAsync(
+                            $"🔴 **Recording started** by {user.Mention} in **{startChannel.Name}** — everyone in this voice channel is now being recorded.");
+                        await AnnounceToVoiceChannel(startChannel,
+                            "🔴 **Recording started** — everyone in this voice channel is being recorded.");
+                    } else {
+                        await command.FollowupAsync($"⚠️ {result}", ephemeral: true);
+                    }
                 } catch (Exception ex) {
                     await Log($"Error in recording task: {ex.Message}", LogLevel.Error);
-                    await command.FollowupAsync($"Error starting recording: {ex.Message}");
+                    await command.FollowupAsync($"Error starting recording: {ex.Message}", ephemeral: true);
                 }
             });
             return;
         }
 
         if (action == "stop") {
+            var stopUser = command.User as SocketGuildUser;
+            if (stopUser is null || !CanControlRecording(stopUser)) {
+                await command.RespondAsync("You need the **Move Members** permission to stop recording.", ephemeral: true);
+                return;
+            }
+            var stoppedChannel = recordingVoiceChannel;
             await command.RespondAsync("Stopping recording and processing audio files...");
+            if (stoppedChannel is not null)
+                await AnnounceToVoiceChannel(stoppedChannel, "⏹️ **Recording stopped.**");
             _ = Task.Run(async () => {
                 try {
                     var result = await StopRecordingAndSave(command.Channel, sendFiles: sendFile, mergeAudio: mergeAudio);
@@ -130,6 +170,23 @@ public class VoiceRecorder(Terminal terminal) {
         await command.RespondAsync("Invalid action. Use 'start' or 'stop'.");
     }
 
+    /// Authorization for recording control. Move Members is the voice-moderation
+    /// permission; Administrator implies everything.
+    private static bool CanControlRecording(SocketGuildUser user) =>
+        user.GuildPermissions.Administrator || user.GuildPermissions.MoveMembers;
+
+    /// Best-effort recording-active notice in the voice channel's own text chat so
+    /// participants are informed even if they aren't watching the command's channel.
+    /// Never throws (missing Send Messages permission must not abort recording).
+    private async Task AnnounceToVoiceChannel(IVoiceChannel channel, string message) {
+        try {
+            if (channel is IMessageChannel textChannel)
+                await textChannel.SendMessageAsync(message);
+        } catch (Exception ex) {
+            await Log($"Could not post recording notice to {channel.Name}: {ex.Message}", LogLevel.Warn);
+        }
+    }
+
     /// Joins the specified voice channel and starts recording all users in it.
     /// Used by slash command - requires SocketGuildUser get voice channel
     public async Task<string> JoinAndRecordUser(SocketGuildUser user) {
@@ -154,6 +211,9 @@ public class VoiceRecorder(Terminal terminal) {
             recordingVoiceChannel = voiceChannel;
 
             users.Clear();
+            Interlocked.Exchange(ref totalBufferedBytes, 0);
+            Interlocked.Exchange(ref captureStoppedFlag, 0);
+            Interlocked.Exchange(ref cappedDurationMs, 0);
 
             // Subscribe to IAudioClient events
             audioClient.StreamCreated += OnStreamCreated;
@@ -210,7 +270,16 @@ public class VoiceRecorder(Terminal terminal) {
         const int frameSize = 3840; // 20ms at 48kHz, 16-bit, stereo
         byte[] readBuffer = new byte[frameSize];
 
-        while (!cancellationToken.IsCancellationRequested && isRecordingFlag == 1) {
+        while (!cancellationToken.IsCancellationRequested && isRecordingFlag == 1
+               && Volatile.Read(ref captureStoppedFlag) == 0) {
+            // Wall-clock cap, checked EVERY iteration (not just after a read) so it still
+            // trips when streams are idle/timing-out and no audio is arriving.
+            long elapsedNow = (long)(DateTime.UtcNow - recordingStartTime).TotalMilliseconds;
+            if (elapsedNow >= Config.RecordingMaxMinutes * 60_000L) {
+                await StopCaptureForLimit(elapsedNow, Interlocked.Read(ref totalBufferedBytes));
+                break;
+            }
+
             var stream = userAudio.Stream;
             if (stream == null) {
                 await Task.Delay(200, cancellationToken);
@@ -231,8 +300,18 @@ public class VoiceRecorder(Terminal terminal) {
             }
 
             if (bytesReadSize > 0) {
+                long elapsedMs = (long)(DateTime.UtcNow - recordingStartTime).TotalMilliseconds;
+                long buffered = Interlocked.Add(ref totalBufferedBytes, bytesReadSize);
+
+                // Byte cap: stop capturing (preserving what's already buffered) before RAM
+                // growth becomes a problem.
+                if (buffered >= Config.RecordingMaxBytes) {
+                    await StopCaptureForLimit(elapsedMs, buffered);
+                    break;
+                }
+
                 var chunk = new AudioChunk {
-                    TimestampMs = (long)(DateTime.UtcNow - recordingStartTime).TotalMilliseconds,
+                    TimestampMs = elapsedMs,
                     Data = new byte[bytesReadSize]
                 };
                 Buffer.BlockCopy(readBuffer, 0, chunk.Data, 0, bytesReadSize);
@@ -241,6 +320,21 @@ public class VoiceRecorder(Terminal terminal) {
         }
 
         await Log($"Recording ended for {userAudio.Username}");
+    }
+
+    /// Auto-stops capture when a session cap is reached. Signals the read loops to
+    /// exit (captureStoppedFlag) and freezes the session duration, but deliberately
+    /// leaves isRecordingFlag == 1 and the voice connection attached — so the session
+    /// stays "recording" and /recording stop can still save the buffered audio and
+    /// disconnect cleanly. Fires exactly once.
+    private async Task StopCaptureForLimit(long elapsedMs, long bufferedBytes) {
+        if (Interlocked.Exchange(ref captureStoppedFlag, 1) == 1) return;
+        Interlocked.Exchange(ref cappedDurationMs, elapsedMs);
+        await Log(
+            $"Recording capture auto-stopped at {elapsedMs / 60000.0:F1} min / {bufferedBytes / (1024.0 * 1024.0):F0} MB " +
+            $"(cap: {Config.RecordingMaxMinutes} min / {Config.RecordingMaxBytes / (1024 * 1024)} MB). " +
+            "Audio so far is preserved — run /recording stop to save it.",
+            LogLevel.Warn);
     }
 
     // ── IAudioClient Events ──────────────────────────────────────────────
@@ -299,7 +393,10 @@ public class VoiceRecorder(Terminal terminal) {
 
     /// Shared shutdown: captures duration, cancels tasks, unsubscribes events, disconnects.
     private async Task<long> StopRecording() {
-        var sessionDurationMs = (long)(DateTime.UtcNow - recordingStartTime).TotalMilliseconds;
+        // If capture was auto-stopped at a cap, use that frozen duration so we don't
+        // pad silence from cap-time to the moderator's stop time (and over-allocate).
+        long capped = Interlocked.Read(ref cappedDurationMs);
+        var sessionDurationMs = capped > 0 ? capped : (long)(DateTime.UtcNow - recordingStartTime).TotalMilliseconds;
 
         Interlocked.Exchange(ref isRecordingFlag, 0);
         recordingCancellationToken?.Cancel();

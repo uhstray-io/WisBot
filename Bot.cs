@@ -138,6 +138,9 @@ public class Bot(Terminal terminal) {
             var command = new SlashCommandBuilder()
                 .WithName("recording")
                 .WithDescription("Control voice channel recording")
+                // Records other people's audio — gate to members who can move/manage
+                // voice (server-side rechecked in the handler; this is the UI hint).
+                .WithDefaultMemberPermissions(GuildPermission.MoveMembers)
                 .AddOption(new SlashCommandOptionBuilder()
                     .WithName("action")
                     .WithDescription("Start or stop recording")
