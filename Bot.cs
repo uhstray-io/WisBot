@@ -55,6 +55,8 @@ public class Bot(Terminal terminal) {
         await Log("Stopping bot...");
         reminderService?.Stop();
         uploadService.StopRetention();
+        voiceRecorder.StopRetention();
+        wisLlmService.StopRetention();
         if (webService is not null) await webService.Stop();
         if (client is not null) {
             await client.StopAsync();
@@ -114,6 +116,8 @@ public class Bot(Terminal terminal) {
 
         await reminderService!.Start();
         uploadService.StartRetention();
+        voiceRecorder.StartRetention();
+        wisLlmService.StartRetention();
         await AddCommandsIfNotExist();
 
         commands = new Dictionary<string, Func<SocketSlashCommand, Task>> {
