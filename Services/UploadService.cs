@@ -287,10 +287,14 @@ public class UploadService(Terminal terminal) {
         inc.Parameters.AddWithValue("$max", max);
         if (await inc.ExecuteNonQueryAsync() == 0) return false; // already at the limit
 
-        // If that download consumed the last allowance, expire the link for cleanup.
+        // If that download consumed the last allowance, schedule the link for cleanup
+        // after a grace window. The link is ALREADY unreachable to new downloads (the
+        // count check above returns false), so the only effect is delaying physical
+        // deletion — long enough that THIS final transfer, registered before streaming,
+        // can't be deleted mid-flight by the retention sweep.
         var exp = conn.CreateCommand();
-        exp.CommandText = "UPDATE uploads SET expires_at = $now WHERE id = $id AND download_count >= $max";
-        exp.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O"));
+        exp.CommandText = "UPDATE uploads SET expires_at = $grace WHERE id = $id AND download_count >= $max";
+        exp.Parameters.AddWithValue("$grace", DateTime.UtcNow.AddHours(1).ToString("O"));
         exp.Parameters.AddWithValue("$id", id);
         exp.Parameters.AddWithValue("$max", max);
         await exp.ExecuteNonQueryAsync();

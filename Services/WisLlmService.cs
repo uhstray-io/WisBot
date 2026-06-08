@@ -74,15 +74,31 @@ public class WisLlmService(Terminal terminal) {
         }
     }
 
-    /// Deletes history rows whose timestamp is past the retention window. Timestamps are
-    /// UTC "O" strings (fixed-width, lexicographically sortable — see Database.cs invariant).
+    /// Deletes history rows past the retention window, then purges any session whose
+    /// rows are all gone and was created before the cutoff — so wisllm_sessions metadata
+    /// (guild/user/created_at) doesn't outlive the window. Timestamps are UTC "O" strings
+    /// (fixed-width, lexicographically sortable — see Database.cs invariant).
     private static async Task<int> DeleteOldHistoryAsync() {
+        string cutoff = DateTime.UtcNow.AddDays(-Config.WisLlmHistoryRetentionDays).ToString("O");
         using var conn = new SqliteConnection(Database.ConnectionString);
         await conn.OpenAsync();
-        var cmd = conn.CreateCommand();
-        cmd.CommandText = "DELETE FROM wisllm_history WHERE timestamp < $cutoff";
-        cmd.Parameters.AddWithValue("$cutoff", DateTime.UtcNow.AddDays(-Config.WisLlmHistoryRetentionDays).ToString("O"));
-        return await cmd.ExecuteNonQueryAsync();
+
+        var delHistory = conn.CreateCommand();
+        delHistory.CommandText = "DELETE FROM wisllm_history WHERE timestamp < $cutoff";
+        delHistory.Parameters.AddWithValue("$cutoff", cutoff);
+        int removed = await delHistory.ExecuteNonQueryAsync();
+
+        // Purge now-orphaned old sessions (no remaining history, created before the cutoff).
+        var delSessions = conn.CreateCommand();
+        delSessions.CommandText = """
+            DELETE FROM wisllm_sessions
+            WHERE created_at < $cutoff
+              AND NOT EXISTS (SELECT 1 FROM wisllm_history WHERE wisllm_history.session_id = wisllm_sessions.id)
+            """;
+        delSessions.Parameters.AddWithValue("$cutoff", cutoff);
+        await delSessions.ExecuteNonQueryAsync();
+
+        return removed;
     }
 
     // ── Commands ─────────────────────────────────────────────────────────
