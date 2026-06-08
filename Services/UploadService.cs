@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 namespace WisBot;
 
 /// One upload row's metadata (status + file info once ready).
-public record UploadRecord(string Id, string Status, string? Filename, string? ContentType, long? SizeBytes);
+public record UploadRecord(string Id, string Status, string? Filename, string? ContentType, long? SizeBytes, int DownloadCount = 0);
 
 /// Handles the /upload slash command — mints an unguessable upload link backed by
 /// a `pending` row in the `uploads` table. The web layer (WebService) turns the
@@ -252,7 +252,7 @@ public class UploadService(Terminal terminal) {
 
         var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT status, filename, content_type, size_bytes
+            SELECT status, filename, content_type, size_bytes, download_count
             FROM uploads WHERE id = $id
             """;
         cmd.Parameters.AddWithValue("$id", id);
@@ -265,7 +265,36 @@ public class UploadService(Terminal terminal) {
             Status: reader.GetString(0),
             Filename: reader.IsDBNull(1) ? null : reader.GetString(1),
             ContentType: reader.IsDBNull(2) ? null : reader.GetString(2),
-            SizeBytes: reader.IsDBNull(3) ? null : reader.GetInt64(3));
+            SizeBytes: reader.IsDBNull(3) ? null : reader.GetInt64(3),
+            DownloadCount: (int)reader.GetInt64(4));
+    }
+
+    /// Registers one download against the link's N-time limit (audit L-1).
+    /// Returns false if the link has already reached Config.UploadMaxDownloads (caller
+    /// should serve 410 Gone). When the limit is 0 it is unlimited and always succeeds.
+    /// The increment is an atomic conditional UPDATE; on reaching the limit the link is
+    /// expired immediately so the retention sweep reclaims the object.
+    public async Task<bool> TryRegisterDownloadAsync(string id) {
+        int max = Config.UploadMaxDownloads;
+        if (max <= 0) return true; // unlimited — skip the write
+
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        var inc = conn.CreateCommand();
+        inc.CommandText = "UPDATE uploads SET download_count = download_count + 1 WHERE id = $id AND download_count < $max";
+        inc.Parameters.AddWithValue("$id", id);
+        inc.Parameters.AddWithValue("$max", max);
+        if (await inc.ExecuteNonQueryAsync() == 0) return false; // already at the limit
+
+        // If that download consumed the last allowance, expire the link for cleanup.
+        var exp = conn.CreateCommand();
+        exp.CommandText = "UPDATE uploads SET expires_at = $now WHERE id = $id AND download_count >= $max";
+        exp.Parameters.AddWithValue("$now", DateTime.UtcNow.ToString("O"));
+        exp.Parameters.AddWithValue("$id", id);
+        exp.Parameters.AddWithValue("$max", max);
+        await exp.ExecuteNonQueryAsync();
+        return true;
     }
 
     /// Atomic claim: flips pending → uploading. Returns true only for the caller
