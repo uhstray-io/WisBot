@@ -12,13 +12,13 @@ _Date: 2026-06-07 · Companion to [`2026-06-07-security-audit.md`](2026-06-07-se
 
 ## Web surface
 
-### L-1 · `GET /u/{id}` routes unauthenticated and not rate-limited
-`CWE-307` · `WebService.cs:94-100,125-147` — 128-bit CSPRNG ids make enumeration infeasible (holds), but a shared link is a permanent bearer token until 30-day expiry, and GET probing/downloads are unthrottled. **Fix:** apply the same rate limiter as the POST route (see M-6); consider one-time/N-time download semantics, an uploader revoke/delete affordance, and shorter default retention.
+### L-1 · `GET /u/{id}` routes unauthenticated and not rate-limited — ✅ RESOLVED
+`CWE-307` · `WebService.cs` — 128-bit CSPRNG ids make enumeration infeasible (holds). Rate-limiting shipped in M-6 (the limiter covers all `/u` routes). **Resolved:** added a configurable N-time download limit — `WISBOT_UPLOAD_MAX_DOWNLOADS` (default 0 = unlimited); a link auto-expires (410 Gone + cleanup) after N downloads. Uploader revoke/delete affordance remains a possible future enhancement.
 
 ## Secrets & data-at-rest
 
-### L-2 · `wisllm_history` stored unencrypted, retained indefinitely; prompt prefixes logged
-`CWE-312` · `Database.cs:75-87`, `WisLlmService.cs:67` — full prompts/responses in cleartext keyed to user, no expiry (unlike uploads). **Fix:** add a retention sweep mirroring uploads (configurable window) or document indefinite retention; stop logging prompt text (log model/length only).
+### L-2 · `wisllm_history` stored unencrypted, retained indefinitely; prompt prefixes logged — ⚠️ PARTIAL
+`CWE-312` · `Database.cs`, `WisLlmService.cs` — **Resolved (retention):** history now auto-deletes after `WISLLM_HISTORY_RETENTION_DAYS` (default 30) via a periodic sweep (also addresses L-15). **Still open:** at-rest encryption and the prompt-prefix logging (`log model/length only`) — left as future hardening.
 
 ### L-3 · MinIO `minioadmin/minioadmin` + S3/console ports published to host (dev compose)
 `CWE-798` · `compose.yaml:41-44,63-67` — local-dev file only (agent-cloud deploys a separate image), but ports bind `0.0.0.0`. **Fix:** bind published ports to `127.0.0.1`, add a prominent dev-only-credentials comment. (Dupes L-19.)
@@ -31,8 +31,8 @@ _Date: 2026-06-07 · Companion to [`2026-06-07-security-audit.md`](2026-06-07-se
 ### L-5 · Reminder channel-fallback reflects user text beside a live mention, no `AllowedMentions`
 `CWE-74` · `ReminderService.cs:77` — **this is the same code as medium M-4**; listed here from the injection dimension. Fix once: targeted `AllowedMentions` (only the reminder's user id).
 
-### L-6 · `TryParseDuration` can throw unhandled `OverflowException` on huge numeric input
-`CWE-190` · `ReminderService.cs:222-248` — `int.TryParse` accepts up to 2147483647, then `TimeSpan.FromDays(...)` / `total +=` can overflow. The 30-day ceiling check happens *after* the throwing arithmetic. **Fix:** checked arithmetic in try/catch (→ return false), or reject numeric groups above a sane max before conversion.
+### L-6 · `TryParseDuration` can throw unhandled `OverflowException` on huge numeric input — ✅ RESOLVED
+`CWE-190` · `ReminderService.cs` — confirmed real (`/remind when:2147483647d`). **Resolved:** the unit conversions + accumulation are wrapped in `try/catch(OverflowException) → return false`, so an over-large duration is rejected as unparseable instead of crashing the handler.
 
 ## Discord authorization & privacy
 
@@ -67,8 +67,8 @@ _Date: 2026-06-07 · Companion to [`2026-06-07-security-audit.md`](2026-06-07-se
 ### L-14 · No per-user `/upload` quota (30-day retention)
 `CWE-770` · `UploadService.cs:114-132` — **same root as medium M-5**; fix the quota once.
 
-### L-15 · `wisllm_history` grows unbounded per session
-`CWE-770` · `WisLlmService.cs:408-433` — only the *context window* (10 rows) is bounded; stored rows and `compact`'s full-history load are not. **Fix:** prune oldest beyond a retention count/age; `LIMIT` the full-history load; periodic VACUUM.
+### L-15 · `wisllm_history` grows unbounded per session — ⚠️ PARTIAL
+`CWE-770` · `WisLlmService.cs` — **Resolved (age):** the retention sweep (L-2, `WISLLM_HISTORY_RETENTION_DAYS` default 30) now bounds growth by age. **Still open:** `compact`'s full-history load has no `LIMIT`, and there's no periodic VACUUM — minor, left as future work.
 
 ### L-16 · No per-user reminder cap
 `CWE-770` · `ReminderService.cs:127-167` — unbounded pending rows; the 30s loop also spawns unbounded concurrent `Deliver` tasks per tick. **Fix:** cap pending reminders per user; bound delivery concurrency.
@@ -80,8 +80,8 @@ _Date: 2026-06-07 · Companion to [`2026-06-07-security-audit.md`](2026-06-07-se
 
 ## Voice privacy / retention
 
-### L-20 · Recordings kept indefinitely (no cleanup)
-`CWE-359` · `VoiceRecorder.cs:375-413` — uploads age out at 30 days; recordings never do. **Fix:** retention sweep mirroring uploads (`WISBOT_RECORDINGS_RETENTION_DAYS`), delete after successful delivery, document it.
+### L-20 · Recordings kept indefinitely (no cleanup) — ✅ RESOLVED
+`CWE-359` · `VoiceRecorder.cs` — **Resolved:** an hourly sweep deletes saved `*.wav` files older than `WISBOT_RECORDINGS_RETENTION_DAYS` (default 30), wired into `Bot.OnReady`/`StopBot`.
 
 ### L-21 · Passive `UserVoiceActivityTracker` logs every join/leave forever — a standing surveillance DB
 `CWE-359` · `UserVoiceActivityTracker.cs:27-63`, `Database.cs:52-64` — every member's voice presence recorded continuously, no disclosure, no expiry. **Fix:** disclose in README (and ideally in-guild), add a configurable retention window with periodic `DELETE`, consider restricting `/voicestats`.
