@@ -66,6 +66,9 @@ public class VoiceRecorder(Terminal terminal) {
     // Voice channel being recorded
     private IVoiceChannel? recordingVoiceChannel;
 
+    // Hourly sweep that deletes saved WAVs past the retention window (audit L-20).
+    private CancellationTokenSource? retentionCts;
+
     private async Task Log(string msg, LogLevel level = LogLevel.Info) =>
         await terminal.AddLine($"[VoiceRecorder] {msg}", level);
 
@@ -600,5 +603,52 @@ public class VoiceRecorder(Terminal terminal) {
 
         var sessionMs = await StopRecording();
         return await SaveAllUsersAsWav(sessionMs);
+    }
+
+    // ── Retention ─────────────────────────────────────────────────────────
+
+    /// Starts the hourly sweep that deletes saved recordings older than
+    /// Config.RecordingsRetentionDays. Idempotent (OnReady re-fires on reconnect).
+    public void StartRetention() {
+        if (retentionCts is not null) return;
+        retentionCts = new CancellationTokenSource();
+        _ = Task.Run(() => RunRetentionLoop(retentionCts.Token));
+    }
+
+    public void StopRetention() {
+        retentionCts?.Cancel();
+        retentionCts?.Dispose();
+        retentionCts = null;
+    }
+
+    private async Task RunRetentionLoop(CancellationToken token) {
+        while (!token.IsCancellationRequested) {
+            try {
+                int removed = CleanupOldRecordings();
+                if (removed > 0) await Log($"Retention: deleted {removed} recording(s) older than {Config.RecordingsRetentionDays} days");
+                await Task.Delay(TimeSpan.FromHours(1), token);
+            } catch (OperationCanceledException) {
+                break;
+            } catch (Exception ex) {
+                await Log($"Recording retention loop error: {ex.Message}", LogLevel.Error);
+                await Task.Delay(TimeSpan.FromHours(1), token);
+            }
+        }
+    }
+
+    /// Deletes *.wav files in the recordings directory whose last-write time is past
+    /// the retention window. Returns the count removed.
+    private static int CleanupOldRecordings() {
+        var dir = Path.Combine(Directory.GetCurrentDirectory(), Config.RecordingsDir);
+        if (!Directory.Exists(dir)) return 0;
+
+        var cutoff = DateTime.UtcNow.AddDays(-Config.RecordingsRetentionDays);
+        int removed = 0;
+        foreach (var file in Directory.EnumerateFiles(dir, "*.wav")) {
+            if (File.GetLastWriteTimeUtc(file) < cutoff) {
+                try { File.Delete(file); removed++; } catch { /* best-effort; retry next sweep */ }
+            }
+        }
+        return removed;
     }
 }

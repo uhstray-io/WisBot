@@ -162,6 +162,11 @@ public class WebService(Terminal terminal, DiscordSocketClient client, UploadSer
             if (exists == false) return Results.NotFound("The file behind this link is no longer available.");
             if (exists is null) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
 
+            // Enforce the N-time download limit (audit L-1) — register this download
+            // before streaming; a link already at its limit is gone.
+            if (!await uploadService.TryRegisterDownloadAsync(id))
+                return Results.StatusCode(StatusCodes.Status410Gone);
+
             return Results.Stream(
                 async output => {
                     try {

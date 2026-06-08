@@ -99,10 +99,27 @@ public static class Database {
                 status         TEXT    NOT NULL DEFAULT 'pending',
                 created_at     TEXT    NOT NULL,
                 uploaded_at    TEXT,
-                expires_at     TEXT
+                expires_at     TEXT,
+                download_count INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_uploads_expires ON uploads (expires_at);
             """;
         await cmd.ExecuteNonQueryAsync();
+
+        // Migrations for databases created before a column was added. CREATE TABLE
+        // IF NOT EXISTS won't alter an existing table, so add columns idempotently.
+        await AddColumnIfMissing(conn, "uploads", "download_count", "INTEGER NOT NULL DEFAULT 0");
+    }
+
+    /// Adds a column to an existing table if it isn't already present (idempotent migration).
+    private static async Task AddColumnIfMissing(SqliteConnection conn, string table, string column, string definition) {
+        var check = conn.CreateCommand();
+        check.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = $col";
+        check.Parameters.AddWithValue("$col", column);
+        if (Convert.ToInt64(await check.ExecuteScalarAsync()) > 0) return;
+
+        var alter = conn.CreateCommand();
+        alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition}";
+        await alter.ExecuteNonQueryAsync();
     }
 }

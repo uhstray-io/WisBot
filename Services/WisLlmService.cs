@@ -38,7 +38,68 @@ public class WisLlmService(Terminal terminal) {
         Each user message is prefixed with [Username] so you know who asked it.
         """;
 
+    // Periodic sweep that deletes conversation history past the retention window (audit L-2/L-15).
+    private CancellationTokenSource? retentionCts;
+
     private async Task Log(string msg, LogLevel level = LogLevel.Info) => await terminal.AddLine($"[WisLLM] {msg}", level);
+
+    // ── Retention ─────────────────────────────────────────────────────────
+
+    /// Starts the sweep that deletes wisllm_history rows older than
+    /// Config.WisLlmHistoryRetentionDays. Idempotent (OnReady re-fires on reconnect).
+    public void StartRetention() {
+        if (retentionCts is not null) return;
+        retentionCts = new CancellationTokenSource();
+        _ = Task.Run(() => RunRetentionLoop(retentionCts.Token));
+    }
+
+    public void StopRetention() {
+        retentionCts?.Cancel();
+        retentionCts?.Dispose();
+        retentionCts = null;
+    }
+
+    private async Task RunRetentionLoop(CancellationToken token) {
+        while (!token.IsCancellationRequested) {
+            try {
+                int removed = await DeleteOldHistoryAsync();
+                if (removed > 0) await Log($"Retention: deleted {removed} history row(s) older than {Config.WisLlmHistoryRetentionDays} days");
+                await Task.Delay(TimeSpan.FromHours(6), token);
+            } catch (OperationCanceledException) {
+                break;
+            } catch (Exception ex) {
+                await Log($"History retention loop error: {ex.Message}", LogLevel.Error);
+                await Task.Delay(TimeSpan.FromHours(6), token);
+            }
+        }
+    }
+
+    /// Deletes history rows past the retention window, then purges any session whose
+    /// rows are all gone and was created before the cutoff — so wisllm_sessions metadata
+    /// (guild/user/created_at) doesn't outlive the window. Timestamps are UTC "O" strings
+    /// (fixed-width, lexicographically sortable — see Database.cs invariant).
+    private static async Task<int> DeleteOldHistoryAsync() {
+        string cutoff = DateTime.UtcNow.AddDays(-Config.WisLlmHistoryRetentionDays).ToString("O");
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        var delHistory = conn.CreateCommand();
+        delHistory.CommandText = "DELETE FROM wisllm_history WHERE timestamp < $cutoff";
+        delHistory.Parameters.AddWithValue("$cutoff", cutoff);
+        int removed = await delHistory.ExecuteNonQueryAsync();
+
+        // Purge now-orphaned old sessions (no remaining history, created before the cutoff).
+        var delSessions = conn.CreateCommand();
+        delSessions.CommandText = """
+            DELETE FROM wisllm_sessions
+            WHERE created_at < $cutoff
+              AND NOT EXISTS (SELECT 1 FROM wisllm_history WHERE wisllm_history.session_id = wisllm_sessions.id)
+            """;
+        delSessions.Parameters.AddWithValue("$cutoff", cutoff);
+        await delSessions.ExecuteNonQueryAsync();
+
+        return removed;
+    }
 
     // ── Commands ─────────────────────────────────────────────────────────
 

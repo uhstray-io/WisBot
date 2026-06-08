@@ -22,6 +22,10 @@ public static class Config {
     // Persistence — point these at mounted volumes in the container.
     public static string DbPath { get; private set; } = "wisbot.db";
     public static string RecordingsDir { get; private set; } = "recordings";
+    // Saved WAV recordings are auto-deleted after this many days (audit L-20).
+    public static int RecordingsRetentionDays { get; private set; } = 30;
+    // WisLLM conversation history is auto-deleted after this many days (audit L-2/L-15).
+    public static int WisLlmHistoryRetentionDays { get; private set; } = 30;
 
     // Voice recording safety caps. Audio is buffered in RAM during capture
     // (~11 MB/min/user), so an uncapped session can OOM the process — capture
@@ -46,6 +50,8 @@ public static class Config {
     public static int UploadMaxLinksPerUser { get; private set; } = 20;
     public static long UploadMaxBytesPerUser { get; private set; } = 2L * 1024 * 1024 * 1024;
     public static int UploadRateLimitPerMinute { get; private set; } = 30;
+    // Max downloads before a link auto-expires (audit L-1). 0 = unlimited (until time expiry).
+    public static int UploadMaxDownloads { get; private set; } = 0;
 
     // MinIO object storage for the file relay. An empty endpoint disables uploads.
     public static string MinioEndpoint { get; private set; } = "";
@@ -104,6 +110,10 @@ public static class Config {
 
         if (Get("WISBOT_DB_PATH") is { } dbPath) DbPath = dbPath;
         if (Get("WISBOT_RECORDINGS_DIR") is { } recordingsDir) RecordingsDir = recordingsDir;
+        if (Get("WISBOT_RECORDINGS_RETENTION_DAYS") is { } recRetStr && int.TryParse(recRetStr, out int recRet) && recRet > 0)
+            RecordingsRetentionDays = recRet;
+        if (Get("WISLLM_HISTORY_RETENTION_DAYS") is { } histRetStr && int.TryParse(histRetStr, out int histRet) && histRet > 0)
+            WisLlmHistoryRetentionDays = histRet;
 
         if (Get("WISBOT_RECORDING_MAX_MINUTES") is { } recMinStr && int.TryParse(recMinStr, out int recMin) && recMin > 0)
             RecordingMaxMinutes = recMin;
@@ -131,6 +141,9 @@ public static class Config {
             UploadMaxBytesPerUser = maxUserBytes;
         if (Get("WISBOT_UPLOAD_RATE_LIMIT_PER_MINUTE") is { } rlStr && int.TryParse(rlStr, out int rl) && rl > 0)
             UploadRateLimitPerMinute = rl;
+        // 0 = unlimited; >0 caps downloads per link. Allow 0 explicitly (not just >0).
+        if (Get("WISBOT_UPLOAD_MAX_DOWNLOADS") is { } dlStr && int.TryParse(dlStr, out int maxDl) && maxDl >= 0)
+            UploadMaxDownloads = maxDl;
 
         if (Get("WISBOT_MINIO_ENDPOINT") is { } mEndpoint) MinioEndpoint = mEndpoint;
         if (Get("WISBOT_MINIO_ACCESS_KEY") is { } mAccess) MinioAccessKey = mAccess;
