@@ -29,7 +29,14 @@ See also the earlier comprehensive review: [[project-2026-06-05-review-fixes]].
 - Discord.Net held at **3.19.0-beta.1** on purpose (voice `GetStreams()` APIs); a 3.20.0-stable
   bump needs a voice smoke test first. Concentus.Oggfile removed (was unused).
 
-**Deferred (low backlog, 22 items):** supply-chain digest pinning + image signing, privacy/retention
-(passive `UserVoiceActivityTracker` forever-DB, indefinite recording retention), per-user caps on
-`/remind` + `wisllm_history`, central command authz, `/wisllm` is GLOBAL (should be guild-scoped),
-MinIO dev-compose loopback binds. Full list in the low-priority report.
+**Low backlog — partially worked (PR #33, 2026-06-08):** L-6 (TryParseDuration overflow guard),
+L-20 (recordings auto-delete, `WISBOT_RECORDINGS_RETENTION_DAYS` default 30), L-1 (N-time download
+limit `WISBOT_UPLOAD_MAX_DOWNLOADS` default 0=unlimited; `download_count` column + 1h grace before
+cleanup), and WisLLM history retention (`WISLLM_HISTORY_RETENTION_DAYS` default 30, sweep also purges
+orphaned sessions) → resolved. **Still deferred:** wisllm_history at-rest encryption + `compact`
+LIMIT (L-2/L-15 partial); supply-chain digest pinning + image signing; passive
+`UserVoiceActivityTracker` forever-DB; per-user `/remind` cap; central command authz; `/wisllm` is
+GLOBAL (should be guild-scoped); MinIO dev-compose loopback binds. Full status in the low-priority report.
+
+**Retention pattern:** uploads/recordings/wisllm-history each own a `StartRetention()`/`StopRetention()`
+sweep (idempotent, wired in `Bot.OnReady`/`StopBot`), all default 30 days, all env-configurable.
