@@ -220,39 +220,46 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
         TimeSpan total = TimeSpan.Zero;
         int i = 0;
 
-        while (i < span.Length) {
-            int numStart = i;
-            while (i < span.Length && char.IsDigit(span[i])) i++;
-            if (i == numStart) return false;
-            if (!int.TryParse(span[numStart..i], out int value) || value <= 0) return false;
+        // int.TryParse accepts values up to 2,147,483,647, so TimeSpan.FromDays/etc.
+        // and the running `total +=` can overflow before the 30-day ceiling check below.
+        // Treat any overflow as an unparseable (too-large) duration. (audit L-6)
+        try {
+            while (i < span.Length) {
+                int numStart = i;
+                while (i < span.Length && char.IsDigit(span[i])) i++;
+                if (i == numStart) return false;
+                if (!int.TryParse(span[numStart..i], out int value) || value <= 0) return false;
 
-            int unitStart = i;
-            while (i < span.Length && char.IsLetter(span[i])) i++;
-            if (i == unitStart) return false;
+                int unitStart = i;
+                while (i < span.Length && char.IsLetter(span[i])) i++;
+                if (i == unitStart) return false;
 
-            ReadOnlySpan<char> unit = span[unitStart..i];
+                ReadOnlySpan<char> unit = span[unitStart..i];
 
-            if (unit.Equals("d", StringComparison.OrdinalIgnoreCase) ||
-                unit.Equals("day", StringComparison.OrdinalIgnoreCase) ||
-                unit.Equals("days", StringComparison.OrdinalIgnoreCase))
-                total += TimeSpan.FromDays(value);
-            else if (unit.Equals("h", StringComparison.OrdinalIgnoreCase) ||
-                     unit.Equals("hr", StringComparison.OrdinalIgnoreCase) ||
-                     unit.Equals("hour", StringComparison.OrdinalIgnoreCase) ||
-                     unit.Equals("hours", StringComparison.OrdinalIgnoreCase))
-                total += TimeSpan.FromHours(value);
-            else if (unit.Equals("m", StringComparison.OrdinalIgnoreCase) ||
-                     unit.Equals("min", StringComparison.OrdinalIgnoreCase) ||
-                     unit.Equals("minute", StringComparison.OrdinalIgnoreCase) ||
-                     unit.Equals("minutes", StringComparison.OrdinalIgnoreCase))
-                total += TimeSpan.FromMinutes(value);
-            else if (unit.Equals("s", StringComparison.OrdinalIgnoreCase) ||
-                     unit.Equals("sec", StringComparison.OrdinalIgnoreCase) ||
-                     unit.Equals("second", StringComparison.OrdinalIgnoreCase) ||
-                     unit.Equals("seconds", StringComparison.OrdinalIgnoreCase))
-                total += TimeSpan.FromSeconds(value);
-            else
-                return false;
+                if (unit.Equals("d", StringComparison.OrdinalIgnoreCase) ||
+                    unit.Equals("day", StringComparison.OrdinalIgnoreCase) ||
+                    unit.Equals("days", StringComparison.OrdinalIgnoreCase))
+                    total += TimeSpan.FromDays(value);
+                else if (unit.Equals("h", StringComparison.OrdinalIgnoreCase) ||
+                         unit.Equals("hr", StringComparison.OrdinalIgnoreCase) ||
+                         unit.Equals("hour", StringComparison.OrdinalIgnoreCase) ||
+                         unit.Equals("hours", StringComparison.OrdinalIgnoreCase))
+                    total += TimeSpan.FromHours(value);
+                else if (unit.Equals("m", StringComparison.OrdinalIgnoreCase) ||
+                         unit.Equals("min", StringComparison.OrdinalIgnoreCase) ||
+                         unit.Equals("minute", StringComparison.OrdinalIgnoreCase) ||
+                         unit.Equals("minutes", StringComparison.OrdinalIgnoreCase))
+                    total += TimeSpan.FromMinutes(value);
+                else if (unit.Equals("s", StringComparison.OrdinalIgnoreCase) ||
+                         unit.Equals("sec", StringComparison.OrdinalIgnoreCase) ||
+                         unit.Equals("second", StringComparison.OrdinalIgnoreCase) ||
+                         unit.Equals("seconds", StringComparison.OrdinalIgnoreCase))
+                    total += TimeSpan.FromSeconds(value);
+                else
+                    return false;
+            }
+        } catch (OverflowException) {
+            return false;
         }
 
         if (total <= TimeSpan.Zero || total.TotalDays > 30) return false;
