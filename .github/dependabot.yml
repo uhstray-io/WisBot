@@ -1,0 +1,30 @@
+# Keeps pinned dependencies current so the SHA-pinned GitHub Actions and the
+# Dockerfile/compose base images get tracked update PRs rather than silently
+# drifting on floating tags (security audit L-11/L-12/L-13/L-18).
+version: 2
+updates:
+  # GitHub Actions — bumps the SHA pins (with the # vN comment) in .github/workflows.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+
+  # Docker base images — Dockerfile (dotnet sdk/aspnet) and compose (minio). Lets
+  # Dependabot propose digest-pinned bumps it can verify, which is the safe way to
+  # pin these (the linux/amd64 manifest digests aren't obtainable by hand offline).
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore"
+
+  # NuGet — surfaces vulnerable/outdated packages (complements the manual refresh).
+  - package-ecosystem: nuget
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore"

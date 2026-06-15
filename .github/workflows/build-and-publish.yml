@@ -85,3 +85,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Attach build provenance (SLSA) + an SBOM to the published image so
+          # agent-cloud can verify what it pulls (audit L-17).
+          provenance: mode=max
+          sbom: true
