@@ -20,8 +20,8 @@ _Date: 2026-06-07 · Companion to [`2026-06-07-security-audit.md`](2026-06-07-se
 ### L-2 · `wisllm_history` stored unencrypted, retained indefinitely; prompt prefixes logged — ⚠️ PARTIAL
 `CWE-312` · `Database.cs`, `WisLlmService.cs` — **Resolved (retention):** history now auto-deletes after `WISLLM_HISTORY_RETENTION_DAYS` (default 30) via a periodic sweep (also addresses L-15). **Still open:** at-rest encryption and the prompt-prefix logging (`log model/length only`) — left as future hardening.
 
-### L-3 · MinIO `minioadmin/minioadmin` + S3/console ports published to host (dev compose)
-`CWE-798` · `compose.yaml:41-44,63-67` — local-dev file only (agent-cloud deploys a separate image), but ports bind `0.0.0.0`. **Fix:** bind published ports to `127.0.0.1`, add a prominent dev-only-credentials comment. (Dupes L-19.)
+### L-3 · MinIO `minioadmin/minioadmin` + S3/console ports published to host (dev compose) — ✅ RESOLVED
+`CWE-798` · `compose.yaml` — **Resolved:** MinIO S3/console ports now bind `127.0.0.1` (not LAN-reachable), with a prominent dev-only-credentials comment. (Dupes L-19, also resolved.)
 
 ### L-4 · Voice recordings written as cleartext WAV, no consent gate / access-control note
 `CWE-359` · `VoiceRecorder.cs:401-402` — plaintext on a mounted volume. **Fix:** in-channel start/stop notice (folds into H-1/H-2), document retention, treat the recordings volume as sensitive. (Related: L-20.)
@@ -50,17 +50,17 @@ _Date: 2026-06-07 · Companion to [`2026-06-07-security-audit.md`](2026-06-07-se
 ### L-10 · Unused `Concentus.Oggfile` / `Concentus` dependency
 `CWE-1104` · `Wisbot.csproj:21` — zero references in any `.cs` (verified); pulls transitive `Concentus 2.2.1`. Supply-chain surface for nothing. **Fix:** delete the `PackageReference`, `dotnet build` to confirm, re-add only when Ogg/Opus encoding is actually implemented.
 
-### L-11 / L-18 · Dockerfile base images use mutable tags, not digests
-`CWE-1357` · `Dockerfile:4-5,14-15` — `sdk:10.0` / `aspnet:10.0` are re-published on every patch; non-reproducible. **Fix:** pin by `@sha256:` digest, bump via Dependabot/Renovate (matches the repo's existing SHA-pinned-actions stance).
+### L-11 / L-18 · Dockerfile base images use mutable tags, not digests — ⚠️ PARTIAL
+`CWE-1357` · `Dockerfile:4-5,14-15` — `sdk:10.0` / `aspnet:10.0` are re-published on every patch. **Mechanism added:** `.github/dependabot.yml` now tracks the docker ecosystem so digest bumps get managed PRs. **Still open:** the initial `@sha256:` pin needs the linux/amd64 manifest digests (the arch CI builds for) — must come from `docker manifest inspect`, not a local arm64 cache; a network-connected follow-up.
 
-### L-12 · `compose.yaml` uses `minio/minio:latest`
-`CWE-1357` · `compose.yaml:60-62` — local-dev only; mutable. **Fix:** pin to a specific `RELEASE.YYYY-...` tag for reproducible local dev.
+### L-12 · `compose.yaml` uses `minio/minio:latest` — ⚠️ PARTIAL
+`CWE-1357` · `compose.yaml` — local-dev only; mutable. **Mechanism added:** Dependabot (docker) tracks it. **Still open:** pinning to a specific `RELEASE.YYYY-...` tag needs a verified current tag (a network-connected follow-up); not hand-pinned to avoid a broken local-dev pull.
 
-### L-13 · Disabled `deploy-o11y.yml` uses mutable `actions/checkout@v4`
-`CWE-1357` · `.github/workflows/deploy-o11y.yml:23` — the two active workflows SHA-pin all actions; this one doesn't. **Fix:** delete it now (already marked non-functional pending the agent-cloud o11y migration) or SHA-pin + add `permissions: { contents: read }`.
+### L-13 · Disabled `deploy-o11y.yml` uses mutable `actions/checkout@v4` — ✅ RESOLVED
+`CWE-1357` · `.github/workflows/deploy-o11y.yml` — **Resolved:** SHA-pinned `actions/checkout` (reusing the repo's existing pin) + added a `permissions: { contents: read }` block, matching the active workflows. (Left in place rather than deleted — the delete-vs-keep call belongs to the agent-cloud o11y migration, not this security pass.)
 
-### L-17 · Published image has no signature / SBOM / provenance
-`CWE-345` · `build-and-publish.yml` — image pushed to GHCR is unsigned, no attestation. **Fix:** enable keyless cosign signing or `provenance: mode=max` + `sbom: true` on the build-push step; have agent-cloud verify before deploy.
+### L-17 · Published image has no signature / SBOM / provenance — ✅ RESOLVED
+`CWE-345` · `build-and-publish.yml` — **Resolved:** the build-push step now sets `provenance: mode=max` + `sbom: true`, attaching SLSA provenance and an SBOM to the published image. (agent-cloud verifying the attestation before deploy is a platform-side follow-up.)
 
 ## Resource exhaustion (lower-impact quota gaps)
 
@@ -75,8 +75,8 @@ _Date: 2026-06-07 · Companion to [`2026-06-07-security-audit.md`](2026-06-07-se
 
 ## Deployment
 
-### L-19 · MinIO default creds + ports on all interfaces (dev compose)
-`CWE-1392` · `compose.yaml:58-70` — see L-3. **Fix:** loopback binds + non-default creds from `.env`.
+### L-19 · MinIO default creds + ports on all interfaces (dev compose) — ✅ RESOLVED
+`CWE-1392` · `compose.yaml` — **Resolved** with L-3: ports bound to `127.0.0.1` + dev-only-credentials comment.
 
 ## Voice privacy / retention
 
