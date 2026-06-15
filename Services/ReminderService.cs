@@ -142,14 +142,14 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
         }
 
         // Per-user cap on outstanding reminders (abuse / unbounded DB growth — audit L-16).
-        if (await GetPendingCountForUser(command.User.Id) >= Config.ReminderMaxPerUser) {
+        // Enforced atomically inside the insert, so concurrent /remind calls can't race
+        // past the limit.
+        if (!await AddReminder(command.User.Id, command.Channel.Id, message, duration)) {
             await command.RespondAsync(
                 $"You already have {Config.ReminderMaxPerUser} pending reminders (the max). " +
                 "Wait for some to fire before adding more.", ephemeral: true);
             return;
         }
-
-        await AddReminder(command.User.Id, command.Channel.Id, message, duration);
 
         var remindAt = DateTime.UtcNow.Add(duration);
         var formatted = FormatDuration(duration);
@@ -159,7 +159,10 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
 
     // ── Public API ───────────────────────────────────────────────────────
 
-    public async Task AddReminder(ulong userId, ulong channelId, string message, TimeSpan delay) {
+    /// Inserts a reminder, enforcing the per-user pending cap atomically (the count and
+    /// insert are one statement under SQLite's write lock, so concurrent calls can't both
+    /// slip past the limit — audit L-16). Returns false if the user is at the cap.
+    public async Task<bool> AddReminder(ulong userId, ulong channelId, string message, TimeSpan delay) {
         var remindAt = DateTime.UtcNow.Add(delay);
 
         using var conn = new SqliteConnection(Database.ConnectionString);
@@ -168,15 +171,18 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
         var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT INTO reminders (user_id, channel_id, message, remind_at)
-            VALUES ($userId, $channelId, $message, $remindAt)
+            SELECT $userId, $channelId, $message, $remindAt
+            WHERE (SELECT COUNT(*) FROM reminders WHERE user_id = $userId) < $max
             """;
         cmd.Parameters.AddWithValue("$userId", (long)userId);
         cmd.Parameters.AddWithValue("$channelId", (long)channelId);
         cmd.Parameters.AddWithValue("$message", message);
         cmd.Parameters.AddWithValue("$remindAt", remindAt.ToString("O"));
+        cmd.Parameters.AddWithValue("$max", Config.ReminderMaxPerUser);
 
-        await cmd.ExecuteNonQueryAsync();
+        if (await cmd.ExecuteNonQueryAsync() == 0) return false; // at the per-user cap
         await Log($"Reminder set for user {userId} in {FormatDuration(delay)}");
+        return true;
     }
 
     // ── DB Queries ───────────────────────────────────────────────────────
@@ -214,16 +220,6 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
 
         var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM reminders";
-        return Convert.ToInt32(await cmd.ExecuteScalarAsync());
-    }
-
-    private static async Task<int> GetPendingCountForUser(ulong userId) {
-        using var conn = new SqliteConnection(Database.ConnectionString);
-        await conn.OpenAsync();
-
-        var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM reminders WHERE user_id = $userId";
-        cmd.Parameters.AddWithValue("$userId", (long)userId);
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
     }
 
