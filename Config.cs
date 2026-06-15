@@ -29,6 +29,8 @@ public static class Config {
     // Passive voice join/leave activity (feeds /voicestats) auto-deletes after this many
     // days. Longer default than other data — it backs longer-horizon stats. (audit L-21)
     public static int VoiceActivityRetentionDays { get; private set; } = 90;
+    // Max pending reminders a single user may have queued at once (audit L-16).
+    public static int ReminderMaxPerUser { get; private set; } = 25;
 
     // Voice recording safety caps. Audio is buffered in RAM during capture
     // (~11 MB/min/user), so an uncapped session can OOM the process — capture
@@ -119,6 +121,8 @@ public static class Config {
             WisLlmHistoryRetentionDays = histRet;
         if (Get("WISBOT_VOICE_ACTIVITY_RETENTION_DAYS") is { } vaRetStr && int.TryParse(vaRetStr, out int vaRet) && vaRet > 0)
             VoiceActivityRetentionDays = vaRet;
+        if (Get("WISBOT_REMINDER_MAX_PER_USER") is { } remMaxStr && int.TryParse(remMaxStr, out int remMax) && remMax > 0)
+            ReminderMaxPerUser = remMax;
 
         if (Get("WISBOT_RECORDING_MAX_MINUTES") is { } recMinStr && int.TryParse(recMinStr, out int recMin) && recMin > 0)
             RecordingMaxMinutes = recMin;

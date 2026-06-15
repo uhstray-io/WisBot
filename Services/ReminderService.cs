@@ -141,6 +141,14 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
             return;
         }
 
+        // Per-user cap on outstanding reminders (abuse / unbounded DB growth — audit L-16).
+        if (await GetPendingCountForUser(command.User.Id) >= Config.ReminderMaxPerUser) {
+            await command.RespondAsync(
+                $"You already have {Config.ReminderMaxPerUser} pending reminders (the max). " +
+                "Wait for some to fire before adding more.", ephemeral: true);
+            return;
+        }
+
         await AddReminder(command.User.Id, command.Channel.Id, message, duration);
 
         var remindAt = DateTime.UtcNow.Add(duration);
@@ -206,6 +214,16 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
 
         var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM reminders";
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+    }
+
+    private static async Task<int> GetPendingCountForUser(ulong userId) {
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM reminders WHERE user_id = $userId";
+        cmd.Parameters.AddWithValue("$userId", (long)userId);
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
     }
 
