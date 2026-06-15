@@ -36,8 +36,8 @@ _Date: 2026-06-07 · Companion to [`2026-06-07-security-audit.md`](2026-06-07-se
 
 ## Discord authorization & privacy
 
-### L-7 · `/voicestats` exposes any member's full voice history publicly to any member
-`CWE-359` · `VoiceStatsService.cs:29-57` — no permission check, no self-restriction, response is public (`DeferAsync()` non-ephemeral). **Fix:** make ephemeral; restrict to caller's own stats or gate cross-user lookups behind a mod permission.
+### L-7 · `/voicestats` exposes any member's full voice history publicly to any member — ✅ RESOLVED
+`CWE-359` · `VoiceStatsService.cs` — **Resolved:** the response is now ephemeral, and viewing another member's stats requires Administrator/Move Members (you can always view your own).
 
 ### L-8 · `/wisllm` is a GLOBAL command — usable in DMs and from any guild sharing the bot
 `CWE-862` · `Bot.cs:280` — registered via `CreateGlobalApplicationCommandAsync` (others are guild-scoped); shared guild session also enables persistent prompt injection. **Fix:** register guild-scoped to `Config.GuildId` (or set context types / disable DM), add per-user rate limiting.
@@ -70,8 +70,8 @@ _Date: 2026-06-07 · Companion to [`2026-06-07-security-audit.md`](2026-06-07-se
 ### L-15 · `wisllm_history` grows unbounded per session — ⚠️ PARTIAL
 `CWE-770` · `WisLlmService.cs` — **Resolved (age):** the retention sweep (L-2, `WISLLM_HISTORY_RETENTION_DAYS` default 30) now bounds growth by age. **Still open:** `compact`'s full-history load has no `LIMIT`, and there's no periodic VACUUM — minor, left as future work.
 
-### L-16 · No per-user reminder cap
-`CWE-770` · `ReminderService.cs:127-167` — unbounded pending rows; the 30s loop also spawns unbounded concurrent `Deliver` tasks per tick. **Fix:** cap pending reminders per user; bound delivery concurrency.
+### L-16 · No per-user reminder cap — ✅ RESOLVED (cap)
+`CWE-770` · `ReminderService.cs` — **Resolved:** `/remind` rejects once a user has `WISBOT_REMINDER_MAX_PER_USER` (default 25) pending reminders. **Note:** the per-tick unbounded concurrent `Deliver` task spawn is a separate, minor concern left as future work.
 
 ## Deployment
 
@@ -83,11 +83,11 @@ _Date: 2026-06-07 · Companion to [`2026-06-07-security-audit.md`](2026-06-07-se
 ### L-20 · Recordings kept indefinitely (no cleanup) — ✅ RESOLVED
 `CWE-359` · `VoiceRecorder.cs` — **Resolved:** an hourly sweep deletes saved `*.wav` files older than `WISBOT_RECORDINGS_RETENTION_DAYS` (default 30), wired into `Bot.OnReady`/`StopBot`.
 
-### L-21 · Passive `UserVoiceActivityTracker` logs every join/leave forever — a standing surveillance DB
-`CWE-359` · `UserVoiceActivityTracker.cs:27-63`, `Database.cs:52-64` — every member's voice presence recorded continuously, no disclosure, no expiry. **Fix:** disclose in README (and ideally in-guild), add a configurable retention window with periodic `DELETE`, consider restricting `/voicestats`.
+### L-21 · Passive `UserVoiceActivityTracker` logs every join/leave forever — a standing surveillance DB — ✅ RESOLVED
+`CWE-359` · `UserVoiceActivityTracker.cs` — **Resolved:** a 12-hourly sweep deletes rows past `WISBOT_VOICE_ACTIVITY_RETENTION_DAYS` (default 90), the README Data section now discloses the passive logging, and `/voicestats` is restricted (L-7).
 
-### L-22 · `/testrecord` silently records a hardcoded channel with no in-guild notice
-`CWE-359` · `Bot.cs:349-385` — terminal command records 15s with no announcement. **Fix:** route all recording start/stop (slash *and* terminal) through a single path that always emits a non-ephemeral in-channel notice (folds into H-1).
+### L-22 · `/testrecord` silently records a hardcoded channel with no in-guild notice — ✅ RESOLVED
+`CWE-359` · `VoiceRecorder.cs` — **Resolved:** the in-voice-channel "recording started" disclosure moved into the shared `JoinAndRecordChannel` choke point, so `/testrecord` (and any future entry point) announces too.
 
 ---
 
