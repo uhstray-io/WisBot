@@ -19,8 +19,52 @@ public record VoiceActivityEntry {
 /// Channel hops (user moves between channels) produce a "left" for the old
 /// channel and a "joined" for the new channel, preserving full history.
 public class UserVoiceActivityTracker(Terminal terminal) {
+    private CancellationTokenSource? retentionCts;
+
     private async Task Log(string msg, LogLevel level = LogLevel.Info)
         => await terminal.AddLine($"[VoiceActivity] {msg}", level);
+
+    // ── Retention ─────────────────────────────────────────────────────────
+
+    /// Starts the daily sweep that deletes activity rows older than
+    /// Config.VoiceActivityRetentionDays. Idempotent (OnReady re-fires on reconnect).
+    public void StartRetention() {
+        if (retentionCts is not null) return;
+        retentionCts = new CancellationTokenSource();
+        _ = Task.Run(() => RunRetentionLoop(retentionCts.Token));
+    }
+
+    public void StopRetention() {
+        retentionCts?.Cancel();
+        retentionCts?.Dispose();
+        retentionCts = null;
+    }
+
+    private async Task RunRetentionLoop(CancellationToken token) {
+        while (!token.IsCancellationRequested) {
+            try {
+                int removed = await DeleteOldActivityAsync();
+                if (removed > 0) await Log($"Retention: deleted {removed} activity row(s) older than {Config.VoiceActivityRetentionDays} days");
+                await Task.Delay(TimeSpan.FromHours(12), token);
+            } catch (OperationCanceledException) {
+                break;
+            } catch (Exception ex) {
+                await Log($"Activity retention loop error: {ex.Message}", LogLevel.Error);
+                await Task.Delay(TimeSpan.FromHours(12), token);
+            }
+        }
+    }
+
+    /// Deletes activity rows past the retention window. Timestamps are UTC "O" strings
+    /// (fixed-width, lexicographically sortable — see Database.cs invariant).
+    private static async Task<int> DeleteOldActivityAsync() {
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM voice_activity WHERE timestamp < $cutoff";
+        cmd.Parameters.AddWithValue("$cutoff", DateTime.UtcNow.AddDays(-Config.VoiceActivityRetentionDays).ToString("O"));
+        return await cmd.ExecuteNonQueryAsync();
+    }
 
     // ── Event ────────────────────────────────────────────────────────────
 

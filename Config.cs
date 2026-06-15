@@ -26,6 +26,9 @@ public static class Config {
     public static int RecordingsRetentionDays { get; private set; } = 30;
     // WisLLM conversation history is auto-deleted after this many days (audit L-2/L-15).
     public static int WisLlmHistoryRetentionDays { get; private set; } = 30;
+    // Passive voice join/leave activity (feeds /voicestats) auto-deletes after this many
+    // days. Longer default than other data — it backs longer-horizon stats. (audit L-21)
+    public static int VoiceActivityRetentionDays { get; private set; } = 90;
 
     // Voice recording safety caps. Audio is buffered in RAM during capture
     // (~11 MB/min/user), so an uncapped session can OOM the process — capture
@@ -114,6 +117,8 @@ public static class Config {
             RecordingsRetentionDays = recRet;
         if (Get("WISLLM_HISTORY_RETENTION_DAYS") is { } histRetStr && int.TryParse(histRetStr, out int histRet) && histRet > 0)
             WisLlmHistoryRetentionDays = histRet;
+        if (Get("WISBOT_VOICE_ACTIVITY_RETENTION_DAYS") is { } vaRetStr && int.TryParse(vaRetStr, out int vaRet) && vaRet > 0)
+            VoiceActivityRetentionDays = vaRet;
 
         if (Get("WISBOT_RECORDING_MAX_MINUTES") is { } recMinStr && int.TryParse(recMinStr, out int recMin) && recMin > 0)
             RecordingMaxMinutes = recMin;

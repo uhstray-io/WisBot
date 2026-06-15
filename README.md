@@ -121,8 +121,10 @@ While the bot is running, type these in the console:
 
 ## Data
 
-- **Recordings** — WAV files saved to `./recordings/` as `{username}_{timestamp}.wav`. Captured per-user at 48kHz, 16-bit stereo; gaps in speech are filled with silence to keep users time-synchronized.
-- **Database** — `wisbot.db` (SQLite) is created automatically at the app root on first run. Stores welcomed users and pending reminders; survives restarts.
+- **Recordings** — WAV files saved to `./recordings/` as `{username}_{timestamp}.wav`. Captured per-user at 48kHz, 16-bit stereo; gaps in speech are filled with silence to keep users time-synchronized. Auto-deleted after `WISBOT_RECORDINGS_RETENTION_DAYS` (default 30). Treat the recordings volume as sensitive.
+- **Voice activity** — the bot **passively records every member's voice channel joins and leaves** (to power `/voicestats`). This is logged for all members continuously; rows auto-delete after `WISBOT_VOICE_ACTIVITY_RETENTION_DAYS` (default 90). Operators should disclose this to their guild.
+- **WisLLM history** — conversation prompts/responses are stored in `wisbot.db` and auto-deleted after `WISLLM_HISTORY_RETENTION_DAYS` (default 30).
+- **Database** — `wisbot.db` (SQLite) is created automatically at the app root on first run. Stores welcomed users, pending reminders, voice activity, WisLLM history, and upload metadata; survives restarts.
 
 ## Deployment
 
