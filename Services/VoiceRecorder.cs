@@ -119,11 +119,11 @@ public class VoiceRecorder(Terminal terminal) {
                     var result = await JoinAndRecordUser(user);
                     await Log($"Recording start for {user.Username}: {result}");
                     if (IsRecording && audioClient is not null && result.StartsWith("Joined")) {
-                        // Join confirmed — now disclose to all participants (non-ephemeral).
+                        // Join confirmed. The in-voice-channel disclosure is posted by
+                        // JoinAndRecordChannel itself (covers /testrecord too); here we
+                        // just confirm to the command's channel who started it.
                         await command.FollowupAsync(
                             $"🔴 **Recording started** by {user.Mention} in **{startChannel.Name}** — everyone in this voice channel is now being recorded.");
-                        await AnnounceToVoiceChannel(startChannel,
-                            "🔴 **Recording started** — everyone in this voice channel is being recorded.");
                     } else {
                         await command.FollowupAsync($"⚠️ {result}", ephemeral: true);
                     }
@@ -232,6 +232,12 @@ public class VoiceRecorder(Terminal terminal) {
                 userAudio.RecordingTask = Task.Run(() => RecordUser(userAudio, recordingCancellationToken.Token));
                 users.TryAdd(voiceUser.Id, userAudio);
             }
+
+            // Disclose recording in the voice channel from the single choke point, so
+            // EVERY entry point (slash command and the /testrecord terminal command)
+            // announces — no silent capture. (audit L-22)
+            await AnnounceToVoiceChannel(voiceChannel,
+                "🔴 **Recording started** — everyone in this voice channel is being recorded.");
 
             return $"Joined {voiceChannel.Name} and started recording {voiceUsers.Count} user(s)!";
         } catch (Exception ex) {
