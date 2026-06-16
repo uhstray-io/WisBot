@@ -18,13 +18,13 @@ _Date: 2026-06-07 · Companion to [`2026-06-07-security-audit.md`](2026-06-07-se
 ## Secrets & data-at-rest
 
 ### L-2 · `wisllm_history` stored unencrypted, retained indefinitely; prompt prefixes logged — ⚠️ PARTIAL
-`CWE-312` · `Database.cs`, `WisLlmService.cs` — **Resolved (retention):** history now auto-deletes after `WISLLM_HISTORY_RETENTION_DAYS` (default 30) via a periodic sweep (also addresses L-15). **Still open:** at-rest encryption and the prompt-prefix logging (`log model/length only`) — left as future hardening.
+`CWE-312` · `Database.cs`, `WisLlmService.cs` — **Resolved (retention + logging):** history auto-deletes after `WISLLM_HISTORY_RETENTION_DAYS` (default 30); the prompt is no longer logged (metadata/length only, like M-1). **Still open (by design):** at-rest encryption of the DB — out of scope for this threat model (controlled volume + retention mitigate); deferred deliberately rather than half-built.
 
 ### L-3 · MinIO `minioadmin/minioadmin` + S3/console ports published to host (dev compose) — ✅ RESOLVED
 `CWE-798` · `compose.yaml` — **Resolved:** MinIO S3/console ports now bind `127.0.0.1` (not LAN-reachable), with a prominent dev-only-credentials comment. (Dupes L-19, also resolved.)
 
-### L-4 · Voice recordings written as cleartext WAV, no consent gate / access-control note
-`CWE-359` · `VoiceRecorder.cs:401-402` — plaintext on a mounted volume. **Fix:** in-channel start/stop notice (folds into H-1/H-2), document retention, treat the recordings volume as sensitive. (Related: L-20.)
+### L-4 · Voice recordings written as cleartext WAV, no consent gate / access-control note — ✅ RESOLVED
+`CWE-359` · `VoiceRecorder.cs` — **Resolved** across the prior work: in-channel start/stop consent notices (H-1/H-2 + L-22), retention (L-20), and the README Data section now documents retention and says to treat the recordings volume as sensitive (L-21). At-rest encryption of the WAVs is out of scope (same rationale as L-2).
 
 ## Injection / output trust
 
@@ -67,11 +67,11 @@ _Date: 2026-06-07 · Companion to [`2026-06-07-security-audit.md`](2026-06-07-se
 ### L-14 · No per-user `/upload` quota (30-day retention)
 `CWE-770` · `UploadService.cs:114-132` — **same root as medium M-5**; fix the quota once.
 
-### L-15 · `wisllm_history` grows unbounded per session — ⚠️ PARTIAL
-`CWE-770` · `WisLlmService.cs` — **Resolved (age):** the retention sweep (L-2, `WISLLM_HISTORY_RETENTION_DAYS` default 30) now bounds growth by age. **Still open:** `compact`'s full-history load has no `LIMIT`, and there's no periodic VACUUM — minor, left as future work.
+### L-15 · `wisllm_history` grows unbounded per session — ✅ RESOLVED
+`CWE-770` · `WisLlmService.cs` — **Resolved:** the retention sweep (`WISLLM_HISTORY_RETENTION_DAYS` default 30) bounds growth by age, and `compact` now loads at most the newest 500 rows (`MaxCompactRows`) instead of the whole session. (Periodic VACUUM remains a minor, optional housekeeping item.)
 
-### L-16 · No per-user reminder cap — ✅ RESOLVED (cap)
-`CWE-770` · `ReminderService.cs` — **Resolved:** `/remind` rejects once a user has `WISBOT_REMINDER_MAX_PER_USER` (default 25) pending reminders. **Note:** the per-tick unbounded concurrent `Deliver` task spawn is a separate, minor concern left as future work.
+### L-16 · No per-user reminder cap — ✅ RESOLVED
+`CWE-770` · `ReminderService.cs` — **Resolved:** `/remind` rejects (atomically) once a user has `WISBOT_REMINDER_MAX_PER_USER` (default 25) pending; and delivery now runs as a bounded-concurrency batch (max 8) off the scheduler loop instead of spawning one unbounded `Deliver` task per due reminder.
 
 ## Deployment
 

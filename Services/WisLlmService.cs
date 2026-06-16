@@ -158,7 +158,9 @@ public class WisLlmService(Terminal terminal) {
 
                 await SendChunkedAsync(command, response, isEphemeral);
                 await MaybeWarnContextAsync(command, model, messages);
-                await Log($"{command.User.Username} asked [{model}]: {prompt[..Math.Min(60, prompt.Length)]}");
+                // Log metadata only — never the prompt text (lands in stdout / logs; same
+                // rationale as message-content logging, M-1). (audit L-2)
+                await Log($"{command.User.Username} asked [{model}] ({prompt.Length} chars)");
             } catch (OllamaApiException ex) when (ex.Status == System.Net.HttpStatusCode.NotFound) {
                 await Log($"Unknown model '{ex.Model}': {ex.Message}", LogLevel.Error);
                 await command.FollowupAsync($"Unknown model `{ex.Model}` — it isn't available on the Ollama server.", ephemeral: true);
@@ -481,18 +483,27 @@ public class WisLlmService(Terminal terminal) {
     }
 
     /// Returns all messages in the session in chronological order (used for compact).
+    // Upper bound on rows /wisllm compact loads, so a very long session can't pull an
+    // unbounded result set (and prompt) into memory (audit L-15). Newest rows are kept.
+    private const int MaxCompactRows = 500;
+
     private static async Task<List<WisLlmHistoryRow>> GetFullHistoryAsync(long sessionId) {
         using var conn = new SqliteConnection(Database.ConnectionString);
         await conn.OpenAsync();
 
+        // Take the most recent MaxCompactRows, then re-order chronologically for the summary.
         var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT username, prompt, response, is_compact_summary
-            FROM wisllm_history
-            WHERE session_id = $sessionId
-            ORDER BY timestamp ASC
+            SELECT username, prompt, response, is_compact_summary FROM (
+                SELECT username, prompt, response, is_compact_summary, timestamp
+                FROM wisllm_history
+                WHERE session_id = $sessionId
+                ORDER BY timestamp DESC
+                LIMIT $max
+            ) ORDER BY timestamp ASC
             """;
         cmd.Parameters.AddWithValue("$sessionId", sessionId);
+        cmd.Parameters.AddWithValue("$max", MaxCompactRows);
 
         List<WisLlmHistoryRow> rows = [];
         using var reader = await cmd.ExecuteReaderAsync();
