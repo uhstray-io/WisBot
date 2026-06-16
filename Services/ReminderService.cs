@@ -50,8 +50,10 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
     }
 
     // Cap concurrent deliveries so a large due-batch (e.g. after downtime) can't spawn
-    // unbounded tasks or burst Discord's DM rate limit (audit L-16).
+    // unbounded tasks or burst Discord's DM rate limit (audit L-16). Shared across batches
+    // (one gate per service, not per batch) so overlapping ticks can't exceed the cap.
     private const int MaxConcurrentDeliveries = 8;
+    private readonly SemaphoreSlim deliveryGate = new(MaxConcurrentDeliveries);
 
     private async Task CheckAndFire() {
         // Atomically claim all due reminders so a restart can't double-fire them.
@@ -63,13 +65,18 @@ public class ReminderService(Terminal terminal, DiscordSocketClient client) {
     }
 
     private async Task DeliverBatch(List<Reminder> due) {
-        using var gate = new SemaphoreSlim(MaxConcurrentDeliveries);
-        var deliveries = due.Select(async reminder => {
-            await gate.WaitAsync();
-            try { await Deliver(reminder); }
-            finally { gate.Release(); }
-        });
-        await Task.WhenAll(deliveries);
+        try {
+            var deliveries = due.Select(async reminder => {
+                await deliveryGate.WaitAsync();
+                try { await Deliver(reminder); }
+                finally { deliveryGate.Release(); }
+            });
+            await Task.WhenAll(deliveries);
+        } catch (Exception ex) {
+            // Fire-and-forget batch: observe faults here (per-reminder failures are already
+            // handled inside Deliver; this backstops anything unexpected).
+            await Log($"Reminder delivery batch error: {ex.Message}", LogLevel.Error);
+        }
     }
 
     private async Task Deliver(Reminder reminder) {
