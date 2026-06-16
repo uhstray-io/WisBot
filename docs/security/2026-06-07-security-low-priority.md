@@ -39,11 +39,11 @@ _Date: 2026-06-07 · Companion to [`2026-06-07-security-audit.md`](2026-06-07-se
 ### L-7 · `/voicestats` exposes any member's full voice history publicly to any member — ✅ RESOLVED
 `CWE-359` · `VoiceStatsService.cs` — **Resolved:** the response is now ephemeral, and viewing another member's stats requires Administrator/Move Members (you can always view your own).
 
-### L-8 · `/wisllm` is a GLOBAL command — usable in DMs and from any guild sharing the bot
-`CWE-862` · `Bot.cs:280` — registered via `CreateGlobalApplicationCommandAsync` (others are guild-scoped); shared guild session also enables persistent prompt injection. **Fix:** register guild-scoped to `Config.GuildId` (or set context types / disable DM), add per-user rate limiting.
+### L-8 · `/wisllm` is a GLOBAL command — usable in DMs and from any guild sharing the bot — ⚠️ PARTIAL (by choice)
+`CWE-862` · `Bot.cs` — **Decision:** keep `/wisllm` global so the **documented DM feature** is preserved (WisLlmService scopes DM sessions per user). **Resolved (abuse):** added a per-user rate limit — `WISLLM_RATE_LIMIT_PER_MINUTE` (default 10) on `ask`/`compact` — curbing the Ollama-flood / rapid-prompt-injection vectors. Guild-scoping (which would drop DM usage) was deliberately not done.
 
-### L-9 · No central permission gating at the command router
-`CWE-862` · `Bot.cs:295-302` — dispatch is name-only; no command sets `WithDefaultMemberPermissions`. **Fix:** a central authorization step in `OnSlashCommandExecuted` (per-command required-permission/role map vs `command.User` `GuildPermissions`) + `WithDefaultMemberPermissions` at registration. (H-1 is the urgent instance of this; this is the systemic fix.)
+### L-9 · No central permission gating at the command router — ✅ RESOLVED
+`CWE-862` · `Bot.cs` — **Resolved:** `OnSlashCommandExecuted` now checks a central command→required-permission map before dispatch (Administrator implies all; unlisted commands stay open). Today only `/recording` is gated (Move Members), which also keeps its per-handler recheck as a backstop; future commands gate in one place.
 
 ## Dependencies & supply chain
 

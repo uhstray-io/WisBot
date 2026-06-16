@@ -305,14 +305,33 @@ public class Bot(Terminal terminal) {
         }
     }
 
+    // Central per-command authorization (audit L-9). Commands not listed require no
+    // special permission. Administrator always passes. This is the systemic gate at the
+    // router; high-risk handlers (e.g. recording) ALSO recheck server-side as a backstop.
+    private static readonly Dictionary<string, GuildPermission> commandPermissions = new() {
+        ["recording"] = GuildPermission.MoveMembers,
+    };
+
     private async Task OnSlashCommandExecuted(SocketSlashCommand command) {
         await terminal.AddLine($"[Bot] /{command.CommandName} by {command.User.Username}");
+
+        if (commandPermissions.TryGetValue(command.CommandName, out var required) && !Authorized(command.User, required)) {
+            await command.RespondAsync($"You don't have permission to use /{command.CommandName}.", ephemeral: true);
+            await terminal.AddLine($"[Bot] Denied /{command.CommandName} for {command.User.Username} (needs {required})", LogLevel.Warn);
+            return;
+        }
 
         if (commands.TryGetValue(command.CommandName, out var handler))
             await handler(command);
         else
             await terminal.AddLine($"[Bot] Unknown command: {command.CommandName}", LogLevel.Warn);
     }
+
+    /// True if the user holds the required guild permission (Administrator implies all).
+    /// A non-guild context (DM) can't satisfy a guild-permission requirement.
+    private static bool Authorized(SocketUser user, GuildPermission required) =>
+        user is SocketGuildUser member
+        && (member.GuildPermissions.Administrator || member.GuildPermissions.Has(required));
 
     public async Task RemoveAllCommands() {
         await Log("Removing all existing commands...");
