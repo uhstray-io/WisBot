@@ -12,6 +12,8 @@ public static class Config {
     public static int WisLlmContextLimit { get; private set; } = 10;
     public static int WisLlmWarnAtPercent { get; private set; } = 75;
     public static int WisLlmContextSize { get; private set; } = 0;
+    // Per-user /wisllm requests allowed per minute (Ollama flood / abuse guard — audit L-8).
+    public static int WisLlmRateLimitPerMinute { get; private set; } = 10;
 
     // Discord guild this bot serves — slash command registration target. Required.
     public static ulong GuildId { get; private set; }
@@ -102,6 +104,8 @@ public static class Config {
             WisLlmWarnAtPercent = pct;
         if (Get("WISLLM_CONTEXT_SIZE") is { } sizeStr && int.TryParse(sizeStr, out int size) && size > 0)
             WisLlmContextSize = size;
+        if (Get("WISLLM_RATE_LIMIT_PER_MINUTE") is { } wllmRlStr && int.TryParse(wllmRlStr, out int wllmRl) && wllmRl > 0)
+            WisLlmRateLimitPerMinute = wllmRl;
 
         if (Get("WISBOT_GUILD_ID") is { } guildStr && ulong.TryParse(guildStr, out ulong guildId))
             GuildId = guildId;

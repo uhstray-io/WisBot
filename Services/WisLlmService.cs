@@ -26,6 +26,21 @@ public class WisLlmService(Terminal terminal) {
     // Cache model context window sizes so we only call /api/show once per model per run
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> ModelContextCache = new();
 
+    // Per-user fixed-window rate limiter (audit L-8). Keyed by user id → (window start, count).
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<ulong, (DateTime WindowStart, int Count)> rateBuckets = new();
+
+    /// Returns false if the user has exceeded Config.WisLlmRateLimitPerMinute in the
+    /// current 1-minute window (0 = disabled). Counts the current request.
+    private static bool TryConsumeRate(ulong userId) {
+        int limit = Config.WisLlmRateLimitPerMinute;
+        if (limit <= 0) return true;
+        var now = DateTime.UtcNow;
+        var bucket = rateBuckets.AddOrUpdate(userId,
+            _ => (now, 1),
+            (_, prev) => now - prev.WindowStart >= TimeSpan.FromMinutes(1) ? (now, 1) : (prev.WindowStart, prev.Count + 1));
+        return bucket.Count <= limit;
+    }
+
     private static readonly JsonSerializerOptions JsonOptions = new() {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
@@ -112,6 +127,13 @@ public class WisLlmService(Terminal terminal) {
         bool isEphemeral = command.Channel is IDMChannel;
         (ulong? guildId, ulong? dmUserId) = ResolveContext(command);
 
+        if (!TryConsumeRate(command.User.Id)) {
+            await command.RespondAsync(
+                $"You're sending /wisllm requests too fast — max {Config.WisLlmRateLimitPerMinute}/min. Try again shortly.",
+                ephemeral: true);
+            return;
+        }
+
         await command.DeferAsync(ephemeral: isEphemeral);
         _ = Task.Run(async () => {
             try {
@@ -151,6 +173,13 @@ public class WisLlmService(Terminal terminal) {
     public async Task HandleCompactCommand(SocketSlashCommand command) {
         bool isEphemeral = command.Channel is IDMChannel;
         (ulong? guildId, ulong? dmUserId) = ResolveContext(command);
+
+        if (!TryConsumeRate(command.User.Id)) {
+            await command.RespondAsync(
+                $"You're sending /wisllm requests too fast — max {Config.WisLlmRateLimitPerMinute}/min. Try again shortly.",
+                ephemeral: true);
+            return;
+        }
 
         await command.DeferAsync(ephemeral: isEphemeral);
         _ = Task.Run(async () => {
