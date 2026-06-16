@@ -158,7 +158,9 @@ public class WisLlmService(Terminal terminal) {
 
                 await SendChunkedAsync(command, response, isEphemeral);
                 await MaybeWarnContextAsync(command, model, messages);
-                await Log($"{command.User.Username} asked [{model}]: {prompt[..Math.Min(60, prompt.Length)]}");
+                // Log metadata only — never the prompt text (lands in stdout / logs; same
+                // rationale as message-content logging, M-1). (audit L-2)
+                await Log($"{command.User.Username} asked [{model}] ({prompt.Length} chars)");
             } catch (OllamaApiException ex) when (ex.Status == System.Net.HttpStatusCode.NotFound) {
                 await Log($"Unknown model '{ex.Model}': {ex.Message}", LogLevel.Error);
                 await command.FollowupAsync($"Unknown model `{ex.Model}` — it isn't available on the Ollama server.", ephemeral: true);
