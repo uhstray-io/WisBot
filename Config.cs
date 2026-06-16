@@ -104,7 +104,8 @@ public static class Config {
             WisLlmWarnAtPercent = pct;
         if (Get("WISLLM_CONTEXT_SIZE") is { } sizeStr && int.TryParse(sizeStr, out int size) && size > 0)
             WisLlmContextSize = size;
-        if (Get("WISLLM_RATE_LIMIT_PER_MINUTE") is { } wllmRlStr && int.TryParse(wllmRlStr, out int wllmRl) && wllmRl > 0)
+        // Allow 0 explicitly — the service treats 0 as "limiter disabled".
+        if (Get("WISLLM_RATE_LIMIT_PER_MINUTE") is { } wllmRlStr && int.TryParse(wllmRlStr, out int wllmRl) && wllmRl >= 0)
             WisLlmRateLimitPerMinute = wllmRl;
 
         if (Get("WISBOT_GUILD_ID") is { } guildStr && ulong.TryParse(guildStr, out ulong guildId))

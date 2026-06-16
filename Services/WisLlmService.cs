@@ -35,10 +35,21 @@ public class WisLlmService(Terminal terminal) {
         int limit = Config.WisLlmRateLimitPerMinute;
         if (limit <= 0) return true;
         var now = DateTime.UtcNow;
+        EvictStaleBuckets(now);
         var bucket = rateBuckets.AddOrUpdate(userId,
             _ => (now, 1),
             (_, prev) => now - prev.WindowStart >= TimeSpan.FromMinutes(1) ? (now, 1) : (prev.WindowStart, prev.Count + 1));
         return bucket.Count <= limit;
+    }
+
+    /// Bounds rateBuckets memory: once it has grown, drop entries whose window has
+    /// elapsed (a spray of distinct user ids would otherwise accumulate forever). The
+    /// O(n) sweep only runs past a small threshold, so the common path stays cheap.
+    private static void EvictStaleBuckets(DateTime now) {
+        if (rateBuckets.Count < 256) return;
+        foreach (var kv in rateBuckets)
+            if (now - kv.Value.WindowStart >= TimeSpan.FromMinutes(1))
+                rateBuckets.TryRemove(kv.Key, out _);
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new() {
