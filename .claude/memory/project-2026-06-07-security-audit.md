@@ -29,14 +29,23 @@ See also the earlier comprehensive review: [[project-2026-06-05-review-fixes]].
 - Discord.Net held at **3.19.0-beta.1** on purpose (voice `GetStreams()` APIs); a 3.20.0-stable
   bump needs a voice smoke test first. Concentus.Oggfile removed (was unused).
 
-**Low backlog — partially worked (PR #33, 2026-06-08):** L-6 (TryParseDuration overflow guard),
-L-20 (recordings auto-delete, `WISBOT_RECORDINGS_RETENTION_DAYS` default 30), L-1 (N-time download
-limit `WISBOT_UPLOAD_MAX_DOWNLOADS` default 0=unlimited; `download_count` column + 1h grace before
-cleanup), and WisLLM history retention (`WISLLM_HISTORY_RETENTION_DAYS` default 30, sweep also purges
-orphaned sessions) → resolved. **Still deferred:** wisllm_history at-rest encryption + `compact`
-LIMIT (L-2/L-15 partial); supply-chain digest pinning + image signing; passive
-`UserVoiceActivityTracker` forever-DB; per-user `/remind` cap; central command authz; `/wisllm` is
-GLOBAL (should be guild-scoped); MinIO dev-compose loopback binds. Full status in the low-priority report.
+**Low backlog — ~18/22 resolved across PRs #33/#35/#36/#44/#45 (2026-06-08 → 06-16):**
+- #33: L-6 (TryParseDuration overflow guard), L-20 (recordings auto-delete), L-1 (N-time download
+  `WISBOT_UPLOAD_MAX_DOWNLOADS`, default 0=unlimited; `download_count` col + 1h grace), wisllm history retention.
+- #35: L-7 (/voicestats ephemeral + self-or-mod), L-21 (voice_activity retention + README disclosure),
+  L-22 (/testrecord announces via JoinAndRecordChannel choke point), L-16 (atomic per-user /remind cap).
+- #36: L-3/L-19 (MinIO loopback binds), L-13 (deploy-o11y action SHA-pin + permissions), L-17
+  (provenance+SBOM on publish), `.github/dependabot.yml` added.
+- #44: L-9 (central command→permission map in OnSlashCommandExecuted), L-8 (per-user /wisllm rate
+  limit `WISLLM_RATE_LIMIT_PER_MINUTE` default 10; kept GLOBAL **by choice** to preserve DM usage).
+- #45: L-15 (compact loads ≤500 newest rows), L-16 (bounded delivery via shared SemaphoreSlim(8)),
+  L-2 logging (no prompt text logged), L-4 (covered by consent/retention/README).
 
-**Retention pattern:** uploads/recordings/wisllm-history each own a `StartRetention()`/`StopRetention()`
-sweep (idempotent, wired in `Bot.OnReady`/`StopBot`), all default 30 days, all env-configurable.
+**Deliberately NOT done (judgment calls, flagged in report):** wisllm/recordings at-rest encryption
+(controlled-volume threat model); initial base-image/minio **digest pins** L-11/L-12/L-18 — need the
+linux/amd64 manifest digests from a connected env (Dependabot now manages bumps); periodic VACUUM.
+
+**Retention pattern:** uploads/recordings/wisllm-history/voice-activity each own an idempotent
+`StartRetention()`/`StopRetention()` sweep wired in `Bot.OnReady`/`StopBot`, all env-configurable
+(30d default; voice-activity 90d). **Central authz:** `commandPermissions` map in Bot.cs gates
+commands at the router (Administrator implies all); only `/recording`→MoveMembers today.
