@@ -14,10 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Discord.Net stays on 3.19.0-beta.1: the beta exposes the voice stream APIs
-         (IAudioClient.GetStreams()) the recorder needs. A bump to 3.20.0 stable is a
-         separate change gated on a voice smoke test (see docs/security audit). -->
-    <PackageReference Include="Discord.Net" Version="3.19.0-beta.1" />
+    <!-- Discord.Net 3.20.1 (stable). The voice stream APIs the recorder needs
+         (IAudioClient.GetStreams(), StreamCreated/StreamDestroyed, AudioInStream)
+         are present in stable as of 3.20.x — verified to compile against this app.
+         A live voice-recording runtime test is still recommended before relying on
+         it in prod (the beta pin's original reason is otherwise resolved). -->
+    <PackageReference Include="Discord.Net" Version="3.20.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <!-- Override the SQLite native to fix CVE-2025-6965 (SQLite < 3.50.2 memory
          corruption). Microsoft.Data.Sqlite 10.0.9 transitively pins the vulnerable
