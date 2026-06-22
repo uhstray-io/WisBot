@@ -26,6 +26,32 @@ public class WisLlmService(Terminal terminal) {
     // Cache model context window sizes so we only call /api/show once per model per run
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> ModelContextCache = new();
 
+    // Per-user fixed-window rate limiter (audit L-8). Keyed by user id → (window start, count).
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<ulong, (DateTime WindowStart, int Count)> rateBuckets = new();
+
+    /// Returns false if the user has exceeded Config.WisLlmRateLimitPerMinute in the
+    /// current 1-minute window (0 = disabled). Counts the current request.
+    private static bool TryConsumeRate(ulong userId) {
+        int limit = Config.WisLlmRateLimitPerMinute;
+        if (limit <= 0) return true;
+        var now = DateTime.UtcNow;
+        EvictStaleBuckets(now);
+        var bucket = rateBuckets.AddOrUpdate(userId,
+            _ => (now, 1),
+            (_, prev) => now - prev.WindowStart >= TimeSpan.FromMinutes(1) ? (now, 1) : (prev.WindowStart, prev.Count + 1));
+        return bucket.Count <= limit;
+    }
+
+    /// Bounds rateBuckets memory: once it has grown, drop entries whose window has
+    /// elapsed (a spray of distinct user ids would otherwise accumulate forever). The
+    /// O(n) sweep only runs past a small threshold, so the common path stays cheap.
+    private static void EvictStaleBuckets(DateTime now) {
+        if (rateBuckets.Count < 256) return;
+        foreach (var kv in rateBuckets)
+            if (now - kv.Value.WindowStart >= TimeSpan.FromMinutes(1))
+                rateBuckets.TryRemove(kv.Key, out _);
+    }
+
     private static readonly JsonSerializerOptions JsonOptions = new() {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
@@ -38,7 +64,68 @@ public class WisLlmService(Terminal terminal) {
         Each user message is prefixed with [Username] so you know who asked it.
         """;
 
+    // Periodic sweep that deletes conversation history past the retention window (audit L-2/L-15).
+    private CancellationTokenSource? retentionCts;
+
     private async Task Log(string msg, LogLevel level = LogLevel.Info) => await terminal.AddLine($"[WisLLM] {msg}", level);
+
+    // ── Retention ─────────────────────────────────────────────────────────
+
+    /// Starts the sweep that deletes wisllm_history rows older than
+    /// Config.WisLlmHistoryRetentionDays. Idempotent (OnReady re-fires on reconnect).
+    public void StartRetention() {
+        if (retentionCts is not null) return;
+        retentionCts = new CancellationTokenSource();
+        _ = Task.Run(() => RunRetentionLoop(retentionCts.Token));
+    }
+
+    public void StopRetention() {
+        retentionCts?.Cancel();
+        retentionCts?.Dispose();
+        retentionCts = null;
+    }
+
+    private async Task RunRetentionLoop(CancellationToken token) {
+        while (!token.IsCancellationRequested) {
+            try {
+                int removed = await DeleteOldHistoryAsync();
+                if (removed > 0) await Log($"Retention: deleted {removed} history row(s) older than {Config.WisLlmHistoryRetentionDays} days");
+                await Task.Delay(TimeSpan.FromHours(6), token);
+            } catch (OperationCanceledException) {
+                break;
+            } catch (Exception ex) {
+                await Log($"History retention loop error: {ex.Message}", LogLevel.Error);
+                await Task.Delay(TimeSpan.FromHours(6), token);
+            }
+        }
+    }
+
+    /// Deletes history rows past the retention window, then purges any session whose
+    /// rows are all gone and was created before the cutoff — so wisllm_sessions metadata
+    /// (guild/user/created_at) doesn't outlive the window. Timestamps are UTC "O" strings
+    /// (fixed-width, lexicographically sortable — see Database.cs invariant).
+    private static async Task<int> DeleteOldHistoryAsync() {
+        string cutoff = DateTime.UtcNow.AddDays(-Config.WisLlmHistoryRetentionDays).ToString("O");
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        var delHistory = conn.CreateCommand();
+        delHistory.CommandText = "DELETE FROM wisllm_history WHERE timestamp < $cutoff";
+        delHistory.Parameters.AddWithValue("$cutoff", cutoff);
+        int removed = await delHistory.ExecuteNonQueryAsync();
+
+        // Purge now-orphaned old sessions (no remaining history, created before the cutoff).
+        var delSessions = conn.CreateCommand();
+        delSessions.CommandText = """
+            DELETE FROM wisllm_sessions
+            WHERE created_at < $cutoff
+              AND NOT EXISTS (SELECT 1 FROM wisllm_history WHERE wisllm_history.session_id = wisllm_sessions.id)
+            """;
+        delSessions.Parameters.AddWithValue("$cutoff", cutoff);
+        await delSessions.ExecuteNonQueryAsync();
+
+        return removed;
+    }
 
     // ── Commands ─────────────────────────────────────────────────────────
 
@@ -50,6 +137,13 @@ public class WisLlmService(Terminal terminal) {
 
         bool isEphemeral = command.Channel is IDMChannel;
         (ulong? guildId, ulong? dmUserId) = ResolveContext(command);
+
+        if (!TryConsumeRate(command.User.Id)) {
+            await command.RespondAsync(
+                $"You're sending /wisllm requests too fast — max {Config.WisLlmRateLimitPerMinute}/min. Try again shortly.",
+                ephemeral: true);
+            return;
+        }
 
         await command.DeferAsync(ephemeral: isEphemeral);
         _ = Task.Run(async () => {
@@ -64,7 +158,12 @@ public class WisLlmService(Terminal terminal) {
 
                 await SendChunkedAsync(command, response, isEphemeral);
                 await MaybeWarnContextAsync(command, model, messages);
-                await Log($"{command.User.Username} asked [{model}]: {prompt[..Math.Min(60, prompt.Length)]}");
+                // Log metadata only — never the prompt text (lands in stdout / logs; same
+                // rationale as message-content logging, M-1). (audit L-2)
+                await Log($"{command.User.Username} asked [{model}] ({prompt.Length} chars)");
+            } catch (OllamaApiException ex) when (ex.Status == System.Net.HttpStatusCode.NotFound) {
+                await Log($"Unknown model '{ex.Model}': {ex.Message}", LogLevel.Error);
+                await command.FollowupAsync($"Unknown model `{ex.Model}` — it isn't available on the Ollama server.", ephemeral: true);
             } catch (HttpRequestException ex) {
                 await Log($"Ollama unreachable: {ex.Message}", LogLevel.Error);
                 await command.FollowupAsync("Could not reach the Ollama endpoint. Is it running?", ephemeral: true);
@@ -87,6 +186,13 @@ public class WisLlmService(Terminal terminal) {
     public async Task HandleCompactCommand(SocketSlashCommand command) {
         bool isEphemeral = command.Channel is IDMChannel;
         (ulong? guildId, ulong? dmUserId) = ResolveContext(command);
+
+        if (!TryConsumeRate(command.User.Id)) {
+            await command.RespondAsync(
+                $"You're sending /wisllm requests too fast — max {Config.WisLlmRateLimitPerMinute}/min. Try again shortly.",
+                ephemeral: true);
+            return;
+        }
 
         await command.DeferAsync(ephemeral: isEphemeral);
         _ = Task.Run(async () => {
@@ -112,9 +218,12 @@ public class WisLlmService(Terminal terminal) {
                 string preview = summary.Length > 500 ? summary[..500] + "…" : summary;
                 await command.FollowupAsync(
                     $"Session compacted. Continuing from the summary below.\n\n**Summary:**\n{preview}",
-                    ephemeral: isEphemeral);
+                    ephemeral: isEphemeral, allowedMentions: AllowedMentions.None);
 
                 await Log($"{command.User.Username} compacted session for {ContextLabel(guildId, dmUserId)}");
+            } catch (OllamaApiException ex) when (ex.Status == System.Net.HttpStatusCode.NotFound) {
+                await Log($"Unknown model '{ex.Model}': {ex.Message}", LogLevel.Error);
+                await command.FollowupAsync($"The configured model `{ex.Model}` isn't available on the Ollama server.", ephemeral: true);
             } catch (HttpRequestException ex) {
                 await Log($"Ollama unreachable: {ex.Message}", LogLevel.Error);
                 await command.FollowupAsync("Could not reach the Ollama endpoint. Is it running?", ephemeral: true);
@@ -239,8 +348,13 @@ public class WisLlmService(Terminal terminal) {
         var json = JsonSerializer.Serialize(request, JsonOptions);
         using var body = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var httpResponse = await Http.PostAsync($"{Config.OllamaEndpoint}/api/chat", body);
-        httpResponse.EnsureSuccessStatusCode();
+        using var httpResponse = await Http.PostAsync($"{Config.OllamaEndpoint}/api/chat", body);
+        if (!httpResponse.IsSuccessStatusCode) {
+            // Ollama responded, so this is NOT a connectivity problem — don't let it
+            // surface as the misleading 'is it running?' message. 404 = unknown model.
+            string error = await httpResponse.Content.ReadAsStringAsync();
+            throw new OllamaApiException(httpResponse.StatusCode, model, error);
+        }
 
         var responseJson = await httpResponse.Content.ReadAsStringAsync();
         var parsed = JsonSerializer.Deserialize<OllamaChatResponse>(responseJson, JsonOptions)
@@ -256,7 +370,8 @@ public class WisLlmService(Terminal terminal) {
         bool multi = chunks.Count > 1;
         for (int i = 0; i < chunks.Count; i++) {
             string msg = multi ? $"({i + 1}/{chunks.Count})\n{chunks[i]}" : chunks[i];
-            await command.FollowupAsync(msg, ephemeral: isEphemeral);
+            // Model output is attacker-controlled — never let it ping @everyone/roles/users.
+            await command.FollowupAsync(msg, ephemeral: isEphemeral, allowedMentions: AllowedMentions.None);
         }
     }
 
@@ -368,18 +483,27 @@ public class WisLlmService(Terminal terminal) {
     }
 
     /// Returns all messages in the session in chronological order (used for compact).
+    // Upper bound on rows /wisllm compact loads, so a very long session can't pull an
+    // unbounded result set (and prompt) into memory (audit L-15). Newest rows are kept.
+    private const int MaxCompactRows = 500;
+
     private static async Task<List<WisLlmHistoryRow>> GetFullHistoryAsync(long sessionId) {
         using var conn = new SqliteConnection(Database.ConnectionString);
         await conn.OpenAsync();
 
+        // Take the most recent MaxCompactRows, then re-order chronologically for the summary.
         var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT username, prompt, response, is_compact_summary
-            FROM wisllm_history
-            WHERE session_id = $sessionId
-            ORDER BY timestamp ASC
+            SELECT username, prompt, response, is_compact_summary FROM (
+                SELECT username, prompt, response, is_compact_summary, timestamp
+                FROM wisllm_history
+                WHERE session_id = $sessionId
+                ORDER BY timestamp DESC
+                LIMIT $max
+            ) ORDER BY timestamp ASC
             """;
         cmd.Parameters.AddWithValue("$sessionId", sessionId);
+        cmd.Parameters.AddWithValue("$max", MaxCompactRows);
 
         List<WisLlmHistoryRow> rows = [];
         using var reader = await cmd.ExecuteReaderAsync();
@@ -430,4 +554,12 @@ public class WisLlmService(Terminal terminal) {
 
     private static string ContextLabel(ulong? guildId, ulong? dmUserId) =>
         guildId.HasValue ? $"guild {guildId}" : $"DM user {dmUserId}";
+}
+
+/// Ollama answered with a non-success status — a server-side error, distinct from
+/// the connection failures HttpRequestException covers. 404 means unknown model.
+public class OllamaApiException(System.Net.HttpStatusCode status, string model, string body)
+    : Exception($"Ollama returned {(int)status} for model '{model}': {body}") {
+    public System.Net.HttpStatusCode Status { get; } = status;
+    public string Model { get; } = model;
 }

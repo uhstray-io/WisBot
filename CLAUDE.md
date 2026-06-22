@@ -13,6 +13,27 @@ dotnet build -c Release  # Release build
 
 No test framework or linter is configured.
 
+### Local development (OS-agnostic)
+
+`dotnet build` / `dotnet run` succeed natively on macOS/Windows/Linux identically — the
+Windows-only `opus` NuGet is csproj-conditioned out elsewhere — and native run is the
+universal local loop. For the file relay (`/upload`) you also need a MinIO. **Podman** is the
+primary local runtime (open source, daemonless; `docker compose` works on the same files).
+
+- **Linux / Windows / Intel Mac:** `podman compose up --build` (root `compose.yaml`) builds
+  this checkout and runs WisBot + MinIO together. The `wisbot` service pins
+  `platform: linux/amd64` (image bundles the x86_64 `libopus`); MinIO is multi-arch (native).
+- **Apple Silicon:** the all-in-container *build* does NOT work — arm64 .NET 10.0.300 SIGILLs
+  in the podman VM and the amd64 image fails under qemu (MSBuild `MSB4184`). Environment-only;
+  native amd64 CI builds the image fine on every merge. Run MinIO alone
+  (`podman compose up -d minio`, set `WISBOT_MINIO_ENDPOINT=localhost:9000` in `.env`) and the
+  bot natively (`dotnet run`).
+
+This is the **local** compose (builds the checkout) — distinct from agent-cloud's deployment
+compose, which pulls the published GHCR image. Voice *recording* needs `libopus` at runtime
+(NuGet on Windows, `brew install opus` on macOS, `libopus0` on Linux); the bot otherwise runs
+without it. See README "Local Development".
+
 ## Deployment
 
 A multi-stage `Dockerfile` builds a Linux image (`dotnet/aspnet:10.0` base — the web layer uses Kestrel). Voice natives: `libsodium` + SQLite ship cross-platform via NuGet; `opus` is installed in the image via `apt` (`libopus0`, symlinked to the unversioned name `DllImport("opus")` probes). Config (token, guild ID, paths) is supplied at runtime via env / an env file — never baked into the image.
@@ -85,6 +106,7 @@ Program.cs → new Terminal() + new Bot(terminal)
 
 ## Documentation
 
+- `KICKSTART.md` — Onboarding entry point: setup, development loops, deployment flow
 - `architecture/VOICE_RECORDING_README.md` — Voice recording implementation details and troubleshooting
 - `architecture/FUTURE_FEATURES.md` — Planned features and roadmap
 - `architecture/AUDIO_STORAGE_ARCHITECTURES.md` — Storage design decisions

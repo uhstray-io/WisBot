@@ -1,0 +1,80 @@
+# Local development stack — builds WisBot from this checkout and runs it alongside
+# a MinIO so the /upload file relay works end-to-end on your machine.
+#
+#   podman compose up --build      # (or: docker compose up --build)
+#
+# Tool-neutral Compose spec — Podman is the primary local runtime here, but the same
+# file works under Docker. This is NOT the deployment compose: agent-cloud deploys a
+# *pulled* GHCR image with its own Ansible-templated env. This file builds local source.
+#
+# Requirements: Podman (with `podman compose`, or docker + the compose plugin) and a
+# .env at the repo root (copy .env.example → .env, set DISCORD_TOKEN_WISBOT +
+# WISBOT_GUILD_ID). The MinIO wiring below is injected here, so /upload works without
+# editing .env.
+#
+# APPLE SILICON: building the wisbot image here does NOT work — the amd64 image (pinned
+# for the x86_64 libopus) fails under qemu emulation, and the arm64 .NET 10.0.300 SDK
+# crashes (SIGILL) in the podman machine VM. It's environment-specific (native amd64 CI
+# builds fine). Instead run only MinIO and run the bot natively:
+#     podman machine init && podman machine start   # once
+#     podman compose up -d minio                     # MinIO only (native, multi-arch)
+#     # set WISBOT_MINIO_ENDPOINT=localhost:9000 in .env, then: dotnet run
+# The full `up --build` below is for Linux / Windows / Intel-Mac dev hosts.
+
+services:
+  wisbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Pin amd64: the Dockerfile installs the x86_64 libopus and restores the linux-x64
+    # runtime, so on Apple Silicon this builds/runs under emulation rather than failing.
+    platform: linux/amd64
+    # Discord token + guild id (and any other overrides) come from your local .env.
+    # Optional so `compose config` validates without one (CI) — the bot itself
+    # fails fast at startup if the token/guild id are missing.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Point the file relay at the bundled MinIO so /upload works out of the box.
+      WISBOT_MINIO_ENDPOINT: minio:9000
+      WISBOT_MINIO_ACCESS_KEY: minioadmin
+      WISBOT_MINIO_SECRET_KEY: minioadmin
+      WISBOT_MINIO_BUCKET: wisbot-uploads
+      WISBOT_MINIO_USE_SSL: "false"
+      # Links the user opens in a browser resolve to the mapped host port below.
+      WISBOT_PUBLIC_BASE_URL: http://localhost:8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - wisbot-data:/app/data
+      - wisbot-recordings:/app/recordings
+    # Start order only — WisBot connects to MinIO lazily (first /upload), not at boot,
+    # so it tolerates MinIO coming up a moment later. The bucket is auto-created on use.
+    depends_on:
+      - minio
+    restart: unless-stopped
+
+  minio:
+    # Multi-arch image — runs native (arm64/amd64), no emulation needed.
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    # DEV-ONLY default credentials. This is the LOCAL compose; agent-cloud deploys a
+    # separately-built image with real secrets. Never reuse minioadmin/minioadmin
+    # anywhere non-local — override MINIO_ROOT_USER/PASSWORD if exposing this host.
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    # Bind to loopback so the S3 API + console aren't reachable from the LAN with the
+    # default credentials (audit L-3/L-19). WisBot reaches MinIO over the compose network.
+    ports:
+      - "127.0.0.1:9000:9000"   # S3 API
+      - "127.0.0.1:9001:9001"   # web console (http://localhost:9001, login minioadmin/minioadmin)
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+
+volumes:
+  wisbot-data:
+  wisbot-recordings:
+  minio-data:

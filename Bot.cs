@@ -44,9 +44,26 @@ public class Bot(Terminal terminal) {
         client.SlashCommandExecuted += OnSlashCommandExecuted;
 
         await InitBot();
+        await Database.Initialize(); // before the web host — /u/{id} routes query the uploads table
         await webService.Start(); // up immediately (503 until connected), so orchestration can poll
         await client.LoginAsync(TokenType.Bot, token);
         await client.StartAsync();
+    }
+
+    /// Graceful shutdown: stop background loops, the web host, and the Discord connection.
+    public async Task StopBot() {
+        await Log("Stopping bot...");
+        reminderService?.Stop();
+        uploadService.StopRetention();
+        voiceRecorder.StopRetention();
+        wisLlmService.StopRetention();
+        voiceActivityTracker.StopRetention();
+        if (webService is not null) await webService.Stop();
+        if (client is not null) {
+            await client.StopAsync();
+            await client.LogoutAsync();
+        }
+        await Log("Bot stopped");
     }
 
     private async Task InitBot() {
@@ -75,7 +92,11 @@ public class Bot(Terminal terminal) {
             return;
         }
 
-        await Log($"[{message.Channel.Name}] {message.Author}: {message.Content}");
+        // Log metadata only — never raw message content. Content lands in stdout /
+        // the container log pipeline (persisting beyond Discord's controls) and the bot
+        // holds the privileged MessageContent intent, so this would exfiltrate all guild
+        // conversation. (security audit M-1)
+        await Log($"[{message.Channel.Name}] {message.Author}: <{message.Content.Length} chars>");
 
         if (message.Content.StartsWith("!")) {
             if (message.Content.StartsWith("!eatdeeznuts")) {
@@ -94,9 +115,11 @@ public class Bot(Terminal terminal) {
     private async Task OnReady() {
         await Log("Bot is Ready!!!");
 
-        await Database.Initialize();
         await reminderService!.Start();
         uploadService.StartRetention();
+        voiceRecorder.StartRetention();
+        wisLlmService.StartRetention();
+        voiceActivityTracker.StartRetention();
         await AddCommandsIfNotExist();
 
         commands = new Dictionary<string, Func<SocketSlashCommand, Task>> {
@@ -125,6 +148,9 @@ public class Bot(Terminal terminal) {
             var command = new SlashCommandBuilder()
                 .WithName("recording")
                 .WithDescription("Control voice channel recording")
+                // Records other people's audio — gate to members who can move/manage
+                // voice (server-side rechecked in the handler; this is the UI hint).
+                .WithDefaultMemberPermissions(GuildPermission.MoveMembers)
                 .AddOption(new SlashCommandOptionBuilder()
                     .WithName("action")
                     .WithDescription("Start or stop recording")
@@ -279,14 +305,33 @@ public class Bot(Terminal terminal) {
         }
     }
 
+    // Central per-command authorization (audit L-9). Commands not listed require no
+    // special permission. Administrator always passes. This is the systemic gate at the
+    // router; high-risk handlers (e.g. recording) ALSO recheck server-side as a backstop.
+    private static readonly Dictionary<string, GuildPermission> commandPermissions = new() {
+        ["recording"] = GuildPermission.MoveMembers,
+    };
+
     private async Task OnSlashCommandExecuted(SocketSlashCommand command) {
         await terminal.AddLine($"[Bot] /{command.CommandName} by {command.User.Username}");
+
+        if (commandPermissions.TryGetValue(command.CommandName, out var required) && !Authorized(command.User, required)) {
+            await command.RespondAsync($"You don't have permission to use /{command.CommandName}.", ephemeral: true);
+            await terminal.AddLine($"[Bot] Denied /{command.CommandName} for {command.User.Username} (needs {required})", LogLevel.Warn);
+            return;
+        }
 
         if (commands.TryGetValue(command.CommandName, out var handler))
             await handler(command);
         else
             await terminal.AddLine($"[Bot] Unknown command: {command.CommandName}", LogLevel.Warn);
     }
+
+    /// True if the user holds the required guild permission (Administrator implies all).
+    /// A non-guild context (DM) can't satisfy a guild-permission requirement.
+    private static bool Authorized(SocketUser user, GuildPermission required) =>
+        user is SocketGuildUser member
+        && (member.GuildPermissions.Administrator || member.GuildPermissions.Has(required));
 
     public async Task RemoveAllCommands() {
         await Log("Removing all existing commands...");
@@ -374,8 +419,8 @@ public class Bot(Terminal terminal) {
     }
 
     private async Task OnMessageUpdated(Cacheable<IMessage, ulong> before, SocketMessage after, ISocketMessageChannel channel) {
-        var message = await before.GetOrDownloadAsync();
-        await Log($"Message From {message.Author.Username} updated from '{message}' to '{after}' in channel {channel.Name}");
+        // Metadata only — see OnMessageReceived (M-1). Don't log before/after content.
+        await Log($"Message from {after.Author.Username} edited in channel {channel.Name}");
     }
 
 

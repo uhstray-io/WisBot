@@ -12,6 +12,8 @@ public static class Config {
     public static int WisLlmContextLimit { get; private set; } = 10;
     public static int WisLlmWarnAtPercent { get; private set; } = 75;
     public static int WisLlmContextSize { get; private set; } = 0;
+    // Per-user /wisllm requests allowed per minute (Ollama flood / abuse guard — audit L-8).
+    public static int WisLlmRateLimitPerMinute { get; private set; } = 10;
 
     // Discord guild this bot serves — slash command registration target. Required.
     public static ulong GuildId { get; private set; }
@@ -22,6 +24,21 @@ public static class Config {
     // Persistence — point these at mounted volumes in the container.
     public static string DbPath { get; private set; } = "wisbot.db";
     public static string RecordingsDir { get; private set; } = "recordings";
+    // Saved WAV recordings are auto-deleted after this many days (audit L-20).
+    public static int RecordingsRetentionDays { get; private set; } = 30;
+    // WisLLM conversation history is auto-deleted after this many days (audit L-2/L-15).
+    public static int WisLlmHistoryRetentionDays { get; private set; } = 30;
+    // Passive voice join/leave activity (feeds /voicestats) auto-deletes after this many
+    // days. Longer default than other data — it backs longer-horizon stats. (audit L-21)
+    public static int VoiceActivityRetentionDays { get; private set; } = 90;
+    // Max pending reminders a single user may have queued at once (audit L-16).
+    public static int ReminderMaxPerUser { get; private set; } = 25;
+
+    // Voice recording safety caps. Audio is buffered in RAM during capture
+    // (~11 MB/min/user), so an uncapped session can OOM the process — capture
+    // auto-stops when EITHER the wall-clock or the aggregate-byte ceiling is hit.
+    public static int RecordingMaxMinutes { get; private set; } = 120;
+    public static long RecordingMaxBytes { get; private set; } = 2L * 1024 * 1024 * 1024;
 
     // HTTP health endpoint. Host defaults to "localhost" (dev); set "+" in the
     // container so Docker port mapping can reach it.
@@ -31,8 +48,17 @@ public static class Config {
     // File relay (Phase 8) — public base URL used to build upload/download links,
     // plus the per-file size cap and retention window.
     public static string PublicBaseUrl { get; private set; } = "http://localhost:8080";
-    public static long UploadMaxBytes { get; private set; } = 500L * 1024 * 1024;
+    // Per-file cap (default 100 MB — well above Discord's limit, the relay's purpose;
+    // operators raise it via env). Lower default reduces the buffered-upload DoS surface.
+    public static long UploadMaxBytes { get; private set; } = 100L * 1024 * 1024;
     public static int UploadRetentionDays { get; private set; } = 30;
+    // Per-user abuse caps on /upload (storage-exhaustion guard) and a public-endpoint
+    // request rate limit (per client IP, fixed window).
+    public static int UploadMaxLinksPerUser { get; private set; } = 20;
+    public static long UploadMaxBytesPerUser { get; private set; } = 2L * 1024 * 1024 * 1024;
+    public static int UploadRateLimitPerMinute { get; private set; } = 30;
+    // Max downloads before a link auto-expires (audit L-1). 0 = unlimited (until time expiry).
+    public static int UploadMaxDownloads { get; private set; } = 0;
 
     // MinIO object storage for the file relay. An empty endpoint disables uploads.
     public static string MinioEndpoint { get; private set; } = "";
@@ -78,6 +104,9 @@ public static class Config {
             WisLlmWarnAtPercent = pct;
         if (Get("WISLLM_CONTEXT_SIZE") is { } sizeStr && int.TryParse(sizeStr, out int size) && size > 0)
             WisLlmContextSize = size;
+        // Allow 0 explicitly — the service treats 0 as "limiter disabled".
+        if (Get("WISLLM_RATE_LIMIT_PER_MINUTE") is { } wllmRlStr && int.TryParse(wllmRlStr, out int wllmRl) && wllmRl >= 0)
+            WisLlmRateLimitPerMinute = wllmRl;
 
         if (Get("WISBOT_GUILD_ID") is { } guildStr && ulong.TryParse(guildStr, out ulong guildId))
             GuildId = guildId;
@@ -91,6 +120,19 @@ public static class Config {
 
         if (Get("WISBOT_DB_PATH") is { } dbPath) DbPath = dbPath;
         if (Get("WISBOT_RECORDINGS_DIR") is { } recordingsDir) RecordingsDir = recordingsDir;
+        if (Get("WISBOT_RECORDINGS_RETENTION_DAYS") is { } recRetStr && int.TryParse(recRetStr, out int recRet) && recRet > 0)
+            RecordingsRetentionDays = recRet;
+        if (Get("WISLLM_HISTORY_RETENTION_DAYS") is { } histRetStr && int.TryParse(histRetStr, out int histRet) && histRet > 0)
+            WisLlmHistoryRetentionDays = histRet;
+        if (Get("WISBOT_VOICE_ACTIVITY_RETENTION_DAYS") is { } vaRetStr && int.TryParse(vaRetStr, out int vaRet) && vaRet > 0)
+            VoiceActivityRetentionDays = vaRet;
+        if (Get("WISBOT_REMINDER_MAX_PER_USER") is { } remMaxStr && int.TryParse(remMaxStr, out int remMax) && remMax > 0)
+            ReminderMaxPerUser = remMax;
+
+        if (Get("WISBOT_RECORDING_MAX_MINUTES") is { } recMinStr && int.TryParse(recMinStr, out int recMin) && recMin > 0)
+            RecordingMaxMinutes = recMin;
+        if (Get("WISBOT_RECORDING_MAX_BYTES") is { } recByteStr && long.TryParse(recByteStr, out long recBytes) && recBytes > 0)
+            RecordingMaxBytes = recBytes;
 
         if (Get("WISBOT_HEALTH_HOST") is { } healthHost) HealthHost = healthHost;
         if (Get("WISBOT_HEALTH_PORT") is { } healthPortStr && int.TryParse(healthPortStr, out int healthPort) && healthPort is > 0 and <= 65535)
@@ -107,6 +149,15 @@ public static class Config {
             UploadMaxBytes = maxBytes;
         if (Get("WISBOT_UPLOAD_RETENTION_DAYS") is { } retStr && int.TryParse(retStr, out int retDays) && retDays > 0)
             UploadRetentionDays = retDays;
+        if (Get("WISBOT_UPLOAD_MAX_LINKS_PER_USER") is { } linksStr && int.TryParse(linksStr, out int maxLinks) && maxLinks > 0)
+            UploadMaxLinksPerUser = maxLinks;
+        if (Get("WISBOT_UPLOAD_MAX_BYTES_PER_USER") is { } userBytesStr && long.TryParse(userBytesStr, out long maxUserBytes) && maxUserBytes > 0)
+            UploadMaxBytesPerUser = maxUserBytes;
+        if (Get("WISBOT_UPLOAD_RATE_LIMIT_PER_MINUTE") is { } rlStr && int.TryParse(rlStr, out int rl) && rl > 0)
+            UploadRateLimitPerMinute = rl;
+        // 0 = unlimited; >0 caps downloads per link. Allow 0 explicitly (not just >0).
+        if (Get("WISBOT_UPLOAD_MAX_DOWNLOADS") is { } dlStr && int.TryParse(dlStr, out int maxDl) && maxDl >= 0)
+            UploadMaxDownloads = maxDl;
 
         if (Get("WISBOT_MINIO_ENDPOINT") is { } mEndpoint) MinioEndpoint = mEndpoint;
         if (Get("WISBOT_MINIO_ACCESS_KEY") is { } mAccess) MinioAccessKey = mAccess;

@@ -58,4 +58,14 @@ nunit-*.xml
 # Keys
 *.key
 
+# Local environment / secrets (never commit; .env may hold the bot token)
+.env
+.env.local
+
 .DS_Store
+
+# Local SQLite database (contains real Discord user IDs + reminder text) and sidecars
+wisbot.db*
+
+# Local recording output directory (WAVs are covered by *.wav; this covers the rest)
+recordings/

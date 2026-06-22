@@ -40,14 +40,24 @@ public class VoiceStatsService(Terminal terminal) {
             return;
         }
 
+        // Privacy: anyone may view their OWN stats; viewing another member's requires a
+        // moderation permission. (audit L-7)
+        var caller = command.User as SocketGuildUser;
+        bool isMod = caller is not null && (caller.GuildPermissions.Administrator || caller.GuildPermissions.MoveMembers);
+        if (target.Id != command.User.Id && !isMod) {
+            await command.RespondAsync("You can only view your own voice stats.", ephemeral: true);
+            return;
+        }
+
         ulong guildId = (command.Channel as SocketGuildChannel)!.Guild.Id;
 
-        await command.DeferAsync();
+        // Ephemeral: stats are personal — don't broadcast them to the channel.
+        await command.DeferAsync(ephemeral: true);
         _ = Task.Run(async () => {
             try {
                 var stats = await ComputeStats(target.Id, guildId);
                 var embed = BuildEmbed(target, stats);
-                await command.FollowupAsync(embed: embed);
+                await command.FollowupAsync(embed: embed, ephemeral: true);
                 await Log($"Delivered voice stats for {target.Username} to {command.User.Username}");
             } catch (Exception ex) {
                 await Log($"Error computing stats for {target.Username}: {ex.Message}", LogLevel.Error);
@@ -72,7 +82,7 @@ public class VoiceStatsService(Terminal terminal) {
 
         foreach (var ev in events) {
             if (firstActive == null || ev.Timestamp < firstActive) firstActive = ev.Timestamp;
-            if (ev.Timestamp > lastActive) lastActive = ev.Timestamp;
+            if (lastActive == null || ev.Timestamp > lastActive) lastActive = ev.Timestamp;
 
             if (ev.Action == "joined") {
                 openJoins[ev.ChannelId] = ev.Timestamp;

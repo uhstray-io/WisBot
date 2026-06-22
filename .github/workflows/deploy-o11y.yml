@@ -1,3 +1,7 @@
+# ⚠️ NON-FUNCTIONAL pending migration to agent-cloud's o11y service.
+# This workflow targets a self-hosted runner that is being decommissioned with the
+# move to agent-cloud deployment (see docs/plans/2026-06-01-agent-cloud-deployment-alignment.md).
+# A manual dispatch with no matching runner registered will queue indefinitely, not fail.
 name: Deployment Wisbot Observability Agents
 
 on:
@@ -6,6 +10,9 @@ on:
   #   - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   deployment:
     runs-on: self-hosted # This specifies that the job should run on your self-hosted runner
@@ -13,7 +20,7 @@ jobs:
     steps:
 
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         path: 'o11y/'
         clean: 'true'

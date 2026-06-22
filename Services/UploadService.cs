@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 namespace WisBot;
 
 /// One upload row's metadata (status + file info once ready).
-public record UploadRecord(string Id, string Status, string? Filename, string? ContentType, long? SizeBytes);
+public record UploadRecord(string Id, string Status, string? Filename, string? ContentType, long? SizeBytes, int DownloadCount = 0);
 
 /// Handles the /upload slash command — mints an unguessable upload link backed by
 /// a `pending` row in the `uploads` table. The web layer (WebService) turns the
@@ -22,10 +22,29 @@ public class UploadService(Terminal terminal) {
     private CancellationTokenSource? retentionCts;
 
     /// Starts the hourly retention sweep (deletes expired uploads + their objects).
+    /// Idempotent: OnReady re-fires on every reconnect, and re-entry must not reset
+    /// in-flight 'uploading' claims or stack duplicate retention loops.
     public void StartRetention() {
-        if (!Config.UploadEnabled) return;
+        if (!Config.UploadEnabled || retentionCts is not null) return;
+        _ = Task.Run(ResetStaleUploadsAsync); // crash-mid-upload recovery (see below)
         retentionCts = new CancellationTokenSource();
         _ = Task.Run(() => RunRetentionLoop(retentionCts.Token));
+    }
+
+    /// A crash between claim and store strands rows in 'uploading', bricking the link
+    /// until expiry. No upload survives a restart, so at startup every 'uploading' row
+    /// is stale — return them to 'pending' so their links accept a retry.
+    private async Task ResetStaleUploadsAsync() {
+        try {
+            using var conn = new SqliteConnection(Database.ConnectionString);
+            await conn.OpenAsync();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE uploads SET status = 'pending' WHERE status = 'uploading'";
+            int reset = await cmd.ExecuteNonQueryAsync();
+            if (reset > 0) await Log($"Reset {reset} stale 'uploading' row(s) to pending after restart");
+        } catch (Exception ex) {
+            await Log($"Stale-upload reset failed: {ex.Message}", LogLevel.Warn);
+        }
     }
 
     public void StopRetention() {
@@ -98,6 +117,21 @@ public class UploadService(Terminal terminal) {
             return;
         }
 
+        // Per-user storage-exhaustion guard: cap outstanding links and total bytes.
+        var (linkCount, byteTotal) = await GetOwnerUsageAsync(command.User.Id);
+        if (linkCount >= Config.UploadMaxLinksPerUser) {
+            await command.RespondAsync(
+                $"You already have {linkCount} active upload link(s) (max {Config.UploadMaxLinksPerUser}). " +
+                "Wait for some to expire before minting more.", ephemeral: true);
+            return;
+        }
+        if (byteTotal >= Config.UploadMaxBytesPerUser) {
+            await command.RespondAsync(
+                $"You've reached your upload storage quota ({Config.UploadMaxBytesPerUser / (1024 * 1024)} MB). " +
+                "Wait for existing uploads to expire.", ephemeral: true);
+            return;
+        }
+
         string id = GenerateId();
         await CreateUpload(id, command.User.Id, command.User.Username);
 
@@ -139,13 +173,18 @@ public class UploadService(Terminal terminal) {
             await client.MakeBucketAsync(new MakeBucketArgs().WithBucket(Config.MinioBucket));
     }
 
-    /// Streams the uploaded file into MinIO (object key = id) and marks the row ready.
-    /// Atomically claims the link (pending → uploading) first so a single-use link
-    /// can't be filled twice by concurrent POSTs. Returns false if it wasn't claimable
-    /// (already used or in progress).
-    public async Task<bool> StoreAsync(string id, Stream content, string filename, string contentType, long size) {
-        if (!await ClaimForUploadAsync(id)) return false;
+    /// Atomically claims a single-use link (pending → uploading). Call this BEFORE
+    /// reading the request body so a non-claimable request (already used / in progress)
+    /// is rejected without buffering the upload. Returns false if not claimable.
+    public Task<bool> TryClaimForUploadAsync(string id) => ClaimForUploadAsync(id);
 
+    /// Releases a claim back to pending (e.g. the request turned out to carry no file),
+    /// so the link can be retried.
+    public Task ReleaseClaimAsync(string id) => RevertToPendingAsync(id);
+
+    /// Streams an already-claimed upload into MinIO (object key = id) and marks it ready.
+    /// The caller must have won TryClaimForUploadAsync first. Reverts the claim on failure.
+    public async Task StoreClaimedAsync(string id, Stream content, string filename, string contentType, long size) {
         try {
             await EnsureBucketAsync();
             string type = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType;
@@ -159,10 +198,24 @@ public class UploadService(Terminal terminal) {
 
             await MarkReadyAsync(id, filename, type, size);
             await Log($"Stored an upload ({size / 1024} KB)");
-            return true;
         } catch {
             await RevertToPendingAsync(id); // let the user retry the link
             throw;
+        }
+    }
+
+    /// Tri-state object probe: true = exists, false = gone (cleaned/expired),
+    /// null = storage unreachable. Lets the web layer pick 404 vs 503 before
+    /// committing response headers.
+    public async Task<bool?> ObjectExistsAsync(string id) {
+        try {
+            await Minio().StatObjectAsync(new StatObjectArgs()
+                .WithBucket(Config.MinioBucket).WithObject(id));
+            return true;
+        } catch (Minio.Exceptions.ObjectNotFoundException) {
+            return false;
+        } catch {
+            return null;
         }
     }
 
@@ -177,13 +230,29 @@ public class UploadService(Terminal terminal) {
 
     // ── DB ───────────────────────────────────────────────────────────────
 
+    /// Current usage for an owner: number of live links and total bytes stored.
+    /// Backs the per-user quota in HandleUploadCommand (expired rows are swept, so
+    /// counting all of an owner's rows reflects outstanding usage).
+    private static async Task<(int Links, long Bytes)> GetOwnerUsageAsync(ulong ownerId) {
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*), COALESCE(SUM(size_bytes), 0) FROM uploads WHERE owner_user_id = $owner";
+        cmd.Parameters.AddWithValue("$owner", (long)ownerId);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync()) return (0, 0);
+        return ((int)reader.GetInt64(0), reader.GetInt64(1));
+    }
+
     public async Task<UploadRecord?> GetUploadAsync(string id) {
         using var conn = new SqliteConnection(Database.ConnectionString);
         await conn.OpenAsync();
 
         var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT status, filename, content_type, size_bytes
+            SELECT status, filename, content_type, size_bytes, download_count
             FROM uploads WHERE id = $id
             """;
         cmd.Parameters.AddWithValue("$id", id);
@@ -196,7 +265,40 @@ public class UploadService(Terminal terminal) {
             Status: reader.GetString(0),
             Filename: reader.IsDBNull(1) ? null : reader.GetString(1),
             ContentType: reader.IsDBNull(2) ? null : reader.GetString(2),
-            SizeBytes: reader.IsDBNull(3) ? null : reader.GetInt64(3));
+            SizeBytes: reader.IsDBNull(3) ? null : reader.GetInt64(3),
+            DownloadCount: (int)reader.GetInt64(4));
+    }
+
+    /// Registers one download against the link's N-time limit (audit L-1).
+    /// Returns false if the link has already reached Config.UploadMaxDownloads (caller
+    /// should serve 410 Gone). When the limit is 0 it is unlimited and always succeeds.
+    /// The increment is an atomic conditional UPDATE; on reaching the limit the link is
+    /// expired immediately so the retention sweep reclaims the object.
+    public async Task<bool> TryRegisterDownloadAsync(string id) {
+        int max = Config.UploadMaxDownloads;
+        if (max <= 0) return true; // unlimited — skip the write
+
+        using var conn = new SqliteConnection(Database.ConnectionString);
+        await conn.OpenAsync();
+
+        var inc = conn.CreateCommand();
+        inc.CommandText = "UPDATE uploads SET download_count = download_count + 1 WHERE id = $id AND download_count < $max";
+        inc.Parameters.AddWithValue("$id", id);
+        inc.Parameters.AddWithValue("$max", max);
+        if (await inc.ExecuteNonQueryAsync() == 0) return false; // already at the limit
+
+        // If that download consumed the last allowance, schedule the link for cleanup
+        // after a grace window. The link is ALREADY unreachable to new downloads (the
+        // count check above returns false), so the only effect is delaying physical
+        // deletion — long enough that THIS final transfer, registered before streaming,
+        // can't be deleted mid-flight by the retention sweep.
+        var exp = conn.CreateCommand();
+        exp.CommandText = "UPDATE uploads SET expires_at = $grace WHERE id = $id AND download_count >= $max";
+        exp.Parameters.AddWithValue("$grace", DateTime.UtcNow.AddHours(1).ToString("O"));
+        exp.Parameters.AddWithValue("$id", id);
+        exp.Parameters.AddWithValue("$max", max);
+        await exp.ExecuteNonQueryAsync();
+        return true;
     }
 
     /// Atomic claim: flips pending → uploading. Returns true only for the caller
