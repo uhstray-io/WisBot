@@ -19,6 +19,10 @@
          separate change gated on a voice smoke test (see docs/security audit). -->
     <PackageReference Include="Discord.Net" Version="3.19.0-beta.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+    <!-- Override the SQLite native to fix CVE-2025-6965 (SQLite < 3.50.2 memory
+         corruption). Microsoft.Data.Sqlite 10.0.9 transitively pins the vulnerable
+         SQLitePCLRaw 2.1.11 (e_sqlite3); the 3.0.x bundle ships SQLite 3.50.4.5. -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="Minio" Version="7.0.0" />
     <PackageReference Include="NAudio" Version="2.3.0" />
     <!-- Native libraries for Discord voice support.
