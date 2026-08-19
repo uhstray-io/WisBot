@@ -24,7 +24,7 @@
          SQLitePCLRaw 2.1.11 (e_sqlite3); the 3.0.x bundle ships SQLite 3.50.4.5. -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="Minio" Version="7.0.0" />
-    <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="NAudio" Version="3.0.1" />
     <!-- Native libraries for Discord voice support.
          libsodium ships cross-platform natives (linux/osx/win-x64) via NuGet.
          opus is Windows-only here; the Linux container installs libopus0 via apt
